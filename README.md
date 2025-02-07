@@ -46,92 +46,92 @@ integration, testing, and future expansion.
 
 .
 ├── CMake
-│   ├── CMakeConfig
-│   │   ├── gcc11_linux_aarch64_debug.cmake
-│   │   ├── gcc11_linux_aarch64_release.cmake
-│   │   ├── gcc11_linux_x86_64_debug.cmake
-│   │   ├── gcc11_linux_x86_64_release.cmake
-│   │   ├── qcc12_qnx800_aarch64_debug.cmake
-│   │   ├── qcc12_qnx800_aarch64_release.cmake
-│   │   ├── qcc12_qnx800_x86_64_debug.cmake
-│   │   └── qcc12_qnx800_x86_64_release.cmake
-│   └── Toolchain
-│       ├── CMakeLogging
-│       │   └── tool_chain_log_config.cmake
-│       ├── gcc11_linux_aarch64_debug.cmake
-│       ├── gcc11_linux_aarch64_release.cmake
-│       ├── gcc11_linux_x86_64_debug.cmake
-│       ├── gcc11_linux_x86_64_release.cmake
-│       ├── qcc12_qnx800_aarch64_debug.cmake
-│       ├── qcc12_qnx800_aarch64_release.cmake
-│       ├── qcc12_qnx800_x86_64_debug.cmake
-│       └── qcc12_qnx800_x86_64_release.cmake
+│ ├── CMakeConfig
+│ │ ├── gcc11_linux_aarch64_debug.cmake
+│ │ ├── gcc11_linux_aarch64_release.cmake
+│ │ ├── gcc11_linux_x86_64_debug.cmake
+│ │ ├── gcc11_linux_x86_64_release.cmake
+│ │ ├── qcc12_qnx800_aarch64_debug.cmake
+│ │ ├── qcc12_qnx800_aarch64_release.cmake
+│ │ ├── qcc12_qnx800_x86_64_debug.cmake
+│ │ └── qcc12_qnx800_x86_64_release.cmake
+│ └── Toolchain
+│     ├── CMakeLogging
+│     │ └── tool_chain_log_config.cmake
+│     ├── gcc11_linux_aarch64_debug.cmake
+│     ├── gcc11_linux_aarch64_release.cmake
+│     ├── gcc11_linux_x86_64_debug.cmake
+│     ├── gcc11_linux_x86_64_release.cmake
+│     ├── qcc12_qnx800_aarch64_debug.cmake
+│     ├── qcc12_qnx800_aarch64_release.cmake
+│     ├── qcc12_qnx800_x86_64_debug.cmake
+│     └── qcc12_qnx800_x86_64_release.cmake
 ├── CMakeLists.txt
 ├── CMakePresets.json
 ├── LICENSE
 ├── README.md
 ├── build.sh
 ├── components
-│   ├── open-aa-platform-os-abstraction-libs
-│   │   ├── CMakeLists.txt
-│   │   ├── include
-│   │   │   └── ara
-│   │   │       └── os
-│   │   │           ├── interface
-│   │   │           │   └── process
-│   │   │           │       ├── process_factory.h
-│   │   │           │       └── process_interaction.h
-│   │   │           ├── linux
-│   │   │           │   └── process
-│   │   │           │       └── process.h
-│   │   │           └── qnx
-│   │   │               └── process
-│   │   │                   └── process.h
-│   │   └── src
-│   │       ├── CMakeLists.txt
-│   │       └── ara
-│   │           └── os
-│   │               ├── interface
-│   │               │   └── process
-│   │               │       ├── CMakeLists.txt
-│   │               │       └── process_factory.cpp
-│   │               ├── linux
-│   │               │   └── process
-│   │               │       ├── CMakeLists.txt
-│   │               │       └── process.cpp
-│   │               └── qnx
-│   │                   └── process
-│   │                       ├── CMakeLists.txt
-│   │                       └── process.cpp
-│   ├── open-aa-std-adaptive-autosar-libs
-│   │   ├── CMakeLists.txt
-│   │   ├── include
-│   │   │   └── ara
-│   │   │       └── core
-│   │   │           ├── array.h
-│   │   │           └── internal
-│   │   │               ├── location_utils.h
-│   │   │               └── violation_handler.h
-│   │   └── src
-│   │       └── ara
-│   │           └── core
-│   │               └── internal
-│   │                   └── violation_handler.cpp
-│   └── open-aa-example-apps
-│       ├── CMakeLists.txt
-│       └── demo
-│           ├── CMakeLists.txt
-│           └── app
-│               ├── CMakeLists.txt
-│               ├── include
-│               │   └── demo
-│               │       └── manager
-│               │           └── demo_manager.h
-│               └── src
-│                   ├── demo
-│                   │   └── manager
-│                   │       └── demo_manager.cpp
-│                   └── main.cpp
+│ ├── open-aa-platform-os-abstraction-libs
+│ │ ├── CMakeLists.txt
+│ │ ├── include
+│ │ │ └── ara
+│ │ │     └── os
+│ │ │         ├── interface
+│ │ │         │ └── process
+│ │ │         │     ├── process_factory.h
+│ │ │         │     └── process_interaction.h
+│ │ │         ├── linux
+│ │ │         │ └── process
+│ │ │         │     └── process.h
+│ │ │         └── qnx
+│ │ │             └── process
+│ │ │                 └── process.h
+│ │ └── src
+│ │     ├── CMakeLists.txt
+│ │     └── ara
+│ │         └── os
+│ │             ├── interface
+│ │             │ └── process
+│ │             │     ├── CMakeLists.txt
+│ │             │     └── process_factory.cpp
+│ │             ├── linux
+│ │             │ └── process
+│ │             │     ├── CMakeLists.txt
+│ │             │     └── process.cpp
+│ │             └── qnx
+│ │                 └── process
+│ │                     ├── CMakeLists.txt
+│ │                     └── process.cpp
+│ ├ open-aa-std-adaptive-autosar-libs
+│ │ ├── CMakeLists.txt
+│ │ ├── include
+│ │ │ └── ara
+│ │ │     └── core
+│ │ │         ├── array.h
+│ │ │         └── internal
+│ │ │             ├── location_utils.h
+│ │ │             └── violation_handler.h
+│ │ └── src
+│ │     └── ara
+│ │         └── core
+│ │             └── internal
+│ │                 └── violation_handler.cpp
+│ └── open-aa-example-apps
+│     ├── CMakeLists.txt
+│     └── demo
+│         ├── CMakeLists.txt
+│         └── app
+│             ├── CMakeLists.txt
+│             ├── include
+│             │ └── demo
+│             │     └── manager
+│             │         └── demo_manager.h
+│             └── src
+│                 ├── demo
+│                 │ └── manager
+│                 │     └── demo_manager.cpp
+│                 └── main.cpp
 └── tests
     └── core_platform
         ├── CMakeLists.txt
