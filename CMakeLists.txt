@@ -52,9 +52,12 @@ if(POLICY CMP0177)
     cmake_policy(SET CMP0177 NEW)
 endif()
 
-# Additional policy examples (optional):
-#   if(POLICY CMP0079) ...
-#   if(POLICY CMP0048) ...
+if(DEFINED ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS)
+  message(STATUS "Conditional exceptions flag is enabled: ${ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS}")
+  # Add it as a compile definition to all targets:
+  add_compile_definitions(ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS)
+endif()
+
 
 # -------------------------------------------------------------------------------------------------
 # Subdirectories for main libraries/components

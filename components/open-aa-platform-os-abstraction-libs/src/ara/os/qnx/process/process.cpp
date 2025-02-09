@@ -40,7 +40,8 @@ namespace process {
  * \note   This method avoids exceptions and uses safe string operations to prevent buffer overflows.
  */
 auto ProcessInteractionImpl::GetProcessName(char* buffer, std::size_t bufferSize) const noexcept -> ara::os::interface::process::ErrorCode {
-
+    static_cast<void>(buffer);
+    static_cast<void>(bufferSize);
     return ara::os::interface::process::ErrorCode::NullBuffer;
 }
 
