@@ -234,21 +234,33 @@ configure_project() {
     exit 1
   fi
 
-  # Generate temporary config.cmake for exception safety
-  generate_temp_config
-
   log INFO "Configuring the project with preset: $PRESET_NAME and EXCEPTION_SAFETY_MODE=${EXCEPTION_SAFETY_MODE}"
-  
+
+  # Build an array of cmake command arguments.
+  cmd=(cmake)
+
+  # If a configuration file exists, add it.
   if [ -f "$CONFIG_FILE" ]; then
     log INFO "Using configuration file: $CONFIG_FILE"
-    run_command cmake -C "$CONFIG_FILE" -C "$TEMP_CACHE_FILE" --preset "$PRESET_NAME"
+    cmd+=("-C" "$CONFIG_FILE")
   else
     if [ -n "$CONFIG_FILE" ]; then
       log WARN "Configuration file not found: $CONFIG_FILE. Proceeding without it."
     fi
-    run_command cmake -C "$TEMP_CACHE_FILE" --preset "$PRESET_NAME"
   fi
+
+  # Conditionally add the conditional exceptions flag if the mode is "conditional".
+  if [ "$EXCEPTION_SAFETY_MODE" = "conditional" ]; then
+    cmd+=("-DARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS=1")
+  fi
+
+  # Specify the preset.
+  cmd+=("--preset" "$PRESET_NAME")
+
+  # Run the command.
+  run_command "${cmd[@]}"
 }
+
 
 # ------------------------------------------------------------------------------
 # 12) Build Project
