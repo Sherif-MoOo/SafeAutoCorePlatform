@@ -29,10 +29,16 @@
  *  \note       All variables are used, preventing compiler warnings about unused variables.
  *********************************************************************************************************************/
 
+#if defined(__linux__)
+#include <sys/prctl.h>
+#endif
 #include "ara/core/array.h" // The custom Array implementation header
 #include <iostream>         // For std::cout (demonstrations)
 #include <string>           // For std::string
 #include <cassert>          // For runtime checks via assert
+
+static constexpr std::string_view   kProcessNameView{"CoreArrayTest"};
+static constexpr std::uint8_t       kMaxProcessName{15};
 
 /**********************************************************************************************************************
  *  FORWARD DECLARATIONS
@@ -228,6 +234,16 @@ int main(int argc, char* argv[])
         PrintUsage(argv[0]);
         return 1;
     }
+    static_assert(kProcessNameView.size() <= kMaxProcessName,
+        "\n[ERROR] Process name is too long!!\n");
+
+    #if defined(__linux__)
+        prctl(PR_SET_NAME, kProcessNameView.data(), 0, 0, 0);
+    #elif defined(__QNXNTO__)
+        // On QNX, use pthread_setname_np() to set the name of the calling thread (main thread).
+        // This name will be used as the process name.
+        pthread_setname_np(pthread_self(), kProcessNameView.data());
+    #endif
 
     std::string choice = argv[1];
     if      (choice == "1")  TestElementAccessAndIterators();

@@ -10,12 +10,10 @@
  *  \file       ara/os/interface/process/process_interaction.h
  *  \brief      Definition of the ara::os::interface::process::ProcessInteraction interface.
  *
- *  \details    This file defines the ara::os::interface::process::ProcessInteraction interface for retrieving
- *              process-related information.
- *
- *  \note       While not specified by AUTOSAR requirements, this interface is essential for creating a generic
- *              platform solution to abstract OS-specific functionalities.
- ***********************************************************************************************************************/
+ *  \details
+ *              This file defines the abstract interface for process-related operations.
+ *              Implementations must be thread-safe, use safe string and file operations, and meet ASIL-D standards.
+ **********************************************************************************************************************/
 
 #ifndef OPEN_AA_ADAPTIVE_AUTOSAR_LIBS_INCLUDE_ARA_OS_INTERFACE_PROCESS_PROCESS_INTERACTION_H_
 #define OPEN_AA_ADAPTIVE_AUTOSAR_LIBS_INCLUDE_ARA_OS_INTERFACE_PROCESS_PROCESS_INTERACTION_H_
@@ -36,53 +34,48 @@ namespace os {
 namespace interface {
 namespace process {
 
-/**********************************************************************************************************************
- *  ENUM: ErrorCode
- *********************************************************************************************************************/
 /*!
- * \brief  Enumeration of possible error codes for ProcessInteraction operations.
+ * \brief Enumeration of error codes for ProcessInteraction operations.
  *
  * \details
- * - Defines standard error codes to indicate the result of ProcessInteraction interface operations.
- * - Facilitates precise error handling and debugging.
+ * This enum provides clear, unambiguous error codes for process-related operations.
+ * These codes support ASIL-D requirements by enabling precise error handling.
  */
 enum class ErrorCode : uint8_t {
-    Success = 0,                   /*!< Operation completed successfully */
-    BufferTooSmall,                /*!< Provided buffer is too small */
-    RetrievalFailed,               /*!< Failed to retrieve the process name */
-    NullBuffer,                    /*!< Provided buffer pointer is null */
-    UnknownError                   /*!< An unknown error occurred */
+    Success = 0,         /*!< Operation completed successfully */
+    BufferTooSmall,      /*!< The provided buffer is insufficient */
+    RetrievalFailed,     /*!< Failed to retrieve the process name */
+    NullBuffer,          /*!< The provided buffer pointer is null */
+    UnknownError         /*!< An unspecified error occurred */
 };
 
-/**********************************************************************************************************************
- *  CLASS: ProcessInteraction
- *********************************************************************************************************************/
 /*!
- * \brief  Abstract interface for process-related functionalities.
+ * \brief Abstract interface for platform-specific process interaction.
  *
  * \details
- * - Provides methods to retrieve process-specific information in a platform-agnostic manner.
- * - Implementations must ensure thread safety and handle any platform-specific nuances.
+ * This interface abstracts away the operating system specifics for retrieving process information.
+ * Implementations must be thread-safe and adhere to safe programming practices (e.g., avoid buffer overflows).
  *
- * \note   This interface serves as an abstraction layer to interact with different operating systems seamlessly.
+ * \note This interface is designed to be implemented without dynamic memory allocation within the methods.
  */
 class ProcessInteraction {
 public:
-    /*!
-     * \brief  Virtual destructor for proper cleanup of derived classes.
-     */
     virtual ~ProcessInteraction() = default;
 
     /*!
-     * \brief  Retrieves the name of the current process.
+     * \brief Retrieves the name of the current process.
      *
      * \param[out] buffer      Pointer to the buffer where the process name will be stored.
      * \param[in]  bufferSize  Size of the provided buffer in bytes.
      *
-     * \return An ara::os::interface::process::ErrorCode indicating the result of the operation.
+     * \return An ErrorCode indicating the result:
+     *         - Success if the process name was successfully retrieved.
+     *         - NullBuffer if the output pointer is null.
+     *         - BufferTooSmall if the buffer is too small.
+     *         - RetrievalFailed if an unexpected error occurred.
      *
-     * \note   Implementations must ensure that this method is thread-safe.
-     *         The process name is null-terminated if successfully retrieved.
+     * \note The returned process name is null-terminated.
+     *       Implementations must use safe string operations and be thread-safe.
      */
     virtual auto GetProcessName(char* buffer, std::size_t bufferSize) const noexcept -> ErrorCode = 0;
 };

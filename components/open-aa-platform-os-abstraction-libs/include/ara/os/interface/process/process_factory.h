@@ -10,52 +10,44 @@
  *  \file       ara/os/interface/process/process_factory.h
  *  \brief      Declaration of the ara::os::interface::process::ProcessFactory.
  *
- *  \details    This file declares the ara::os::interface::process::ProcessFactory class responsible for creating
- *              platform-specific instances of the ProcessInteraction interface.
- *
- *  \note       This facilitates the OS abstraction by hiding platform-specific details from the client.
- ***********************************************************************************************************************/
+ *  \details
+ *              This file declares the ProcessFactory class responsible for providing a singleton instance
+ *              of a platform-specific implementation of the ProcessInteraction interface.
+ *              The implementation is stateless and thread-safe, and by using a function-local static object,
+ *              dynamic memory allocation is avoided. This design meets safety (ASIL-D) and security requirements.
+ **********************************************************************************************************************/
 
 #ifndef OPEN_AA_ADAPTIVE_AUTOSAR_LIBS_INCLUDE_ARA_OS_INTERFACE_PROCESS_PROCESS_FACTORY_H_
 #define OPEN_AA_ADAPTIVE_AUTOSAR_LIBS_INCLUDE_ARA_OS_INTERFACE_PROCESS_PROCESS_FACTORY_H_
 
-/**********************************************************************************************************************
- *  INCLUDES
- *********************************************************************************************************************/
-/*!
- * \brief  Includes the ProcessInteraction interface header.
- */
 #include "ara/os/interface/process/process_interaction.h"
-
-#include <memory> // For std::unique_ptr
 
 namespace ara {
 namespace os {
 namespace interface {
 namespace process {
 
-/**********************************************************************************************************************
- *  CLASS: ProcessFactory
- *********************************************************************************************************************/
 /*!
- * \brief  Factory class for creating ara::os::interface::process::ProcessInteraction instances.
+ * \brief Factory class for retrieving platform-specific ProcessInteraction instances.
  *
  * \details
- * - Determines the target platform at compile-time and instantiates the corresponding ProcessInteraction implementation.
- * - Ensures scalability by supporting multiple platforms.
- * - Thread-safe and stateless, allowing concurrent access in multi-threaded environments.
+ * This class provides a single access point to a statically allocated, thread-safe instance of a platform-specific
+ * implementation of the ProcessInteraction interface. By avoiding heap allocation, we reduce memory overhead
+ * and meet stringent ASIL-D guidelines.
+ *
+ * \note The returned instance is valid for the entire lifetime of the program.
  */
 class ProcessFactory {
 public:
     /*!
-     * \brief  Creates a platform-specific ProcessInteraction instance.
+     * \brief Retrieves the platform-specific ProcessInteraction instance.
      *
-     * \return A std::unique_ptr to an ara::os::interface::process::ProcessInteraction object.
-     *         Compilation fails if the platform is unsupported.
+     * \return A const reference to an instance of ara::os::interface::process::ProcessInteraction.
      *
-     * \note   This method is thread-safe and can be called concurrently from multiple threads.
+     * \note This method performs no dynamic memory allocation.
+     *       The returned instance is statically allocated in a thread-safe manner.
      */
-    static auto CreateInstance() noexcept -> std::unique_ptr<ProcessInteraction>;
+    static auto CreateInstance() noexcept -> const ProcessInteraction&;
 };
 
 } // namespace process
@@ -63,4 +55,4 @@ public:
 } // namespace os
 } // namespace ara
 
-#endif // OPEN_AA_ADAPTIVE_AUTOSAR_LIBS_INCLUDE_ARA_OS_INTERFACE_PROCESS_PROCESS_FACTORY_H_
+#endif // OPEN_AA_ADAPTIVE_AUTOSAR_LIBS_INCLUDE_ARA_OS_INTERFACE_PROCESS_PROCESS_FACTORY_H_ 

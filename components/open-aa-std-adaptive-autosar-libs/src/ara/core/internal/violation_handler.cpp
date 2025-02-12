@@ -83,7 +83,7 @@ auto ViolationHandler::Instance() noexcept -> ViolationHandler&
     std::cerr << "[App vlt][FATAL]: Violation detected in " << GetProcessIdentifier()
               << " at " << location
               << ": Array access out of range: Tried to access "
-              << indexValue << " in array of size " << arraySize << ".\n";
+              << indexValue << " in array of size " << arraySize << ".\n" << std::endl;
 
     // Terminate the process as per AUTOSAR requirements
     Abort();
@@ -121,24 +121,31 @@ auto ViolationHandler::Instance() noexcept -> ViolationHandler&
  *
  * \note   [SWS_CORE_00090]
  */
-auto ViolationHandler::GetProcessIdentifier() noexcept -> std::string
-{
-    constexpr std::size_t process_name_buffer_size = 256;
-    char buf[process_name_buffer_size] = {0};
+ auto ViolationHandler::GetProcessIdentifier() noexcept -> std::string {
+    // Define a buffer size that is sufficiently large to hold the process name.
+    // The size should accommodate the expected maximum length plus the null terminator.
+    constexpr std::size_t processNameBufferSize = 256;
+    char processNameBuffer[processNameBufferSize] = {0};
 
-    auto processInteraction = ara::os::interface::process::ProcessFactory::CreateInstance();
-    if (processInteraction) {
-        auto error = processInteraction->GetProcessName(buf, process_name_buffer_size);
-        if (error != ara::os::interface::process::ErrorCode::Success) {
-            std::strncpy(buf, "UnknownProcess", process_name_buffer_size - 1);
-        }
-    } else {
-        std::strncpy(buf, "UnsupportedPlatform", process_name_buffer_size - 1);
+    // Retrieve the singleton instance of the platform-specific ProcessInteraction.
+    // The factory returns a reference so no pointer-check is needed.
+    const auto& processInteraction = ara::os::interface::process::ProcessFactory::CreateInstance();
+
+    // Attempt to retrieve the process name into the local buffer.
+    auto error = processInteraction.GetProcessName(processNameBuffer, processNameBufferSize);
+
+    // If the process name could not be retrieved, use a default/fallback name.
+    if (error != ara::os::interface::process::ErrorCode::Success) {
+        // Copy a default string into the buffer ensuring no overflow.
+        std::strncpy(processNameBuffer, "UnknownProcess", processNameBufferSize - 1);
+        // Guarantee null termination.
+        processNameBuffer[processNameBufferSize - 1] = '\0';
     }
 
-    return std::string(buf);
+    // Construct and return a std::string from the buffer.
+    // Note: While std::string may allocate memory, the critical path avoids dynamic allocations.
+    return std::string(processNameBuffer);
 }
-
 
 
 } // namespace internal
