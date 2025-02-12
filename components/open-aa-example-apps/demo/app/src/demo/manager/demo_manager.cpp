@@ -21,6 +21,7 @@
 #include <cstdint>                          // For the std types
 #include <iostream>                         // For the std::cout and cerr
 #include <csignal>                          // For signal Block to handle shutdown
+#include <cstring>                          // For std::strerror
 
 #include "ara/core/array.h"                 // For platform core Array class
 #include "demo/manager/demo_manager.h"      // For the manager class
@@ -105,7 +106,7 @@ auto DemoManager::GracefulShutdownHandler() noexcept -> void {
     pthread_setname_np(pthread_self(), "demo_sig");
 
     bool success{false};
-
+    
     sigset_t singals{};
 
     int def_sig{-1};

@@ -45,12 +45,9 @@
 #include <algorithm>     // For std::lexicographical_compare, std::swap_ranges, std::fill_n
 #include <type_traits>   // For std::is_nothrow_move_constructible, std::is_nothrow_move_assignable, etc.
 #include <utility>       // For std::declval, std::move, std::forward
-#include <iostream>      // For demonstration logging (std::cerr)
-#include <cstdlib>       // For std::terminate (to handle violations/fatal errors)
-#include <cstring>       // For std::strncpy
 
-#include "ara/core/internal/location_utils.h" // For capturing file/line details
-#include "ara/core/internal/violation_handler.h" // To Trigger the violation
+#include "ara/core/internal/location_utils.h"       // For capturing file/line details
+#include "ara/core/internal/violation_handler.h"    // To Trigger the violation
 
 /**********************************************************************************************************************
  *  NAMESPACE: ara::core
@@ -129,6 +126,43 @@ struct is_single_same_array<Array<T, N>> : std::true_type {};
 template<typename... Args>
 constexpr bool is_single_same_array_v = is_single_same_array<std::decay_t<Args>...>::value;
 
+
+/*!
+ * \brief Performs a lexicographical comparison between two ranges.
+ *
+ * \tparam InputIt1 The type of the input iterator for the first range.
+ * \tparam InputIt2 The type of the input iterator for the second range.
+ * \param first1 An iterator pointing to the first element of the first range.
+ * \param last1  An iterator pointing past the last element of the first range.
+ * \param first2 An iterator pointing to the first element of the second range.
+ * \param last2  An iterator pointing past the last element of the second range.
+ * \return \c true if the first range is lexicographically less than the second range; \c false otherwise.
+ *
+ * \details
+ * The function compares the elements in the ranges [first1, last1) and [first2, last2) one by one.
+ * - For each pair of corresponding elements, if the element from the first range is less than the element
+ *   from the second range, the function returns \c true.
+ * - If the element from the second range is less than the element from the first range, the function returns \c false.
+ * - If the elements are equal, the comparison continues to the next pair.
+ * - When the end of one of the ranges is reached:
+ *     - If the first range is exhausted but the second range still has elements, the first range is considered
+ *       lexicographically less, so the function returns \c true.
+ *     - Otherwise, the function returns \c false.
+ *
+ * \note The function is declared as \c constexpr, so if both the iterators and the element comparison 
+ * are themselves \c constexpr, the entire operation can be evaluated at compile time.
+ */
+ template <typename InputIt1, typename InputIt2>
+ constexpr auto lex_compare(InputIt1 first1, InputIt1 last1, InputIt2 first2, InputIt2 last2) noexcept -> bool {
+     for (; first1 != last1 && first2 != last2; ++first1, ++first2) {
+         if (*first1 < *first2)
+             return true;
+         if (*first2 < *first1)
+             return false;
+     }
+     return (first1 == last1) && (first2 != last2);
+ }
+ 
 }  // namespace detail
 
 /**********************************************************************************************************************
@@ -358,13 +392,14 @@ public:
      * \param  idx  The index to access.
      * \return     Reference to the element at index \c idx.
      *
-     * \note  [SWS_CORE_01265], [SWS_CORE_01266]
+     * \note  [SWS_CORE_01265], [SWS_CORE_01266] Accessing a non-existing element through this operation is undefined behavior. Use the function
+     *          at for checked access to the elements.
      */
     constexpr auto operator[](size_type idx) noexcept -> T&
     {
         // Per [SWS_CORE_01266], operator[] does NOT do bound checks. 
         // Accessing out-of-range is undefined behavior.
-        return this->data_[idx];
+        return this->at(idx);
     }
 
     /*!
@@ -373,11 +408,12 @@ public:
      * \param  idx  The index to access.
      * \return     Const reference to the element at index \c idx.
      *
-     * \note  [SWS_CORE_01265], [SWS_CORE_01266]
+     * \note  [SWS_CORE_01265], [SWS_CORE_01266] Accessing a non-existing element through this operation is undefined behavior. Use the function
+     *          at for checked access to the elements.
      */
     constexpr auto operator[](size_type idx) const noexcept -> const T&
     {
-        return this->data_[idx];
+        return this->at(idx);
     }
 
     // -----------------------------------------------------------------------------------
@@ -965,8 +1001,8 @@ constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
         "\n[ERROR] in ara::core::Array: The type T's operator< must be marked 'noexcept' when exceptions are disabled.\n");
 #endif
 
-    return std::lexicographical_compare(lhs.begin(), lhs.end(),
-                                        rhs.begin(), rhs.end());
+    return detail::lex_compare(lhs.begin(), lhs.end(),
+                               rhs.begin(), rhs.end());
 }
 
 /*!

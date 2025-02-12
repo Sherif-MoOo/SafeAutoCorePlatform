@@ -89,8 +89,8 @@ set(CMAKE_C_FLAGS_DEBUG_INIT "-O0 -g" CACHE STRING "C Compiler Flags for Debug")
 # Flags for MinSizeRel build: Optimize for size, define NDEBUG.
 set(CMAKE_C_FLAGS_MINSIZEREL_INIT "-Os -DNDEBUG" CACHE STRING "C Compiler Flags for MinSizeRel")
 
-# Flags for Release build: Optimize for speed, define NDEBUG.
-set(CMAKE_C_FLAGS_RELEASE_INIT "-O3 -DNDEBUG" CACHE STRING "C Compiler Flags for Release")
+# Flags for Release build: Optimize for speed, define NDEBUG and integrate enhanced options.
+set(CMAKE_C_FLAGS_RELEASE_INIT "-O3 -DNDEBUG -ffunction-sections -fdata-sections -fstack-protector-strong -Wformat -Wformat-security" CACHE STRING "C Compiler Flags for Release")
 
 # Flags for RelWithDebInfo build: Optimize with debug symbols.
 set(CMAKE_C_FLAGS_RELWITHDEBINFO_INIT "-O2 -g -DNDEBUG" CACHE STRING "C Compiler Flags for RelWithDebInfo")
@@ -130,8 +130,8 @@ set(CMAKE_CXX_FLAGS_DEBUG_INIT "-O0 -g" CACHE STRING "C++ Compiler Flags for Deb
 # Flags for MinSizeRel build: Optimize for size, define NDEBUG.
 set(CMAKE_CXX_FLAGS_MINSIZEREL_INIT "-Os -DNDEBUG" CACHE STRING "C++ Compiler Flags for MinSizeRel")
 
-# Flags for Release build: Optimize for speed, define NDEBUG.
-set(CMAKE_CXX_FLAGS_RELEASE_INIT "-O3 -DNDEBUG" CACHE STRING "C++ Compiler Flags for Release")
+# Flags for Release build: Optimize for speed, define NDEBUG and integrate enhanced options.
+set(CMAKE_CXX_FLAGS_RELEASE_INIT "-O3 -DNDEBUG -ffunction-sections -fdata-sections -fstack-protector-strong -Wformat -Wformat-security" CACHE STRING "C++ Compiler Flags for Release")
 
 # Flags for RelWithDebInfo build: Optimize with debug symbols.
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO_INIT "-O2 -g -DNDEBUG" CACHE STRING "C++ Compiler Flags for RelWithDebInfo")
@@ -167,8 +167,8 @@ set(CMAKE_EXE_LINKER_FLAGS_DEBUG_INIT "-g" CACHE STRING "Executable Linker Flags
 # Flags for MinSizeRel build: Strip symbols to reduce size.
 set(CMAKE_EXE_LINKER_FLAGS_MINSIZEREL_INIT "-s" CACHE STRING "Executable Linker Flags for MinSizeRel")
 
-# Flags for Release build: No additional flags.
-set(CMAKE_EXE_LINKER_FLAGS_RELEASE_INIT "" CACHE STRING "Executable Linker Flags for Release")
+# Flags for Release build: Optimize binary size with garbage collection and symbol stripping.
+set(CMAKE_EXE_LINKER_FLAGS_RELEASE_INIT "-Wl,--gc-sections -s" CACHE STRING "Executable Linker Flags for Release")
 
 # Flags for RelWithDebInfo build: Include debug symbols.
 set(CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO_INIT "-g" CACHE STRING "Executable Linker Flags for RelWithDebInfo")

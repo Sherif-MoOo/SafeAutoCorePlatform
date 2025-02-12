@@ -184,47 +184,6 @@ clean_directories() {
 }
 
 # ------------------------------------------------------------------------------
-# 10) Generate Temporary Config.cmake for Exception Safety
-# ------------------------------------------------------------------------------
-generate_temp_config() {
-  if [[ "$EXCEPTION_SAFETY_MODE" == "conditional" ]]; then
-    TEMP_CACHE_FILE=$(mktemp)
-    cat <<EOF > "$TEMP_CACHE_FILE"
-# Temporary config.cmake to set EXCEPTION_SAFETY_MODE and define ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
-
-set(EXCEPTION_SAFETY_MODE "${EXCEPTION_SAFETY_MODE}" CACHE STRING "Exception Safety Mode: 'safe' or 'conditional'" FORCE)
-
-if(EXCEPTION_SAFETY_MODE STREQUAL "conditional")
-    # Define the macro for the compiler by appending to CMAKE_CXX_FLAGS
-    set(CMAKE_CXX_FLAGS "\${CMAKE_CXX_FLAGS} -DARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS=1" CACHE STRING "" FORCE)
-    message(STATUS "Exception Safety Mode set to CONDITIONAL: ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS=1")
-elseif(EXCEPTION_SAFETY_MODE STREQUAL "safe")
-    # Do not define the macro in safe mode
-    message(STATUS "Exception Safety Mode set to SAFE: No exception safety macros defined.")
-else()
-    message(FATAL_ERROR "Invalid EXCEPTION_SAFETY_MODE: ${EXCEPTION_SAFETY_MODE}. Allowed values are 'safe' or 'conditional'.")
-endif()
-EOF
-    log INFO "Generated temporary config.cmake for exception safety: $TEMP_CACHE_FILE"
-  elif [[ "$EXCEPTION_SAFETY_MODE" == "safe" ]]; then
-    # In 'safe' mode, do not define the macro
-    TEMP_CACHE_FILE=$(mktemp)
-    cat <<EOF > "$TEMP_CACHE_FILE"
-# Temporary config.cmake to set EXCEPTION_SAFETY_MODE to 'safe'
-
-set(EXCEPTION_SAFETY_MODE "${EXCEPTION_SAFETY_MODE}" CACHE STRING "Exception Safety Mode: 'safe' or 'conditional'" FORCE)
-
-# Do not define ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
-message(STATUS "Exception Safety Mode set to SAFE: No exception safety macros defined.")
-EOF
-    log INFO "Generated temporary config.cmake for exception safety: $TEMP_CACHE_FILE"
-  else
-    log ERROR "Invalid EXCEPTION_SAFETY_MODE: $EXCEPTION_SAFETY_MODE. Allowed values are 'safe' or 'conditional'."
-    exit 1
-  fi
-}
-
-# ------------------------------------------------------------------------------
 # 11) Configure Project (cmake)
 # ------------------------------------------------------------------------------
 configure_project() {

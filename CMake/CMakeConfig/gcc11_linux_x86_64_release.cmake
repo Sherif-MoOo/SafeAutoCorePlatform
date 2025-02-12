@@ -13,7 +13,7 @@
 # to streamline the build process for Linux targets.
 #=======================================================================]
 
-#[=======================================================================[
+#[=======================================================================[ 
 .rst:
 gcc11_linux_x86_64
 -------------------
@@ -33,7 +33,7 @@ All variables can be set as initial cache variables and passed as a file to CMak
 
 #]=======================================================================]
 
-#[=======================================================================[
+#[=======================================================================[ 
   CMake Specific Project Settings
 #]=======================================================================]
 
@@ -49,6 +49,13 @@ All variables can be set as initial cache variables and passed as a file to CMak
 message(STATUS "Using gcc11_linux_x86_64_release.cmake for initial cache setup.")
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries")
+
+#=======================================================================
+# Enable modern link-time optimization (LTO) via CMake.
+# This (available in CMake 3.9+) tells CMake to propagate the proper LTO
+# flags to both the compiler and linker. (It complements the manually added -flto.)
+#=======================================================================
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE CACHE BOOL "Enable Link Time Optimization (LTO)")
 
 #=======================================================================
 # Compiler Configuration for C
@@ -96,7 +103,11 @@ set(CMAKE_C_FLAGS_DEBUG_INIT "-O0 -g" CACHE STRING "C Compiler Flags for Debug")
 set(CMAKE_C_FLAGS_MINSIZEREL_INIT "-Os -DNDEBUG" CACHE STRING "C Compiler Flags for MinSizeRel")
 
 # Flags for Release build: Optimize for speed, define NDEBUG.
-set(CMAKE_C_FLAGS_RELEASE_INIT "-O3 -DNDEBUG" CACHE STRING "C Compiler Flags for Release")
+# Additional production flags are added:
+#  -ffunction-sections and -fdata-sections: Allow removal of unused sections.
+#  -fno-semantic-interposition: Enable more aggressive inlining and optimization.
+#  -funroll-loops: Unroll loops where beneficial.
+set(CMAKE_C_FLAGS_RELEASE_INIT "-O3 -DNDEBUG -ffunction-sections -fdata-sections -fno-semantic-interposition -funroll-loops" CACHE STRING "C Compiler Flags for Release")
 
 # Flags for RelWithDebInfo build: Optimize with debug symbols.
 set(CMAKE_C_FLAGS_RELWITHDEBINFO_INIT "-O2 -g -DNDEBUG" CACHE STRING "C Compiler Flags for RelWithDebInfo")
@@ -122,12 +133,10 @@ set(CMAKE_C_FLAGS_RELEASEWITHO2_INIT "-O2 -DNDEBUG" CACHE STRING "C Compiler Fla
 #   -pedantic: Enforce strict ISO compliance.
 #   -Wshadow: Warn when a variable shadows another variable.
 #   -Wno-error=deprecated-declarations: Do not treat deprecated declarations as errors.
-#   -v: Verbose output during compilation.
 #
 # Added Flags:
 #   -Werror: Treat all warnings as errors.
 #   -Wstrict-overflow=5: Warn about cases where the compiler assumes that signed overflow does not occur.
-#   -Wmissing-prototypes: Warn if a global function is defined without a previous prototype declaration.
 #   -Wstrict-aliasing=2: Enforce strict aliasing rules.
 #   -Wundef: Warn if an undefined identifier is evaluated in an `#if` directive.
 #   -Wredundant-decls: Warn about redundant declarations.
@@ -143,7 +152,7 @@ set(CMAKE_C_FLAGS_RELEASEWITHO2_INIT "-O2 -DNDEBUG" CACHE STRING "C Compiler Fla
 #   -D_FORTIFY_SOURCE=2: Enable additional compile-time and run-time checks for buffer overflows.
 #=======================================================================
 set(CMAKE_CXX_FLAGS_INIT "-Wall -Wextra -Wnon-virtual-dtor -Wconversion -Wold-style-cast \
--pedantic -Wshadow -Wno-error=deprecated-declarations -v \
+-pedantic -Wshadow -Wno-error=deprecated-declarations \
 -Werror -Wstrict-overflow=5 \
 -Wstrict-aliasing=2 -Wundef -Wredundant-decls \
 -Wcast-align -Wformat=2 -Wfloat-equal \
@@ -160,7 +169,11 @@ set(CMAKE_CXX_FLAGS_DEBUG_INIT "-O0 -g" CACHE STRING "C++ Compiler Flags for Deb
 set(CMAKE_CXX_FLAGS_MINSIZEREL_INIT "-Os -DNDEBUG" CACHE STRING "C++ Compiler Flags for MinSizeRel")
 
 # Flags for Release build: Optimize for speed, define NDEBUG.
-set(CMAKE_CXX_FLAGS_RELEASE_INIT "-O3 -DNDEBUG" CACHE STRING "C++ Compiler Flags for Release")
+# Additional production flags are added:
+#  -ffunction-sections and -fdata-sections
+#  -fno-semantic-interposition
+#  -funroll-loops
+set(CMAKE_CXX_FLAGS_RELEASE_INIT "-O3 -DNDEBUG -ffunction-sections -fdata-sections -fno-semantic-interposition -funroll-loops" CACHE STRING "C++ Compiler Flags for Release")
 
 # Flags for RelWithDebInfo build: Optimize with debug symbols.
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO_INIT "-O2 -g -DNDEBUG" CACHE STRING "C++ Compiler Flags for RelWithDebInfo")
@@ -177,6 +190,8 @@ set(CMAKE_CXX_FLAGS_RELEASEWITHO2_INIT "-O2 -DNDEBUG" CACHE STRING "C++ Compiler
 #
 # These flags are used by the linker during respective build types.
 # Adjust them based on your project's requirements and target environment.
+# For production builds, we now add -flto and instruct the linker to remove
+# unused sections with -Wl,--gc-sections.
 #=======================================================================
 
 #=======================================================================
@@ -196,8 +211,8 @@ set(CMAKE_EXE_LINKER_FLAGS_DEBUG_INIT "-g" CACHE STRING "Executable Linker Flags
 # Flags for MinSizeRel build: Strip symbols to reduce size.
 set(CMAKE_EXE_LINKER_FLAGS_MINSIZEREL_INIT "-s" CACHE STRING "Executable Linker Flags for MinSizeRel")
 
-# Flags for Release build: No additional flags.
-set(CMAKE_EXE_LINKER_FLAGS_RELEASE_INIT "" CACHE STRING "Executable Linker Flags for Release")
+# Flags for Release build: Enable LTO and garbage collect unused sections.
+set(CMAKE_EXE_LINKER_FLAGS_RELEASE_INIT "-flto -Wl,--gc-sections" CACHE STRING "Executable Linker Flags for Release")
 
 # Flags for RelWithDebInfo build: Include debug symbols.
 set(CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO_INIT "-g" CACHE STRING "Executable Linker Flags for RelWithDebInfo")
@@ -222,8 +237,8 @@ set(CMAKE_MODULE_LINKER_FLAGS_DEBUG_INIT "" CACHE STRING "Module Linker Flags fo
 # Flags for MinSizeRel build: No additional flags.
 set(CMAKE_MODULE_LINKER_FLAGS_MINSIZEREL_INIT "" CACHE STRING "Module Linker Flags for MinSizeRel")
 
-# Flags for Release build: No additional flags.
-set(CMAKE_MODULE_LINKER_FLAGS_RELEASE_INIT "" CACHE STRING "Module Linker Flags for Release")
+# Flags for Release build: Enable LTO and section garbage collection.
+set(CMAKE_MODULE_LINKER_FLAGS_RELEASE_INIT "-flto -Wl,--gc-sections" CACHE STRING "Module Linker Flags for Release")
 
 # Flags for RelWithDebInfo build: No additional flags.
 set(CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO_INIT "" CACHE STRING "Module Linker Flags for RelWithDebInfo")
@@ -248,8 +263,8 @@ set(CMAKE_SHARED_LINKER_FLAGS_DEBUG_INIT "" CACHE STRING "Shared Library Linker 
 # Flags for MinSizeRel build: No additional flags.
 set(CMAKE_SHARED_LINKER_FLAGS_MINSIZEREL_INIT "" CACHE STRING "Shared Library Linker Flags for MinSizeRel")
 
-# Flags for Release build: No additional flags.
-set(CMAKE_SHARED_LINKER_FLAGS_RELEASE_INIT "" CACHE STRING "Shared Library Linker Flags for Release")
+# Flags for Release build: Enable LTO and section garbage collection.
+set(CMAKE_SHARED_LINKER_FLAGS_RELEASE_INIT "-flto -Wl,--gc-sections" CACHE STRING "Shared Library Linker Flags for Release")
 
 # Flags for RelWithDebInfo build: No additional flags.
 set(CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO_INIT "" CACHE STRING "Shared Library Linker Flags for RelWithDebInfo")
@@ -262,6 +277,7 @@ set(CMAKE_SHARED_LINKER_FLAGS_RELEASEWITHO2_INIT "" CACHE STRING "Shared Library
 #=======================================================================
 #
 # Initial flags for the static library linker applicable to all build types.
+# For static libraries, we do not need linker flags like -Wl,--gc-sections.
 #=======================================================================
 set(CMAKE_STATIC_LINKER_FLAGS_INIT "" CACHE STRING "Initial Static Library Linker Flags")
 
@@ -274,8 +290,8 @@ set(CMAKE_STATIC_LINKER_FLAGS_DEBUG_INIT "" CACHE STRING "Static Library Linker 
 # Flags for MinSizeRel build: No additional flags.
 set(CMAKE_STATIC_LINKER_FLAGS_MINSIZEREL_INIT "" CACHE STRING "Static Library Linker Flags for MinSizeRel")
 
-# Flags for Release build: No additional flags.
-set(CMAKE_STATIC_LINKER_FLAGS_RELEASE_INIT "" CACHE STRING "Static Library Linker Flags for Release")
+# Flags for Release build: Remove linker flags not applicable to static libraries.
+set(CMAKE_STATIC_LINKER_FLAGS_RELEASE_INIT "-flto" CACHE STRING "Static Library Linker Flags for Release")
 
 # Flags for RelWithDebInfo build: No additional flags.
 set(CMAKE_STATIC_LINKER_FLAGS_RELWITHDEBINFO_INIT "" CACHE STRING "Static Library Linker Flags for RelWithDebInfo")

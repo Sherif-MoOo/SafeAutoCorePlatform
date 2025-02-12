@@ -80,8 +80,8 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries")
 #
 # Added Flags:
 #   -Werror: Treat all warnings as errors.
-#   -Wstrict-overflow=5: Warn about cases where the compiler assumes that signed overflow does not occur.
-#   -Wmissing-prototypes: Warn if a global function is defined without a previous prototype declaration.
+#   -Wstrict-overflow=5: Warn when the compiler assumes signed overflow does not occur.
+#   -Wmissing-prototypes: Warn if a global function is defined without a previous prototype.
 #   -Wstrict-aliasing=2: Enforce strict aliasing rules.
 #   -Wundef: Warn if an undefined identifier is evaluated in an `#if` directive.
 #   -Wredundant-decls: Warn about redundant declarations.
@@ -106,8 +106,8 @@ set(CMAKE_C_FLAGS_DEBUG_INIT "-O0 -g" CACHE STRING "C Compiler Flags for Debug")
 # Flags for MinSizeRel build: Optimize for size, define NDEBUG.
 set(CMAKE_C_FLAGS_MINSIZEREL_INIT "-Os -DNDEBUG" CACHE STRING "C Compiler Flags for MinSizeRel")
 
-# Flags for Release build: Optimize for speed, define NDEBUG.
-set(CMAKE_C_FLAGS_RELEASE_INIT "-O3 -DNDEBUG" CACHE STRING "C Compiler Flags for Release")
+# Flags for Release build: Optimize for speed, define NDEBUG and integrate enhanced options.
+set(CMAKE_C_FLAGS_RELEASE_INIT "-O3 -DNDEBUG -ffunction-sections -fdata-sections -fstack-protector-strong -Wformat -Wformat-security" CACHE STRING "C Compiler Flags for Release")
 
 # Flags for RelWithDebInfo build: Optimize with debug symbols.
 set(CMAKE_C_FLAGS_RELWITHDEBINFO_INIT "-O2 -g -DNDEBUG" CACHE STRING "C Compiler Flags for RelWithDebInfo")
@@ -138,7 +138,7 @@ set(CMAKE_C_FLAGS_RELEASEWITHO2_INIT "-O2 -DNDEBUG" CACHE STRING "C Compiler Fla
 #
 # Added Flags:
 #   -Werror: Treat all warnings as errors.
-#   -Wstrict-overflow=5: Warn about cases where the compiler assumes that signed overflow does not occur.
+#   -Wstrict-overflow=5: Warn when the compiler assumes signed overflow does not occur.
 #   -Wstrict-aliasing=2: Enforce strict aliasing rules.
 #   -Wundef: Warn if an undefined identifier is evaluated in an `#if` directive.
 #   -Wredundant-decls: Warn about redundant declarations.
@@ -151,7 +151,7 @@ set(CMAKE_C_FLAGS_RELEASEWITHO2_INIT "-O2 -DNDEBUG" CACHE STRING "C Compiler Fla
 #=======================================================================
 set(CMAKE_CXX_FLAGS_INIT "-Wall -Wextra -Wnon-virtual-dtor -Wconversion -Wold-style-cast \
 -pedantic -Wshadow -Wno-error=deprecated-declarations -v -D_QNX_SOURCE \
--Werror -Wstrict-overflow=5  \
+-Werror -Wstrict-overflow=5 \
 -Wstrict-aliasing=2 -Wundef -Wredundant-decls \
 -Wcast-align -Wformat=2 -Wfloat-equal \
 -fno-exceptions -fno-rtti -mcpu=generic" CACHE STRING "Initial C++ Compiler Flags")
@@ -165,8 +165,8 @@ set(CMAKE_CXX_FLAGS_DEBUG_INIT "-O0 -g" CACHE STRING "C++ Compiler Flags for Deb
 # Flags for MinSizeRel build: Optimize for size, define NDEBUG.
 set(CMAKE_CXX_FLAGS_MINSIZEREL_INIT "-Os -DNDEBUG" CACHE STRING "C++ Compiler Flags for MinSizeRel")
 
-# Flags for Release build: Optimize for speed, define NDEBUG.
-set(CMAKE_CXX_FLAGS_RELEASE_INIT "-O3 -DNDEBUG" CACHE STRING "C++ Compiler Flags for Release")
+# Flags for Release build: Optimize for speed, define NDEBUG and integrate enhanced options.
+set(CMAKE_CXX_FLAGS_RELEASE_INIT "-O3 -DNDEBUG -ffunction-sections -fdata-sections -fstack-protector-strong -Wformat -Wformat-security" CACHE STRING "C++ Compiler Flags for Release")
 
 # Flags for RelWithDebInfo build: Optimize with debug symbols.
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO_INIT "-O2 -g -DNDEBUG" CACHE STRING "C++ Compiler Flags for RelWithDebInfo")
@@ -202,8 +202,8 @@ set(CMAKE_EXE_LINKER_FLAGS_DEBUG_INIT "-g" CACHE STRING "Executable Linker Flags
 # Flags for MinSizeRel build: Strip symbols to reduce size.
 set(CMAKE_EXE_LINKER_FLAGS_MINSIZEREL_INIT "-s" CACHE STRING "Executable Linker Flags for MinSizeRel")
 
-# Flags for Release build: No additional flags.
-set(CMAKE_EXE_LINKER_FLAGS_RELEASE_INIT "" CACHE STRING "Executable Linker Flags for Release")
+# Flags for Release build: Optimize binary size with garbage collection and symbol stripping.
+set(CMAKE_EXE_LINKER_FLAGS_RELEASE_INIT "-Wl,--gc-sections -s" CACHE STRING "Executable Linker Flags for Release")
 
 # Flags for RelWithDebInfo build: Include debug symbols.
 set(CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO_INIT "-g" CACHE STRING "Executable Linker Flags for RelWithDebInfo")
@@ -254,8 +254,8 @@ set(CMAKE_SHARED_LINKER_FLAGS_DEBUG_INIT "" CACHE STRING "Shared Library Linker 
 # Flags for MinSizeRel build: No additional flags.
 set(CMAKE_SHARED_LINKER_FLAGS_MINSIZEREL_INIT "" CACHE STRING "Shared Library Linker Flags for MinSizeRel")
 
-# Flags for Release build: No additional flags.
-set(CMAKE_SHARED_LINKER_FLAGS_RELEASE_INIT "" CACHE STRING "Shared Library Linker Flags for Release")
+# Flags for Release build: Optimize binary size with garbage collection.
+set(CMAKE_SHARED_LINKER_FLAGS_RELEASE_INIT "-Wl,--gc-sections" CACHE STRING "Shared Library Linker Flags for Release")
 
 # Flags for RelWithDebInfo build: No additional flags.
 set(CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO_INIT "" CACHE STRING "Shared Library Linker Flags for RelWithDebInfo")
