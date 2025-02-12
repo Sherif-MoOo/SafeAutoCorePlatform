@@ -368,6 +368,38 @@ void TestComparisonOperators()
 
     std::cout << "arrayC >= arrayA => " << (arrayC >= arrayA) << " (expected true)\n";
     assert(arrayC >= arrayA);
+
+    constexpr ara::core::Array<int,3> CompileTimearrayA = {1,2,3};
+    constexpr ara::core::Array<int,3> CompileTimearrayB = {1,2,3};
+    constexpr ara::core::Array<int,3> CompileTimearrayC = {1,2,4};
+
+    // Checking equality
+    std::cout << "CompileTimearrayA == CompileTimearrayB => " << (CompileTimearrayA == CompileTimearrayB) << " (expected true)\n";
+    static_assert(CompileTimearrayA == CompileTimearrayB,
+        "\n[ERROR] in ara::core::Array: Arrays are not CompileTimearrayA == CompileTimearrayB at compile time!\n"); 
+    
+    std::cout << "CompileTimearrayA != CompileTimearrayC => " << (CompileTimearrayA != CompileTimearrayC) << " (expected true)\n";
+    static_assert(CompileTimearrayA == CompileTimearrayB,
+        "\n[ERROR] in ara::core::Array:Arrays are not CompileTimearrayA != CompileTimearrayC at compile time!\n"); 
+ 
+    // Checking < and <=
+    std::cout << "CompileTimearrayA < CompileTimearrayB  => " << (CompileTimearrayA < CompileTimearrayC) << " (expected true)\n";
+    static_assert(CompileTimearrayA < CompileTimearrayC,
+        "\n[ERROR] in ara::core::Array:Arrays are not CompileTimearrayA < CompileTimearrayC at compile time!\n"); 
+
+    std::cout << "CompileTimearrayA <= CompileTimearrayB => " << (CompileTimearrayA <= CompileTimearrayB) << " (expected true)\n";
+    static_assert(CompileTimearrayA <= CompileTimearrayB,
+        "\n[ERROR] in ara::core::Array:Arrays are not CompileTimearrayA <= CompileTimearrayB at compile time!\n"); 
+
+    // Checking > and >=
+    std::cout << "CompileTimearrayC > CompileTimearrayA  => " << (CompileTimearrayC > CompileTimearrayA) << " (expected true)\n";
+    static_assert(CompileTimearrayC > CompileTimearrayA,
+        "\n[ERROR] in ara::core::Array:Arrays are not CompileTimearrayC > CompileTimearrayA at compile time!\n"); 
+
+    std::cout << "CompileTimearrayC >= CompileTimearrayA => " << (CompileTimearrayC >= CompileTimearrayA) << " (expected true)\n";
+    static_assert(CompileTimearrayC >= CompileTimearrayA,
+        "\n[ERROR] in ara::core::Array:Arrays are not CompileTimearrayC >= CompileTimearrayA at compile time!\n"); 
+        
 }
 
 /*!
