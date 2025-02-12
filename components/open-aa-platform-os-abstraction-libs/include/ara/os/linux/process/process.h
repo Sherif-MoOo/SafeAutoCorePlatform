@@ -8,71 +8,56 @@
  *  FILE DESCRIPTION
  *  -------------------------------------------------------------------------------------------------------------------
  *  \file       ara/os/linux/process/process.h
- *  \brief      Linux-specific implementation of the ara::os::interface::process::ProcessInteraction interface.
+ *  \brief      Linux-specific implementation of ProcessInteraction.
  *
- *  \details    Declares the Linux-specific ProcessInteraction implementation and the factory function.
- *
- *  \note       This class ensures that process-related functionalities are implemented using Linux system calls.
- ***********************************************************************************************************************/
+ *  \details
+ *              Declares the Linux-specific ProcessInteractionImpl class which retrieves the process name
+ *              from the /proc filesystem. The implementation is thread-safe, avoids heap allocation,
+ *              and meets ASIL-D safety and security guidelines.
+ **********************************************************************************************************************/
 
-#ifndef ARA_OS_LINUX_PROCESS_PROCESS_H
-#define ARA_OS_LINUX_PROCESS_PROCESS_H
-
-/**********************************************************************************************************************
- *  INCLUDES
- *********************************************************************************************************************/
+ #ifndef ARA_OS_LINUX_PROCESS_PROCESS_H
+ #define ARA_OS_LINUX_PROCESS_PROCESS_H
+  
+ namespace ara {
+ namespace os {
+ namespace linux {
+ namespace process {
+ 
 /*!
- * \brief  Includes the ProcessInteraction interface header.
- */
-#include "ara/os/interface/process/process_interaction.h"
-
-#include <memory> // For std::unique_ptr
-
-namespace ara {
-namespace os {
-namespace linux {
-namespace process {
-
-/**********************************************************************************************************************
- *  CLASS: ProcessInteractionImpl
- *********************************************************************************************************************/
-/*!
- * \brief  Linux-specific implementation of the ara::os::interface::process::ProcessInteraction interface.
+ * \brief Linux-specific implementation of the ProcessInteraction interface.
  *
  * \details
- * - Utilizes the `/proc` filesystem to retrieve the process name.
- * - Ensures that file operations are secure and handle errors appropriately.
- * - Implements thread-safe methods adhering to ASIL-D requirements.
+ * Implements process name retrieval using /proc/<pid>/comm.
+ * All operations are done using safe file and string operations to meet ASIL-D standards.
  */
 class ProcessInteractionImpl final : public ara::os::interface::process::ProcessInteraction {
 public:
     /*!
-     * \brief  Retrieves the name of the current process.
+     * \brief Retrieves the process name from /proc/<pid>/comm.
      *
-     * \param[out] buffer      Pointer to the buffer where the process name will be stored.
-     * \param[in]  bufferSize  Size of the provided buffer in bytes.
+     * \param[out] buffer      Pointer to the output buffer.
+     * \param[in]  bufferSize  Size of the output buffer.
      *
-     * \return An ara::os::interface::process::ErrorCode indicating the result of the operation.
+     * \return An ErrorCode indicating success or failure.
      *
-     * \note   This method avoids exceptions and uses safe string operations to prevent buffer overflows.
+     * \note The method is thread-safe and avoids exceptions.
      */
-    auto GetProcessName(char* buffer, std::size_t bufferSize) const noexcept -> ara::os::interface::process::ErrorCode override;
+    auto GetProcessName(char* buffer, std::size_t bufferSize) const noexcept 
+        -> ara::os::interface::process::ErrorCode override;
 
-    /*!
-     * \brief  Destructor for ProcessInteractionImpl.
-     */
     ~ProcessInteractionImpl() override = default;
 };
 
-/**********************************************************************************************************************
- *  FUNCTION: CreateProcessInteractionInstance
- *********************************************************************************************************************/
 /*!
- * \brief  Factory function to create a Linux-specific ProcessInteraction instance.
+ * \brief Factory function to obtain a Linux-specific ProcessInteraction instance.
  *
- * \return A std::unique_ptr to an ara::os::interface::process::ProcessInteraction object.
+ * \return A const reference to a statically allocated ProcessInteractionImpl instance.
+ *
+ * \note No dynamic memory allocation is performed. The instance is constructed
+ *       on first use in a thread-safe manner.
  */
-std::unique_ptr<ara::os::interface::process::ProcessInteraction> CreateProcessInteractionInstance();
+const ara::os::interface::process::ProcessInteraction& CreateProcessInteractionInstance();
 
 } // namespace process
 } // namespace linux

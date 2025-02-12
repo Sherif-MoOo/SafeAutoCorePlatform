@@ -8,71 +8,60 @@
  *  FILE DESCRIPTION
  *  -------------------------------------------------------------------------------------------------------------------
  *  \file       ara/os/qnx/process/process.h
- *  \brief      QNX-specific implementation of the ara::os::interface::process::ProcessInteraction interface.
+ *  \brief      QNX-specific implementation of ProcessInteraction.
  *
- *  \details    Declares the QNX-specific ProcessInteraction implementation and the factory function.
+ *  \details
+ *              Declares the QNX-specific ProcessInteractionImpl class.
+ *              This implementation uses QNX’s procfs interface with devctl() to retrieve
+ *              the process name from the process information.
  *
- *  \note       This class ensures that process-related functionalities are implemented using QNX system calls.
- ***********************************************************************************************************************/
+ *              This class is designed to be thread-safe, avoids dynamic memory allocation,
+ *              and meets ASIL-D safety and security requirements.
+ **********************************************************************************************************************/
 
 #ifndef ARA_OS_QNX_PROCESS_PROCESS_H
 #define ARA_OS_QNX_PROCESS_PROCESS_H
-
-/**********************************************************************************************************************
- *  INCLUDES
- *********************************************************************************************************************/
-/*!
- * \brief  Includes the ProcessInteraction interface header.
- */
-#include "ara/os/interface/process/process_interaction.h"
-
-#include <memory> // For std::unique_ptr
 
 namespace ara {
 namespace os {
 namespace qnx {
 namespace process {
 
-/**********************************************************************************************************************
- *  CLASS: ProcessInteractionImpl
- *********************************************************************************************************************/
 /*!
- * \brief  QNX-specific implementation of the ara::os::interface::process::ProcessInteraction interface.
+ * \brief QNX-specific implementation of the ProcessInteraction interface.
  *
  * \details
- * - Utilizes QNX-specific system calls to retrieve the process name.
- * - Ensures that operations are secure and handle errors appropriately.
- * - Implements thread-safe methods adhering to ASIL-D requirements.
+ * Provides a concrete implementation for retrieving the process name (the command name)
+ * by using QNX’s procfs interface and the devctl() command DCMD_PROC_INFO.
  */
 class ProcessInteractionImpl final : public ara::os::interface::process::ProcessInteraction {
 public:
     /*!
-     * \brief  Retrieves the name of the current process.
+     * \brief Retrieves the process name.
      *
-     * \param[out] buffer      Pointer to the buffer where the process name will be stored.
-     * \param[in]  bufferSize  Size of the provided buffer in bytes.
+     * \param[out] buffer      Pointer to the output buffer.
+     * \param[in]  bufferSize  Size of the output buffer.
      *
-     * \return An ara::os::interface::process::ErrorCode indicating the result of the operation.
+     * \return An ErrorCode indicating the result.
      *
-     * \note   This method avoids exceptions and uses safe string operations to prevent buffer overflows.
+     * \note This implementation opens "/proc/self" and issues a devctl() call (DCMD_PROC_INFO)
+     *       to obtain a procfs_info structure that includes the process command name (typically in the
+     *       field "cmd"). The command name is then copied into the provided buffer using safe operations.
      */
-    auto GetProcessName(char* buffer, std::size_t bufferSize) const noexcept -> ara::os::interface::process::ErrorCode override;
+    auto GetProcessName(char* buffer, std::size_t bufferSize) const noexcept 
+        -> ara::os::interface::process::ErrorCode override;
 
-    /*!
-     * \brief  Destructor for ProcessInteractionImpl.
-     */
     ~ProcessInteractionImpl() override = default;
 };
 
-/**********************************************************************************************************************
- *  FUNCTION: CreateProcessInteractionInstance
- *********************************************************************************************************************/
 /*!
- * \brief  Factory function to create a QNX-specific ProcessInteraction instance.
+ * \brief Factory function to obtain a QNX-specific ProcessInteraction instance.
  *
- * \return A std::unique_ptr to an ara::os::interface::process::ProcessInteraction object.
+ * \return A const reference to a statically allocated ProcessInteractionImpl instance.
+ *
+ * \note This function avoids dynamic memory allocation and meets ASIL-D guidelines.
  */
-std::unique_ptr<ara::os::interface::process::ProcessInteraction> CreateProcessInteractionInstance();
+const ara::os::interface::process::ProcessInteraction& CreateProcessInteractionInstance();
 
 } // namespace process
 } // namespace qnx
@@ -80,3 +69,4 @@ std::unique_ptr<ara::os::interface::process::ProcessInteraction> CreateProcessIn
 } // namespace ara
 
 #endif // ARA_OS_QNX_PROCESS_PROCESS_H
+ 
