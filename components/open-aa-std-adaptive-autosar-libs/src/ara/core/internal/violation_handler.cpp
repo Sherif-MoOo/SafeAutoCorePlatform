@@ -30,12 +30,14 @@
 #include <iostream>      // For std::cerr
 #include <cstdlib>       // For std::terminate
 #include <cstring>       // For std::strncpy
+#include <charconv>     /* For std::to_chars */
 
 // Include OS Abstraction Layer headers for ProcessInteraction
 #include "ara/os/interface/process/process_factory.h"       // For ProcessFactory
 
 #include <string_view>                                      // Required for std::string_view
 #include "ara/core/internal/violation_handler.h"
+#include "ara/core/abort.h"
 
 namespace ara {
 namespace core {
@@ -76,36 +78,52 @@ auto ViolationHandler::Instance() noexcept -> ViolationHandler&
  *
  * \note   [SWS_CORE_13017], [SWS_CORE_00090]
  */
+
+/* This function is part of the ViolationHandler class and is called when an array access
+   violation is detected. It logs an error message and terminates the process according
+   to AUTOSAR requirements. */
 [[noreturn]] auto ViolationHandler::TriggerArrayAccessOutOfRangeViolation(std::string_view location,
-                                                              std::size_t indexValue,
-                                                              std::size_t arraySize) noexcept -> void
+                                                                           std::size_t indexValue,
+                                                                           std::size_t arraySize) noexcept -> void
 {
-    std::cerr << "[App vlt][FATAL]: Violation detected in " << GetProcessIdentifier()
-              << " at " << location
-              << ": Array access out of range: Tried to access "
-              << indexValue << " in array of size " << arraySize << ".\n" << std::endl;
+    /* Allocate fixed-size buffers for converting numeric values.
+       Thirty-two characters is sufficient for representing a std::size_t value. */
+    char idxBuffer[32]{0};
+    char sizeBuffer[32]{0};
 
-    // Terminate the process as per AUTOSAR requirements
-    Abort();
+    /* Convert 'indexValue' to characters using std::to_chars.
+       The conversion writes the numeric value into the provided buffer. */
+    auto [idxPtr, idxEc] = std::to_chars(idxBuffer, idxBuffer + sizeof(idxBuffer), indexValue);
+
+    /* Convert 'arraySize' to characters using std::to_chars. */
+    auto [sizePtr, sizeEc] = std::to_chars(sizeBuffer, sizeBuffer + sizeof(sizeBuffer), arraySize);
+
+    /* Create string_view objects from the conversion results.
+       If the conversion fails, an empty string_view is used instead. */
+    std::string_view idxStr = (idxEc == std::errc{}) 
+                              ? std::string_view(idxBuffer, idxPtr - idxBuffer) 
+                              : "";
+    std::string_view sizeStr = (sizeEc == std::errc{}) 
+                               ? std::string_view(sizeBuffer, sizePtr - sizeBuffer) 
+                               : "";
+
+    /* Terminate the process by calling the Abort API.
+       The Abort function is passed each part of the message as separate arguments,
+       ensuring that no dynamic memory allocation is required. */
+    ara::core::Abort(
+        "[App vlt][FATAL]: Violation detected in ",
+        GetProcessIdentifier(),
+        " at ",
+        location,
+        ": Array access out of range: Tried to access ",
+        idxStr,
+        " in array of size ",
+        sizeStr,
+        "."
+    );
 }
 
 
-/**********************************************************************************************************************
- *  FUNCTION: ViolationHandler::Abort
- *********************************************************************************************************************/
-/*!
- * \brief  Handles the termination of the process upon violation detection.
- *
- * \details
- * Logs a fatal error message to std::cerr and calls std::terminate() to abort the process.
- *
- * \note   [SWS_CORE_00090]
- */
-[[noreturn]] auto ViolationHandler::Abort() noexcept -> void
-{
-    std::cerr << "FATAL: Process aborted due to a critical violation in ara::core::Array.\n";
-    std::terminate();
-}
 
 /**********************************************************************************************************************
  *  FUNCTION: ViolationHandler::GetProcessIdentifier
