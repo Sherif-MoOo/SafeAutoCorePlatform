@@ -31,7 +31,7 @@ target_link_libraries(core_array_test
 # Installation Configuration
 #****************************************************************************************************
 install(TARGETS core_array_test
-    DESTINATION platform_core_test/bin
+    DESTINATION platform_core_test/core_array_test/bin
 )
 
 #****************************************************************************************************
