@@ -2,7 +2,7 @@
  *  PROJECT
  *  -------------------------------------------------------------------------------------------------------------------
  *  \verbatim
- *  OpenAA: Open Source Adaptive AUTOSAR Project
+ *  OpenAA: Open Source Adaptive AUTOSAR Project (CXX_STANDARD 17)
  *  \endverbatim
  *  -------------------------------------------------------------------------------------------------------------------
  *  FILE DESCRIPTION

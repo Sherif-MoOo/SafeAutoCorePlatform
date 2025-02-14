@@ -2,7 +2,7 @@
  *  PROJECT
  *  --------------------------------------------------------------------------------------------------------------------
  *  \verbatim
- *  OpenAA: Open Source Adaptive AUTOSAR Project (C++17)
+ *  OpenAA: Open Source Adaptive AUTOSAR Project (CXX_STANDARD 17)
  *  \endverbatim
  *  --------------------------------------------------------------------------------------------------------------------
  *  FILE DESCRIPTION
@@ -59,6 +59,11 @@ using AbortHandler = void (*)() noexcept;
 /***********************************************************************************************************************
  *  INTERNAL STORAGE & SYNCHRONIZATION FOR ABORT HANDLERS
 ***********************************************************************************************************************/
+/**
+ * @note    in the detail namespace are declared as inline (a feature introduced in C++17), 
+ *          all translation units that include abort.h will share the same instance of these variables. 
+ *          This means that the same AbortHandler array, count, and mutex are used across your entire program.
+ */
 namespace detail {
 
 /* Maximum number of AbortHandlers supported. */

@@ -78,7 +78,7 @@ endif()
 
 # 4) Tests, only if enabled
 if(ENABLE_TESTS)
-    add_subdirectory(tests/core_platform)
+    add_subdirectory(open-aa-tests/core_platform)
 endif()
 
 # -------------------------------------------------------------------------------------------------
