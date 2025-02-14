@@ -119,7 +119,7 @@ template <typename... Args>
     /* Directly log each argument to std::cerr using the stream interface.
      * This avoids the need for any temporary buffers.
      */
-    std::cerr << "Process aborted via ara::core::Abort:";
+    std::cerr << "Process aborted via ara::core::Abort: ";
     ((std::cerr << StringView(args)), ...);
     std::cerr << std::endl;
 
