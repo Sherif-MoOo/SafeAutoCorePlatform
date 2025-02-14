@@ -45,6 +45,8 @@ The project leverages **CMake** for build configuration, enabling straightforwar
 ## Repository Structure
 
 The repository is organized as follows:
+
+```
 .
 ├── CMake                                       // CMake configuration and toolchain files
 ├── components                                  // Source code for components:
@@ -56,7 +58,7 @@ The repository is organized as follows:
 ├── CMakeLists.txt                              // Top-level CMake configuration
 ├── LICENSE
 └── README.md
-
+```
 ---
 
 ## Components Overview
