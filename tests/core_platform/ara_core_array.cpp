@@ -296,6 +296,7 @@ void TestElementAccessAndIterators()
         std::cout << *it << " ";
         sum += *it;
     }
+    
     std::cout << "\nSum of elements = " << sum << " (expected 150)\n";
     assert(sum == 150);
 }
@@ -327,32 +328,55 @@ void TestGetFunction()
  */
 void TestSwapAndFill()
 {
+    /* Compile-time test using a constexpr lambda and static_assert.
+       This lambda creates two arrays, swaps them, fills one with 100,
+       and then returns true if the operations produced the expected results.
+    */
+    static_assert([]() constexpr -> bool {
+        ara::core::Array<int, 4> arr1 = {1, 2, 3, 4};
+        ara::core::Array<int, 4> arr2 = {5, 6, 7, 8};
+        swap(arr1, arr2);
+        arr1.fill(100);
+        return (arr1[0] == 100 && arr1[1] == 100 &&
+                arr1[2] == 100 && arr1[3] == 100 &&
+                arr2[0] == 1 && arr2[1] == 2 &&
+                arr2[2] == 3 && arr2[3] == 4);
+    }(), 
+        "\n[ERROR]: constexpr swap and fill test failed.\n");
+
+    /* Runtime test code: */
     std::cout << "\n=== Test 3: Swap and Fill ===\n";
-    ara::core::Array<int,4> arr1 = {1,2,3,4};
-    ara::core::Array<int,4> arr2 = {5,6,7,8};
+    ara::core::Array<int, 4> arr1 = {1, 2, 3, 4};
+    ara::core::Array<int, 4> arr2 = {5, 6, 7, 8};
 
     std::cout << "arr1 before swap: ";
-    for (auto i : arr1) std::cout << i << " ";
+    for (auto i : arr1)
+        std::cout << i << " ";
     std::cout << "\narr2 before swap: ";
-    for (auto i : arr2) std::cout << i << " ";
+    for (auto i : arr2)
+        std::cout << i << " ";
 
-    // do swap
+    // Perform swap
     swap(arr1, arr2);
 
     std::cout << "\narr1 after swap: ";
-    for (auto i : arr1) std::cout << i << " ";
+    for (auto i : arr1)
+        std::cout << i << " ";
     std::cout << "\narr2 after swap: ";
-    for (auto i : arr2) std::cout << i << " ";
+    for (auto i : arr2)
+        std::cout << i << " ";
 
-    // fill arr1 with 100
+    // Fill arr1 with 100
     arr1.fill(100);
     std::cout << "\narr1 after fill(100): ";
-    for (auto i : arr1) {
+    for (auto i : arr1)
+    {
         std::cout << i << " ";
         assert(i == 100);
     }
     std::cout << "\n";
 }
+
 
 /*!
  * \brief Test #4: Comparison Operators (==, !=, <, <=, >, >=)
@@ -556,8 +580,19 @@ void TestCopyAndMoveSemantics()
  */
 void TestConstCorrectness()
 {
+    /* Compile-time test for the constexpr get() method.
+     * A lambda is defined and immediately invoked in a static_assert.
+     * If the get method is not constexpr-friendly, compilation will fail.
+     */
+    static_assert([]() constexpr -> bool {
+        const ara::core::Array<int, 3> arr = {7, 8, 9};
+        return ara::core::get<2>(arr) == 9;
+    }(),
+        "\n[ERROR]: Compile-time test for get<2>(const Array<int,3>) failed.\n");
+
+    // Runtime tests:
     std::cout << "\n=== Test 8: Const Correctness ===\n";
-    const ara::core::Array<int,3> constArr = {7, 8, 9};
+    const ara::core::Array<int, 3> constArr = {7, 8, 9};
 
     std::cout << "constArr.at(1) => " << constArr.at(1) << " (expected 8)\n";
     assert(constArr.at(1) == 8);
@@ -566,7 +601,7 @@ void TestConstCorrectness()
     std::cout << "get<2>(constArr) => " << val2 << " (expected 9)\n";
     assert(val2 == 9);
 
-    // iterate
+    // Iterate over constArr and sum the elements.
     int sum = 0;
     for (auto it = constArr.begin(); it != constArr.end(); ++it) {
         sum += *it;
@@ -574,9 +609,10 @@ void TestConstCorrectness()
     std::cout << "sum of constArr => " << sum << " (expected 24)\n";
     assert(sum == 24);
 
-    // Attempting to modify => would be a compile error
+    // Attempting to modify constArr would result in a compile error:
     // constArr[0] = 999;
 }
+
 
 /*!
  * \brief Test #9: Violation Handling (Out-of-Range)

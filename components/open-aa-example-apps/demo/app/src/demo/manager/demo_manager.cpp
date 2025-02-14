@@ -24,6 +24,7 @@
 #include <cstring>                          // For std::strerror
 
 #include "ara/core/array.h"                 // For platform core Array class
+#include "ara/core/abort.h"
 #include "demo/manager/demo_manager.h"      // For the manager class
 
 namespace demo {
@@ -87,8 +88,7 @@ auto DemoManager::InitializeDemoManager() noexcept -> void {
     graceful_shutdown_handler_thread_ = std::thread(&DemoManager::GracefulShutdownHandler, this);
     if (!graceful_shutdown_handler_thread_.joinable()) {
 
-        std::cerr << "[demo mngr][FATAL] Graceful shutdown handler thread creation failed."<< std::endl;
-        std::abort();
+        ara::core::Abort("[demo mngr][FATAL] Graceful shutdown handler thread creation failed.");
     }
 
 
@@ -156,8 +156,7 @@ auto DemoManager::GracefulShutdownHandler() noexcept -> void {
 
     if(!success) {
 
-        std::cerr << "[demo mngr][FATAL] Initialize shutdown signal handling failed." << std::endl;
-        std::abort();
+        ara::core::Abort("[demo mngr][FATAL] Initialize shutdown signal handling failed.");
     }
 
 
@@ -191,9 +190,9 @@ auto DemoManager::RunManager() noexcept -> std::uint8_t {
 
     /* Get current scheduling parameters to preserve existing priority */ 
     if (pthread_getschedparam(native_handle, &current_policy, &param) != 0) {
-        std::cerr << "[demo mngr][FATAL] Failed to get current scheduling parameters: " 
-                  << std::strerror(errno) << std::endl;
-        std::abort();
+
+        ara::core::Abort("[demo mngr][FATAL] Failed to get current scheduling parameters: ",
+                          std::strerror(errno));
     }
 
     std::cout << "[demo mngr][INFO] Manager Is on Running State" << std::endl;

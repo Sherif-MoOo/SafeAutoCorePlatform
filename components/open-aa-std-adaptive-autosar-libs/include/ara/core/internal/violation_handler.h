@@ -128,16 +128,6 @@ private:
                                                std::size_t indexValue,
                                                std::size_t arraySize) noexcept -> void;
                                                
-    /*!
-     * \brief  Handles the termination of the process upon violation detection.
-     *
-     * \details
-     * Logs a fatal error message to std::cerr and calls std::terminate() to abort the process.
-     * This method is noexcept and marked as [[noreturn]] to indicate that it does not return.
-     *
-     * \note   [SWS_CORE_00090]
-     */
-    [[noreturn]] auto Abort() noexcept -> void;
 
     /*!
      * \brief  Retrieves the identifier of the current process.

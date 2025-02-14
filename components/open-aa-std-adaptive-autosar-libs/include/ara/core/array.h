@@ -763,24 +763,31 @@ public:
      * \param  val  The value to assign to all elements.
      *
      * \note   [SWS_CORE_01241]
-     * \note   `noexcept` is conditionally specified based on whether T's copy assignment is noexcept.
+     * \note   The noexcept specification is conditionally applied based on whether T's copy assignment is noexcept.
+     *         Instead of using std::fill_n (which is not constexpr in C++17), we use a loop to assign the value,
+     *         enabling compile-time evaluation when possible.
      */
-    constexpr auto fill(const T& val) 
+    constexpr auto fill(const T& val)
 #ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
-        noexcept(std::is_nothrow_copy_assignable_v<T>)
+    noexcept(std::is_nothrow_copy_assignable_v<T>)
 #else
-        noexcept
+    noexcept
 #endif
-        -> void
+    -> void
     {
+
 #ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
         // Ensure T's fill is noexcept if exceptions are disabled
-        static_assert(noexcept(std::is_nothrow_copy_assignable_v<T>),
+        static_assert(std::is_nothrow_copy_assignable_v<T>,
             "\n[ERROR] ara::core::Array: The type T's fill operation must be noexcept when exceptions are disabled.\n");
 #endif
 
+        /* If N > 0, loop over the array and assign val to each element.
+           This loop is constexpr-friendly so that it can be evaluated at compile time if T's operations are constexpr. */
         if constexpr (N > 0) {
-            std::fill_n(this->data_, N, val);
+            for (std::size_t i = 0; i < N; ++i) {
+                this->data_[i] = val;
+            }
         }
     }
 
@@ -793,7 +800,8 @@ public:
      * \param  other  The other Array to swap with.
      *
      * \note   [SWS_CORE_01242]
-     * \note   `noexcept` is conditionally specified based on whether swapping T is noexcept.
+     * \note   This function is marked constexpr so that, if T's move construction and move assignment are constexpr,
+     *         the swap can be performed at compile time.
      */
     constexpr auto swap(Array& other) 
 #ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
@@ -809,10 +817,12 @@ public:
             "\n[ERROR] ara::core::Array: The type T's swap operation must be noexcept when exceptions are disabled.\n");
 #endif
 
-        for (std::size_t i = 0; i < N; ++i) {
-            std::swap(this->data_[i], other.data_[i]);
+        for (std::size_t i = 0; i < N; ++i)
+        {
+            T temp = std::move(this->data_[i]);
+            this->data_[i] = std::move(other.data_[i]);
+            other.data_[i] = std::move(temp);
         }
-        // No operation needed if N == 0
     }
 
 private:

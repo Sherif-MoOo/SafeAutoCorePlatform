@@ -7,7 +7,20 @@
 cmake_minimum_required(VERSION 3.27)
 
 # ----------------------------------------------------------------------
-# 1) ARA::CORE::VIOLATION
+# 1) ARA::CORE::ABORT
+# ----------------------------------------------------------------------
+add_library(ara_core_abort INTERFACE)
+add_library(ara::core::abort ALIAS ara_core_abort)
+
+# Provide include directories for ara::core::abort
+target_include_directories(ara_core_abort INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>  # Path to abort headers during build
+    $<INSTALL_INTERFACE:include>                            # Path to abort headers after installation
+)
+
+
+# ----------------------------------------------------------------------
+# 2) ARA::CORE::VIOLATION
 # ----------------------------------------------------------------------
 add_library(ara_core_violation STATIC
     src/ara/core/internal/violation_handler.cpp  # Source file for violation_handler
@@ -16,18 +29,19 @@ add_library(ara_core_violation STATIC
 add_library(ara::core::violation ALIAS ara_core_violation)
 
 # Provide include directories for ara::core::violation
-target_include_directories(ara_core_violation PUBLIC
+target_include_directories(ara_core_violation PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>  # Path to violation_handler headers during build
     $<INSTALL_INTERFACE:include>                            # Path to violation_handler headers after installation
 )
 
 # Establish dependency: ara::core::violation depends on ara::os::process
-target_link_libraries(ara_core_violation PUBLIC 
+target_link_libraries(ara_core_violation PRIVATE 
     ara::os::process
+    ara::core::abort
 )
 
 # ----------------------------------------------------------------------
-# 2) ARA::CORE::ARRAY
+# 3) ARA::CORE::ARRAY
 # ----------------------------------------------------------------------
 add_library(ara_core_array INTERFACE)
 add_library(ara::core::array ALIAS ara_core_array)
@@ -57,7 +71,7 @@ install(DIRECTORY
 # 4) Export & Package: ara_core_targets
 # ----------------------------------------------------------------------
 # Create a single export set for all ara::core targets to avoid duplication
-install(TARGETS ara_core_violation ara_core_array
+install(TARGETS ara_core_abort ara_core_violation ara_core_array
     EXPORT ara_core_targets  # Single export set for both targets
     ARCHIVE DESTINATION lib/core                    # Installation path for static libraries
     LIBRARY DESTINATION lib                         # Installation path for shared libraries (if applicable)
