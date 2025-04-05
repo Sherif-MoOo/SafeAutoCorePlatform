@@ -128,8 +128,7 @@ $ sudo apt-get update
 $ sudo apt-get install -y gcc-11-aarch64-linux-gnu g++-11-aarch64-linux-gnu gcc-13-aarch64-linux-gnu g++-13-aarch64-linux-gnu
 ```
 
-**Note:** Ensure that the toolchain file (e.g., `CMake/Toolchain/*.cmake`) exisits for your desired env
-
+**Note:** Ensure that the toolchain file (e.g., `CMake/Toolchain/*.cmake`) exists for your desired env
 ### QNX Environment
 
 **Operating System:** QNX or Linux for QNX cross-compilation
