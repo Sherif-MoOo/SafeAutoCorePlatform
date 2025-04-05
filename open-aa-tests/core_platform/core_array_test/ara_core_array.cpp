@@ -33,6 +33,7 @@
 #include <sys/prctl.h>
 #endif
 #include "ara/core/array.h" // The custom Array implementation header
+#include <cstdint>          // For std::uint8_t
 #include <iostream>         // For std::cout (demonstrations)
 #include <string>           // For std::string
 #include <cassert>          // For runtime checks via assert

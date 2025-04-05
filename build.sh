@@ -159,6 +159,22 @@ define_build_parameters() {
             fi
             CONFIG_FILE="CMake/CMakeConfig/${PRESET_NAME}.cmake"
             ;;
+        gcc13_linux_x86_64)
+            if [ "$BUILD_TYPE" == "Debug" ]; then
+                PRESET_NAME="gcc13_linux_x86_64_debug"
+            else
+                PRESET_NAME="gcc13_linux_x86_64_release"
+            fi
+            CONFIG_FILE="CMake/CMakeConfig/${PRESET_NAME}.cmake"
+            ;;
+        gcc13_linux_aarch64)
+            if [ "$BUILD_TYPE" == "Debug" ]; then
+                PRESET_NAME="gcc13_linux_aarch64_debug"
+            else
+                PRESET_NAME="gcc13_linux_aarch64_release"
+            fi
+            CONFIG_FILE="CMake/CMakeConfig/${PRESET_NAME}.cmake"
+            ;;
         qcc12_qnx800_aarch64)
             if [ "$BUILD_TYPE" == "Debug" ]; then
                 PRESET_NAME="qcc12_qnx800_aarch64_debug"
