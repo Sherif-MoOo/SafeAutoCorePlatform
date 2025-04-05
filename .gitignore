@@ -6,3 +6,4 @@
 *.so*
 *.bin
 *.dll*
+compile_commands.json
