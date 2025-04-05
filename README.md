@@ -1,44 +1,46 @@
 # OpenAA: Adaptive AUTOSAR CXX_STANDARD 17 Project
 
 This is a **modular** and **scalable** open‑source Adaptive AUTOSAR demo using **CXX_STANDARD 17**.
-The project leverages **CMake** for build configuration, enabling straightforward integration, testing, d future expansion.
-
----
-
-## Table of Contents
-1. [Key Features](#key-features)
-2. [Repository Structure](#repository-structure)
-3. [Components Overview](#components-overview)
-   - [open-aa-platform-os-abstraction-libs](#1-open-aa-platform-os-abstraction-libs)
-   - [open-aa-std-adaptive-autosar-libs](#2-open-aa-std-adaptive-autosar-libs)
-   - [open-aa-example-apps](#3-open-aa-example-apps)
-4. [Tests Overview](#tests-overview)
-5. [Prerequisites](#prerequisites)
-   - [Installing Dependencies on Ubuntu](#installing-dependencies-on-ubuntu)
-   - [Installing QNX SDP](#installing-qnx-sdp-for-qnx-builds)
-6. [Building the Project](#building-the-project)
-   - [Usage](#usage)
-   - [Options](#options)
-   - [Example Commands](#example-commands)
-7. [Build Targets](#build-targets)
-8. [Testing the Project](#testing-the-project)
-9. [Running the Examples](#running-the-examples)
-10. [Advanced Configuration](#advanced-configuration)
-    - [Adding a New Build Target](#adding-a-new-build-target)
-    - [Integrating Additional Components](#integrating-additional-components)
-11. [Troubleshooting](#troubleshooting)
-12. [Contributing](#contributing)
-13. [License](#license)
-
+The project leverages **CMake** for build configuration, enabling straightforward integration, testing, and future expansion.
+ 
+ ---
+ 
+ ## Table of Contents
+ 1. [Key Features](#key-features)
+ 2. [Repository Structure](#repository-structure)
+ 3. [Components Overview](#components-overview)
+    - [open-aa-platform-os-abstraction-libs](#1-open-aa-platform-os-abstraction-libs)
+    - [open-aa-std-adaptive-autosar-libs](#2-open-aa-std-adaptive-autosar-libs)
+    - [open-aa-example-apps](#3-open-aa-example-apps)
+ 4. [Tests Overview](#tests-overview)
+ 5. [Prerequisites and Environment Setup](#prerequisites-and-environment-setup)
+    - [Ubuntu (GCC 11 & GCC 13)](#ubuntu-gcc-11--gcc-13)
+    - [Cross Compilation for AArch64 (GCC 11/13)](#cross-compilation-for-aarch64)
+    - [QNX Environment](#qnx-environment)
+ 6. [Building the Project](#building-the-project)
+    - [Usage](#usage)
+    - [Options](#options)
+    - [Example Commands](#example-commands)
+ 7. [Build Targets](#build-targets)
+ 8. [Testing the Project](#testing-the-project)
+ 9. [Running the Examples](#running-the-examples)
+ 10. [Advanced Configuration](#advanced-configuration)
+     - [Adding a New Build Target](#adding-a-new-build-target)
+     - [Integrating Additional Components](#integrating-additional-components)
+ 11. [Troubleshooting](#troubleshooting)
+ 12. [Contributing](#contributing)
+ 13. [License](#license)
+ 
 ---
 
 ## Key Features
 
 - **Modular Architecture**: Easily add or remove components as needed.
 - **Scalable Design**: Suitable for both small-scale applications and large automotive systems.
-- **Comprehensive Testing**: Extensive tests ensure reliability and correctness, including oss‑translation unit sharing.
-- **Cross‑Platform Support**: Build and run on both Linux and QNX with various architectures.
-- **Modern CXX_STANDARD 17 Implementation**: Leverages inline variables, constexpr where possible, and robust error handling and others.
+- **Comprehensive Testing**: Extensive tests ensure reliability and correctness.
+- **Cross‑Platform Support**: Build and run on Linux (Ubuntu 22.04, Ubuntu 24.04) and QNX with various architectures.
+- **Modern CXX_STANDARD 17 Implementation**: Leverages inline variables, constexpr where possible, robust error handling, and other modern features.
+- **Multiple Compiler Support**: Use GCC 11, GCC 13 (including cross-compilation for AArch64), and QNX QCC.
 
 ---
 
@@ -59,6 +61,7 @@ The repository is organized as follows:
 ├── LICENSE
 └── README.md
 ```
+
 ---
 
 ## Components Overview
@@ -66,7 +69,7 @@ The repository is organized as follows:
 ### 1. open-aa-platform-os-abstraction-libs
 Provides OS abstraction layers to facilitate cross‑platform development.
 
-- **Interface Layer**: Abstract interfaces for process management (e.g., `process_factory.h`, process_interaction.h`).
+- **Interface Layer**: Abstract interfaces for process management (e.g., `process_factory.h`, `process_interaction.h`).
 - **Linux Implementation**: Concrete implementations for Linux (`process.cpp` under the Linux folder).
 - **QNX Implementation**: Concrete implementations for QNX (`process.cpp` under the QNX folder).
 
@@ -75,7 +78,7 @@ Contains core utilities and internal mechanisms essential for Adaptive AUTOSAR:
 
 - **ara::core::Array**: A fixed‑size array container with enhanced functionality.
 - **ara::core::Abort**: API for explicitly aborting operations when violations occur.
-- **Internal Utilities**: Helpers for location handling and violation management (e.g., `location_utils., `violation_handler.h`).
+- **Internal Utilities**: Helpers for location handling and violation management (e.g., `location_utils.h`, `violation_handler.h`).
 
 ### 3. open-aa-example-apps
 Demonstrates how to use the Adaptive AUTOSAR libraries via sample applications.
@@ -88,36 +91,63 @@ Demonstrates how to use the Adaptive AUTOSAR libraries via sample applications.
 
 The `open-aa-tests` directory contains test applications for the core platform:
 - **core_platform tests**: Validate components such as `ara::core::Array` and `ara::core::Abort`.
-- The tests include both positive scenarios and negative (compile‑time or runtime) tests (the latter are commented out).
+- Tests include both positive scenarios and negative (compile‑time or runtime) tests (the latter are commented out).
 
 ---
 
-## Prerequisites
+## Prerequisites and Environment Setup
 
-**Operating System**: Linux (tested on Ubuntu 22.04) or QNX.
+### Ubuntu (GCC 11 || GCC 13)
 
-**C++ Compiler**:
- - **GCC**: Version 11.x.x or later smaller versions (for Linux builds)
- - **QNX QCC**: Version 12 (for QNX builds)
+**Operating System**: Ubuntu 22.04 or Ubuntu 24.04
 
-**CMake**: Version 3.27 or later  
-**Bash** and **GNU Make**: For building targets.
+**Required Packages:**
 
-### Installing Dependencies on Ubuntu
 ```bash
-sudo apt-get update
-sudo apt-get install -y software-properties-common lsb-release
-sudo apt-get remove --purge cmake
-sudo apt-get install -y apt-transport-https ca-certificates gnupg software-properties-common wget
-wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc | sudo apt-key add -
-sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ focal main'
-sudo apt-get update
-sudo apt-get install cmake
-sudo apt-get install -y build-essential cmake gcc-11 g++-11
+$ sudo apt-get update
+$ sudo apt-get install -y software-properties-common lsb-release
+$ sudo apt-get remove --purge cmake
+$ sudo apt-get install -y apt-transport-https ca-certificates gnupg wget
+$ wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc | sudo apt-key add -
+$ sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ focal main'
+$ sudo apt-get update
+$ sudo apt-get install -y cmake build-essential
+
+# For GCC 11 and GCC 13 (Ubuntu 24.04 supports both)
+$ sudo apt-get install -y gcc-11 g++-11 gcc-13 g++-13
 ```
 
-### Installing QNX SDP (for QNX Builds)
-Follow QNX's official documentation to install the QNX Software Development Platform.
+### Cross Compilation for AArch64
+
+**Operating System**: Ubuntu (22.04 or 24.04)
+
+**Required Packages:**
+
+```bash
+$ sudo apt-get update
+$ sudo apt-get install -y gcc-11-aarch64-linux-gnu g++-11-aarch64-linux-gnu gcc-13-aarch64-linux-gnu g++-13-aarch64-linux-gnu
+```
+
+**Note:** Ensure that the toolchain file (e.g., `CMake/Toolchain/*.cmake`) exists for your desired env
+### QNX Environment
+
+**Operating System:** QNX or Linux for QNX cross-compilation
+
+**Requirements:**
+
+- QNX Software Development Platform (SDP) version 7.1 or later (refer to [QNX documentation](http://www.qnx.com/download/) for installation instructions).
+- QNX QCC (typically version 12) must be installed and properly configured.
+
+**Setup:**
+
+1. Install QNX SDP as per QNX documentation.
+2. Source the QNX environment script before building or use the build script in the repo with --sdp-path /path/to/qnxsdp-env.sh
+
+```bash
+$ source /path/to/qnxsdp-env.sh
+```
+
+3. In the build command, specify the QNX toolchain target (e.g., `qcc12_qnx800_aarch64` or `qcc12_qnx800_x86_64`).
 
 ---
 
@@ -126,15 +156,16 @@ Follow QNX's official documentation to install the QNX Software Development Plat
 The project is built using CMake and the provided `build.sh` script.
 
 ### Usage
+
 ```bash
-./build.sh [OPTIONS]
+$ ./build.sh [OPTIONS]
 ```
 
 ### Options
 - **`-h, --help`**: Show help message and exit.
 - **`-c, --clean`**: Remove existing build and install directories.
 - **`-t, --build-type`**: Build type (`Debug` or `Release`). Default: `Release`.
-- **`-b, --build-target`**: Build target (e.g., `gcc11_linux_x86_64`, `gcc11_linux_aarch64`, cc12_qnx800_aarch64`, `qcc12_qnx800_x86_64`).
+- **`-b, --build-target`**: Build target (e.g., `gcc11_linux_x86_64`, `gcc11_linux_aarch64`, `gcc13_linux_x86_64`, `gcc13_linux_aarch64`, `qcc12_qnx800_aarch64`, `qcc12_qnx800_x86_64`).
 - **`-s, --sdp-path`**: Path to `qnxsdp-env.sh` for QNX builds.
 - **`-j, --jobs`**: Number of parallel jobs.
 - **`-e, --exception-safety`**: Choose exception safety mode:
@@ -145,17 +176,27 @@ The project is built using CMake and the provided `build.sh` script.
 
 **1. Clean and Build for GCC 11 Linux x86_64 (Release):**
 ```bash
-./build.sh --clean -b gcc11_linux_x86_64 -t Release -j 8
+$ ./build.sh --clean -b gcc11_linux_x86_64 -t Release -j 8
 ```
 
 **2. Build for QNX aarch64 (Debug) with safe exception mode:**
 ```bash
-./build.sh -b qcc12_qnx800_aarch64 -t Debug -s /path/to/qnxsdp-env.sh -e safe -j 4
+$ ./build.sh -b qcc12_qnx800_aarch64 -t Debug -s /path/to/qnxsdp-env.sh -e safe -j 4
 ```
 
 **3. Build for GCC 11 Linux aarch64 (Release) with conditional exceptions:**
 ```bash
-./build.sh --clean -b gcc11_linux_aarch64 -t Release -e conditional
+$ ./build.sh --clean -b gcc11_linux_aarch64 -t Release -e conditional
+```
+
+**4. Build for GCC 13 Linux x86_64 (Release) on Ubuntu 24.04:**
+```bash
+$ ./build.sh --clean -b gcc13_linux_x86_64 -t Release -j 8
+```
+
+**5. Build for GCC 13 Linux aarch64 (Release) on Ubuntu 24.04:**
+```bash
+$ ./build.sh --clean -b gcc13_linux_aarch64 -t Release -j 1
 ```
 
 ---
@@ -166,6 +207,8 @@ The project is built using CMake and the provided `build.sh` script.
 |---------------------------|----------|----------|--------------|----------------|
 | `gcc11_linux_x86_64`      | GCC 11   | Linux    | x86_64       | Debug/Release  |
 | `gcc11_linux_aarch64`     | GCC 11   | Linux    | aarch64le    | Debug/Release  |
+| `gcc13_linux_x86_64`      | GCC 13   | Linux    | x86_64       | Debug/Release  |
+| `gcc13_linux_aarch64`     | GCC 13   | Linux    | aarch64le    | Debug/Release  |
 | `qcc12_qnx800_aarch64`    | QCC 12   | QNX      | aarch64le    | Debug/Release  |
 | `qcc12_qnx800_x86_64`     | QCC 12   | QNX      | x86_64       | Debug/Release  |
 
@@ -177,52 +220,14 @@ The project is built using CMake and the provided `build.sh` script.
 
 After building, test executables are located in:
 ```bash
-cd install/<build-target>/
-./platform_core_test/core_array_test/bin/core_array_test [OPTION]
-./platform_core_test/core_abort_test/bin/core_abort_test [OPTION]
+$ cd install/<build-target>/
+$ ./platform_core_test/core_array_test/bin/core_array_test [OPTION]
+$ ./platform_core_test/core_abort_test/bin/core_abort_test [OPTION]
 ```
 The repository includes comprehensive tests for core platform components. In particular, the 
 `ara::core::Array` test suite (located in `tests/core_platform/ara_core_array_test`) covers a wide range 
 of scenarios to ensure reliability and correctness. The test executable accepts a test number as a 
-command-line argument to run specific tests:
-
-- **1**: Element Access and Iterators  
-    Tests both checked access via `at()` and unchecked access using `operator[]`, as well as forward iteration.
-- **2**: get<I>() Functionality  
-    Validates the compile-time and runtime behavior of the helper function `get<I>()`.
-- **3**: Swap and Fill  
-    Verifies that arrays can be swapped correctly and that the `fill()` method assigns the specified 
-    value to all elements. Includes constexpr tests.
-- **4**: Comparison Operators  
-    Checks equality (`==`), inequality (`!=`), and lexicographical comparisons (`<`, `<=`, `>`, `>=`).
-- **5**: Usage with User-Defined Class  
-    Demonstrates array usage with a custom class (`SafeTestClass`) that implements copy/move semantics.
-- **6**: Usage with User-Defined Struct  
-    Tests array behavior using a custom struct (`SafeTestStruct`).
-- **7**: Copy and Move Semantics  
-    Validates correct behavior of copy and move constructors and assignments.
-- **8**: Const Correctness  
-    Ensures that const arrays support proper element access and iteration, with compile-time checks.
-- **9**: Violation Handling (Out-of-Range)  
-    Confirms that accessing an out-of-range index via `at()` triggers a violation and terminates the process.
-- **10**: Zero-Sized Arrays  
-    Checks that zero-sized arrays behave correctly (e.g., `size()`, `empty()`, and `data()` return expected results).
-- **11**: Reverse Iterators  
-    Tests reverse iteration capabilities using `rbegin()`, `rend()`, `crbegin()`, and `crend()`.
-- **12**: Partial Initialization  
-    Verifies that arrays can be partially initialized, with unspecified elements defaulting as expected.
-- **13**: Negative Scenarios  
-    Contains (commented-out) tests demonstrating expected compile-time or run-time errors when misusing the API.
-- **14**: Two-Dimensional Arrays  
-    Demonstrates usage of nested arrays and validates operations on multi-dimensional arrays.
-
-To run the array tests, navigate to the corresponding test executable (e.g., `ara_core_array_test`)
-in the install directory and pass the desired test number as a command-line argument.
-
-The test executable `ara_core_abort_test` accepts a test number as a command-line argument:
-- **1**: Inline tests (e.g., AddAbortHandler, SetAbortHandler)
-- **2**: Cross‑Translation Unit Sharing test (set handler from another file)
-- **3**: Termination test (calls Abort() and terminates the process)
+command-line argument to run specific tests.
 
 ---
 
@@ -232,15 +237,15 @@ The **open-aa-example-apps** component contains demo applications to illustrate 
 
 1. **Build** the project:
    ```bash
-   ./build.sh --clean -b gcc11_linux_x86_64 -t Release
+   $ ./build.sh --clean -b gcc11_linux_x86_64 -t Release
    ```
 2. **Navigate** to the installed directory for your target:
    ```bash
-   cd install/<build-target>/adaptive_platform/opt/demo_app/bin
+   $ cd install/<build-target>/adaptive_platform/opt/demo_app/bin
    ```
 3. **Run** the demo application:
    ```bash
-   ./demo_app
+   $ ./demo_app
    ```
 
 ---
@@ -265,18 +270,22 @@ The **open-aa-example-apps** component contains demo applications to illustrate 
    - **Error**: `cmake: command not found`
    - **Solution**: Install CMake and ensure it’s in your PATH:
      ```bash
-     cmake --version
+     $ cmake --version
      ```
 
-2. **QNX Environment Variables Not Set**  
+2. **Compiler Not Found (GCC / Cross-Compiler)**  
+   - **Error**: `... is not a full path and was not found in the PATH.`
+   - **Solution**: Verify the compiler installation and update the PATH or specify full paths in the toolchain file.
+
+3. **QNX Environment Variables Not Set**  
    - **Error**: `Error: QNX_HOST and QNX_TARGET environment variables must be set.`
    - **Solution**: Source `qnxsdp-env.sh` or specify the path via the `-s` option.
 
-3. **Toolchain File Not Found**  
+4. **Toolchain File Not Found**  
    - **Error**: `Error: Toolchain file not found: ...`
    - **Solution**: Verify the file exists in `CMake/CMakeConfig/` and that your build target is correct.
 
-4. **Compilation Errors**  
+5. **Compilation Errors**  
    - **Cause**: Mismatched compiler versions or missing dependencies.
    - **Solution**: Use the correct compiler and install any missing dependencies.
 
@@ -288,12 +297,12 @@ Contributions are welcome! Follow these steps:
 1. **Fork the Repository**.
 2. **Create a Feature Branch**:
    ```bash
-   git checkout -b feature/my-new-feature
+   $ git checkout -b feature/my-new-feature
    ```
 3. **Commit Your Changes** with clear messages.
 4. **Push to Your Fork**:
    ```bash
-   git push origin feature/my-new-feature
+   $ git push origin feature/my-new-feature
    ```
 5. **Open a Pull Request** targeting the `master_integration` branch.
 

@@ -95,6 +95,42 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
       }
+    },
+    {
+      "name": "gcc13_linux_x86_64_release",
+      "inherits": "base_unix_makefiles",
+      "description": "Release build using gcc13 for Linux x86_64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/gcc13_linux_x86_64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "gcc13_linux_x86_64_debug",
+      "inherits": "base_unix_makefiles",
+      "description": "Debug build using gcc13 for Linux x86_64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/gcc13_linux_x86_64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "gcc13_linux_aarch64_release",
+      "inherits": "base_unix_makefiles",
+      "description": "Release build using gcc13 for Linux aarch64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/gcc13_linux_aarch64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "gcc13_linux_aarch64_debug",
+      "inherits": "base_unix_makefiles",
+      "description": "Debug build using gcc13 for Linux aarch64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/gcc13_linux_aarch64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
     }
   ]
 }

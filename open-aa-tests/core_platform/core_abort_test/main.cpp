@@ -12,6 +12,7 @@
 #if defined(__linux__)
 #include <sys/prctl.h>
 #endif
+#include <cstdint>
 #include <iostream>    
 #include <csignal>     
 #include <algorithm>   
