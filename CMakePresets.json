@@ -1,88 +1,100 @@
 {
-    "version": 3,
-    "cmakeMinimumRequired": {
-      "major": 3,
-      "minor": 27,
-      "patch": 0
-    },
-    "configurePresets": [
-      {
-        "name": "base_unix_makefiles",
-        "hidden": true,
-        "generator": "Unix Makefiles",
-        "description": "Base Debug build using Unix Makefiles generator",
-        "binaryDir": "${sourceDir}/build/${presetName}",
-        "installDir": "${sourceDir}/install/${presetName}",
-        "toolchainFile": "${sourceDir}/CMake/Toolchain/${presetName}.cmake",
-        "cacheVariables": {
-          "CMAKE_BUILD_TYPE": "Debug",
-          "CMAKE_COLOR_MAKEFILE": true,
-          "CMAKE_VERBOSE_MAKEFILE": true,
-          "CMAKE_LINK_WHAT_YOU_USE": true,
-          "CMAKE_EXPORT_COMPILE_COMMANDS": true
-        }
-      },
-      {
-        "name": "qcc12_qnx800_aarch64_release",
-        "inherits": "base_unix_makefiles",
-        "description": "Release build using QCC-12 for QNX 8.0 aarch64",
-        "cacheVariables": {
-          "CMAKE_BUILD_TYPE": "Release",
-          "CMAKE_PREFIX_PATH": "$env{QNX_HOST}/usr"
-        }
-      },
-      {
-        "name": "qcc12_qnx800_aarch64_debug",
-        "inherits": "base_unix_makefiles",
-        "description": "Debug build using QCC-12 for QNX 8.0 aarch64",
-        "cacheVariables": {
-          "CMAKE_PREFIX_PATH": "$env{QNX_HOST}/usr"
-        }
-        
-      },
-      {
-        "name": "qcc12_qnx800_x86_64_release",
-        "inherits": "base_unix_makefiles",
-        "description": "Release build using QCC-12 for QNX 8.0 aarch64",
-        "cacheVariables": {
-          "CMAKE_BUILD_TYPE": "Release",
-          "CMAKE_PREFIX_PATH": "$env{QNX_HOST}/usr"
-        }
-      },
-      {
-        "name": "qcc12_qnx800_x86_64_debug",
-        "inherits": "base_unix_makefiles",
-        "description": "Debug build using QCC-12 for QNX 8.0 aarch64",
-        "cacheVariables": {
-          "CMAKE_PREFIX_PATH": "$env{QNX_HOST}/usr"
-        }
-      },
-      {
-        "name": "gcc11_linux_x86_64_release",
-        "inherits": "base_unix_makefiles",
-        "description": "Releasue build using gcc11 for Linux x86_64",
-        "cacheVariables": {
-          "CMAKE_BUILD_TYPE": "Release"
-        }
-      },
-      {
-        "name": "gcc11_linux_x86_64_debug",
-        "inherits": "base_unix_makefiles",
-        "description": "Debug build using gcc11 for Linux x86_64"
-      },
-      {
-        "name": "gcc11_linux_aarch64_release",
-        "inherits": "base_unix_makefiles",
-        "description": "Releasue build using gcc11 for Linux aarch64",
-        "cacheVariables": {
-          "CMAKE_BUILD_TYPE": "Release"
-        }
-      },
-      {
-        "name": "gcc11_linux_aarch64_debug",
-        "inherits": "base_unix_makefiles",
-        "description": "Debug build using gcc11 for Linux aarch64"
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 27,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base_unix_makefiles",
+      "hidden": true,
+      "generator": "Unix Makefiles",
+      "description": "Base settings using Unix Makefiles generator",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "installDir": "${sourceDir}/install/${presetName}",
+      "cacheVariables": {
+        "CMAKE_COLOR_MAKEFILE": true,
+        "CMAKE_VERBOSE_MAKEFILE": true,
+        "CMAKE_LINK_WHAT_YOU_USE": true,
+        "CMAKE_EXPORT_COMPILE_COMMANDS": true
       }
-    ]
-  }
-  
+    },
+    {
+      "name": "qcc12_qnx800_aarch64_release",
+      "inherits": "base_unix_makefiles",
+      "description": "Release build using QCC-12 for QNX 8.0 aarch64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/qcc12_qnx800_aarch64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "$env{QNX_HOST}/usr"
+      }
+    },
+    {
+      "name": "qcc12_qnx800_aarch64_debug",
+      "inherits": "base_unix_makefiles",
+      "description": "Debug build using QCC-12 for QNX 8.0 aarch64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/qcc12_qnx800_aarch64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_PREFIX_PATH": "$env{QNX_HOST}/usr"
+      }
+    },
+    {
+      "name": "qcc12_qnx800_x86_64_release",
+      "inherits": "base_unix_makefiles",
+      "description": "Release build using QCC-12 for QNX 8.0 x86_64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/qcc12_qnx800_x86_64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "$env{QNX_HOST}/usr"
+      }
+    },
+    {
+      "name": "qcc12_qnx800_x86_64_debug",
+      "inherits": "base_unix_makefiles",
+      "description": "Debug build using QCC-12 for QNX 8.0 x86_64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/qcc12_qnx800_x86_64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_PREFIX_PATH": "$env{QNX_HOST}/usr"
+      }
+    },
+    {
+      "name": "gcc11_linux_x86_64_release",
+      "inherits": "base_unix_makefiles",
+      "description": "Release build using gcc11 for Linux x86_64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/gcc11_linux_x86_64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "gcc11_linux_x86_64_debug",
+      "inherits": "base_unix_makefiles",
+      "description": "Debug build using gcc11 for Linux x86_64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/gcc11_linux_x86_64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "gcc11_linux_aarch64_release",
+      "inherits": "base_unix_makefiles",
+      "description": "Release build using gcc11 for Linux aarch64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/gcc11_linux_aarch64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "gcc11_linux_aarch64_debug",
+      "inherits": "base_unix_makefiles",
+      "description": "Debug build using gcc11 for Linux aarch64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/gcc11_linux_aarch64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    }
+  ]
+}
