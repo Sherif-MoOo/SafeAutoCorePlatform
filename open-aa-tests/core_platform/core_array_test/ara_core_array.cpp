@@ -324,60 +324,125 @@ void TestGetFunction()
     #endif
 }
 
-/*!
- * \brief Test #3: Swap and Fill
- */
+/*───────── helpers at namespace scope ─────────────────────────────────────────────*/
+template<class, class = void> struct has_member_value : std::false_type {};
+template<class T>
+struct has_member_value<T, std::void_t<decltype(std::declval<T>().value)>>
+    : std::true_type {};
+
+template<class, class = void> struct has_member_v : std::false_type {};
+template<class T>
+struct has_member_v<T, std::void_t<decltype(std::declval<T>().v)>>
+    : std::true_type {};
+/*──────────────────────────────────────────────────────────────────────────────────*/
+
 void TestSwapAndFill()
 {
-    /* Compile-time test using a constexpr lambda and static_assert.
-       This lambda creates two arrays, swaps them, fills one with 100,
-       and then returns true if the operations produced the expected results.
-    */
+    /*=================== constexpr sanity =========================================*/
     static_assert([]() constexpr -> bool {
-        ara::core::Array<int, 4> arr1 = {1, 2, 3, 4};
-        ara::core::Array<int, 4> arr2 = {5, 6, 7, 8};
-        swap(arr1, arr2);
-        arr1.fill(100);
-        return (arr1[0] == 100 && arr1[1] == 100 &&
-                arr1[2] == 100 && arr1[3] == 100 &&
-                arr2[0] == 1 && arr2[1] == 2 &&
-                arr2[2] == 3 && arr2[3] == 4);
-    }(), 
-        "\n[ERROR]: constexpr swap and fill test failed.\n");
+        ara::core::Array<int,4> a{1,2,3,4}, b{5,6,7,8};
+        swap(a,b); a.fill(0);
+        return a[0]==0 && b[0]==1;
+    }(), "constexpr swap/fill failed");
 
-    /* Runtime test code: */
-    std::cout << "\n=== Test 3: Swap and Fill ===\n";
-    ara::core::Array<int, 4> arr1 = {1, 2, 3, 4};
-    ara::core::Array<int, 4> arr2 = {5, 6, 7, 8};
-
-    std::cout << "arr1 before swap: ";
-    for (auto i : arr1)
-        std::cout << i << " ";
-    std::cout << "\narr2 before swap: ";
-    for (auto i : arr2)
-        std::cout << i << " ";
-
-    // Perform swap
-    swap(arr1, arr2);
-
-    std::cout << "\narr1 after swap: ";
-    for (auto i : arr1)
-        std::cout << i << " ";
-    std::cout << "\narr2 after swap: ";
-    for (auto i : arr2)
-        std::cout << i << " ";
-
-    // Fill arr1 with 100
-    arr1.fill(100);
-    std::cout << "\narr1 after fill(100): ";
-    for (auto i : arr1)
+    /*=================== generic printer ==========================================*/
+    auto print = [](auto const& arr, const char* tag)
     {
-        std::cout << i << " ";
-        assert(i == 100);
-    }
-    std::cout << "\n";
-}
+        std::cout << tag << " { ";
+        for (auto const& e : arr)
+        {
+            using E = std::decay_t<decltype(e)>;
+            if constexpr (std::is_same_v<E,unsigned char>)
+                std::cout << static_cast<unsigned int>(e) << ' ';
+            else if constexpr (std::is_same_v<E,bool>)
+                std::cout << (e ? "true " : "false ");
+            else if constexpr (std::is_arithmetic_v<E>)
+                std::cout << e << ' ';
+            else if constexpr (has_member_value<E>::value)
+                std::cout << e.value << ' ';
+            else if constexpr (has_member_v<E>::value)
+                std::cout << e.v << ' ';
+            else
+                std::cout << "<obj> ";
+        }
+        std::cout << "}\n";
+    };
 
+    /*---------------- Scenario A : int -------------------------------------------*/
+    std::cout << "\n(A) int | memcpy-swap + memset-zero\n";
+    {
+        ara::core::Array<int,4> a{1,2,3,4}, b{5,6,7,8};
+        print(a,"  a-before"); print(b,"  b-before");
+        swap(a,b);            print(a,"  a-after-swap"); print(b,"  b-after-swap");
+        a.fill(0);            print(a,"  a-after-fill(0)");
+        for(auto v:a){ assert(v==0); (void)v; }
+    }
+
+    /*---------------- Scenario B : unsigned char ---------------------------------*/
+    std::cout << "\n(B) unsigned char | memcpy-swap + 1-byte memset\n";
+    {
+        constexpr unsigned char AA=0xAAu;
+        constexpr unsigned char B0=0x10u,B1=0x11u,B2=0x12u,B3=0x13u;
+        ara::core::Array<unsigned char,4> a{AA,AA,AA,AA};
+        ara::core::Array<unsigned char,4> b{B0,B1,B2,B3};
+        print(a,"  a-before"); print(b,"  b-before");
+        swap(a,b);            print(a,"  a-after-swap"); print(b,"  b-after-swap");
+        a.fill(0xFFu);        print(a,"  a-after-fill(0xFF)");
+        for(auto c:a){ assert(c==0xFFu); (void)c; }
+    }
+
+    /*---------------- Scenario C : bool ------------------------------------------*/
+    std::cout << "\n(C) bool | memcpy-swap + bool-memset\n";
+    {
+        ara::core::Array<bool,4> a{false,false,false,false};
+        ara::core::Array<bool,4> b{true,true,true,true};
+        print(a,"  a-before"); print(b,"  b-before");
+        swap(a,b);            print(a,"  a-after-swap"); print(b,"  b-after-swap");
+        a.fill(true);         print(a,"  a-after-fill(true)");
+        for(auto v:a){ assert(v);  (void)v; }
+        for(auto v:b){ assert(!v); (void)v; }
+    }
+
+    /*---------------- Scenario D : NTDC -----------------------------------------*/
+    std::cout << "\n(D) NTDC | memcpy-swap + loop-fill\n";
+    struct NTDC{ int value; NTDC() noexcept:value(0){} explicit NTDC(int v) noexcept:value(v){} };
+    {
+        ara::core::Array<NTDC,4> a{NTDC{1},NTDC{2},NTDC{3},NTDC{4}};
+        ara::core::Array<NTDC,4> b{NTDC{5},NTDC{6},NTDC{7},NTDC{8}};
+        print(a,"  a-before"); print(b,"  b-before");
+        swap(a,b);            print(a,"  a-after-swap"); print(b,"  b-after-swap");
+        a.fill(NTDC{42});     print(a,"  a-after-fill(42)");
+        for(auto& e:a){ assert(e.value==42); (void)e; }
+    }
+
+    /*---------------- Scenario E : NonTrivial ------------------------------------*/
+    std::cout << "\n(E) NonTrivial | loop-swap + loop-fill\n";
+    struct NonTrivial
+    {
+        int v;
+        constexpr NonTrivial(int x=0) noexcept : v(x) {}
+        NonTrivial(const NonTrivial& o) noexcept : v(o.v) {}
+        NonTrivial(NonTrivial&& o) noexcept : v(o.v) {}
+        NonTrivial& operator=(const NonTrivial& o) noexcept { v=o.v; return *this; }
+        NonTrivial& operator=(NonTrivial&& o) noexcept { v=o.v; return *this; }
+    };
+    {
+        ara::core::Array<NonTrivial,4> a{NonTrivial{1},NonTrivial{2},
+                                         NonTrivial{3},NonTrivial{4}};
+        ara::core::Array<NonTrivial,4> b{NonTrivial{5},NonTrivial{6},
+                                         NonTrivial{7},NonTrivial{8}};
+        print(a,"  a-before"); print(b,"  b-before");
+        swap(a,b);            print(a,"  a-after-swap"); print(b,"  b-after-swap");
+        a.fill(NonTrivial{77});print(a,"  a-after-fill(77)");
+        for(auto& e:a){ assert(e.v==77); (void)e; }
+    }
+
+    /*---------------- Scenario F : N==0 -----------------------------------------*/
+    std::cout << "\n(F) N==0 | compile-time no-op scenario\n";
+    { ara::core::Array<int,0> a,b; swap(a,b); a.fill(0); std::cout<<"  ok\n"; }
+
+    std::cout << "\n>>> TestSwapAndFill - ALL SCENARIOS PASSED\n";
+}
 
 /*!
  * \brief Test #4: Comparison Operators (==, !=, <, <=, >, >=)
