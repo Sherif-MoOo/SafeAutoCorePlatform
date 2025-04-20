@@ -29,7 +29,7 @@
 #define OPEN_AA_ADAPTIVE_AUTOSAR_LIBS_INCLUDE_ARA_CORE_ARRAY_H_
 
 /**********************************************************************************************************************
- *  INCLUDES
+ *  INCLUDES: files that required by the template class
  *********************************************************************************************************************/
 /*!
  * \brief  Includes necessary standard headers for array operations, plus any additional
@@ -40,15 +40,90 @@
  * [SWS_CORE_01241]: fill uses type traits for noexcept checks
  * [SWS_CORE_00040]: we do not throw exceptions – we do custom violation handling
  */
-#include <cstring>       // For std::memcpy, std::memset
-#include <cstddef>       // For std::size_t, std::ptrdiff_t
-#include <iostream>      // For std::cout (demonstrations)
-#include <iterator>      // For std::reverse_iterator
-#include <type_traits>   // For std::is_nothrow_move_constructible, std::is_nothrow_move_assignable, etc.
-#include <utility>       // For std::declval, std::move, std::forward
+#include <tuple>          // For std::tuple_size / tuple_element declarations
+#include <cstring>        // For std::memcpy, std::memset
+#include <cstddef>        // For std::size_t, std::ptrdiff_t
+#include <iostream>       // For std::cout (demonstrations)
+#include <iterator>       // For std::reverse_iterator
+#include <type_traits>    // For std::is_nothrow_move_constructible, std::is_nothrow_move_assignable, etc.
+#include <utility>        // For std::declval, std::move, std::forward
 
 #include "ara/core/internal/location_utils.h"       // For capturing file/line details
 #include "ara/core/internal/violation_handler.h"    // To Trigger the violation
+
+/**********************************************************************************************************************
+ *  SECTION: Forward Declaration
+ *********************************************************************************************************************/
+/*!
+ * \brief  Forward declaration of the Array class template.
+ */
+template <typename T, std::size_t N>
+class Array;
+
+/**********************************************************************************************************************
+ *  TUPLE: INTERFACE SPECIALISATIONS
+ *  ---------------------------------------------------------------------------------------------------------------
+ *  ⌂  std::tuple_size   [SWS_CORE_01280]
+ *  ⌂  std::tuple_element[ SWS_CORE_01281 / 01285 ]
+ *
+ *  Rationale:
+ *  ──────────
+ *  Supplying these partial specialisations makes ara::core::Array<T,N> a fully
+ *  “tuple‑like” type in the sense of [tuple.helper] in the C++ Standard.  This
+ *  unlocks:
+ *      • structured bindings        →  auto [x,y] = myArray;
+ *      • std::get<I>()              →  value = std::get<2>(myArray);
+ *      • std::apply / tuple_cat …   →  standard generic utilities
+ *  and it is explicitly demanded by AUTOSAR SWS ( 8.8.3 / 8.8.4).
+ *
+ *  The implementation is ZERO‑overhead: it only creates compile‑time metadata.
+ *********************************************************************************************************************/
+namespace std
+{
+   /*---------------------------------------------------------------------------------------------------------------
+    *  (1) tuple_size – “How many elements?”
+    *-------------------------------------------------------------------------------------------------------------*/
+   /*!
+    * \brief   Primary trait giving the fixed size N of ara::core::Array<T,N>.
+    *
+    * \tparam  T  Element type stored in the Array.
+    * \tparam  N  Number of elements (array extent).
+    *
+    * \note    [SWS_CORE_01280] – must model a C++14 UnaryTypeTrait whose BaseCharacteristic
+    *        is std::integral_constant<std::size_t,N>.
+    */
+    template<class T, std::size_t N>
+    struct tuple_size< ara::core::Array<T,N> >
+        : std::integral_constant<std::size_t, N>  // UnaryTypeTrait
+    {};
+
+   /*---------------------------------------------------------------------------------------------------------------
+    *  (2) tuple_element – “What is the type of element I?”
+    *-------------------------------------------------------------------------------------------------------------*/
+   /*!
+    * \brief   Yields the element **type** of ara::core::Array<T,N> at compile‑time index \c I.
+    *
+    * \details
+    *   • If I ≥ N the implementation triggers a compile‑time error as mandated by the spec
+    *     (“shall flag the condition I >= N as a compile error” – SWS_CORE_01281).\n
+    *   • Because every element of ara::core::Array<T,N> has the same type \c T, the alias
+    *     simply forwards `using type = T;` (SWS_CORE_01285).
+    *
+    * \tparam  I  Zero‑based element index requested at compile time.
+    * \tparam  T  Element type stored in the Array.
+    * \tparam  N  Number of elements in the Array.
+    */
+    template<std::size_t I, class T, std::size_t N>
+    struct tuple_element<I, ara::core::Array<T,N>>
+    {
+        static_assert(I < N,
+            "\n[ERROR] std::tuple_element<I, ara::core::Array<T,N>> : "
+            "index I is out of range (I >= N).\n");
+
+        using type = T;                         // every element is T
+    };
+} // namespace std
+ 
 
 /**********************************************************************************************************************
  *  NAMESPACE: ara::core
@@ -59,15 +134,6 @@
  */
 namespace ara {
 namespace core {
-
-/**********************************************************************************************************************
- *  SECTION: Forward Declaration
- *********************************************************************************************************************/
-/*!
- * \brief  Forward declaration of the Array class template.
- */
-template <typename T, std::size_t N>
-class Array;
 
 /**********************************************************************************************************************
  *  SECTION: Internal Utilities
@@ -1184,7 +1250,7 @@ constexpr auto get(Array<T, N>& arr) noexcept -> T&
     static_assert(I < N,
         "\n[ERROR] get<I>() out of range!\n"
         "        I must be less than N in ara::core::Array.\n");
-    return arr[I];
+    return arr.data()[I];
 }
 
 /*!
@@ -1206,7 +1272,7 @@ constexpr auto get(Array<T, N>&& arr) noexcept -> T&&
     static_assert(I < N,
         "\n[ERROR] get<I>() out of range!\n"
         "        I must be less than N in ara::core::Array.\n");
-    return std::move(arr[I]);
+    return std::move(arr.data()[I]);
 }
 
 /*!
@@ -1228,7 +1294,7 @@ constexpr auto get(const Array<T, N>& arr) noexcept -> const T&
     static_assert(I < N,
         "\n[ERROR] get<I>() out of range!\n"
         "        I must be less than N in ara::core::Array.\n");
-    return arr[I];
+    return arr.data()[I];
 }
 
 /********************************************************************************************

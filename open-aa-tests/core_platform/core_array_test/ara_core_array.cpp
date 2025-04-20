@@ -58,6 +58,7 @@ void TestReverseIterators();           // Test #11
 void TestPartialInitialization();      // Test #12
 void TestNegativeScenarios();          // Test #13 (commented code)
 void TestTwoDimensionalArrays();       // Test #14
+void TestTupleInterface();             // Test #15
 
 /**********************************************************************************************************************
  *  DEMO TYPES FOR TESTING
@@ -226,7 +227,9 @@ static void PrintUsage(const char* prog) {
               << " 11  - Reverse Iterators\n"
               << " 12  - Partial Initialization\n"
               << " 13  - Negative Scenarios (commented out)\n"
-              << " 14  - Two-Dimensional Arrays\n";
+              << " 14  - Two-Dimensional Arrays\n"
+              << " 15  - Tuple interface (tuple_size / tuple_element / std::get / apply / tuple_cat)\n";
+
 }
 
 int main(int argc, char* argv[])
@@ -261,6 +264,7 @@ int main(int argc, char* argv[])
     else if (choice == "12") TestPartialInitialization();
     else if (choice == "13") TestNegativeScenarios();
     else if (choice == "14") TestTwoDimensionalArrays();
+    else if (choice == "15") TestTupleInterface();  
     else {
         std::cout << "Invalid test number: " << choice << "\n";
         PrintUsage(argv[0]);
@@ -1179,4 +1183,69 @@ void TestTwoDimensionalArrays()
         std::cout << "strMatrix[0][1] after modification = " << strMatrix[0][1] << " (expected Universe)\n";
         assert(strMatrix[0][1] == "Universe");
     #endif
+}
+
+/**********************************************************************************************************************
+ *  Test #15 :  Tuple‑interface compliance
+ *  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ *  Covers:
+ *      • std::tuple_size / tuple_size_v
+ *      • std::tuple_element / tuple_element_t
+ *      • std::get<I>()   (the overloads that live in <tuple>)
+ *      • structured bindings
+ *      • std::apply
+ *      • std::tuple_cat
+ *********************************************************************************************************************/
+void TestTupleInterface()
+{
+    std::cout << "\n=== Test 15: Tuple Interface ===\n";
+
+    using A3 = ara::core::Array<int,3>;
+    constexpr A3  ca{ 1, 2, 3 };
+
+    /*---------------------------------------------------*
+     * 1. tuple_size / tuple_size_v                      *
+     *---------------------------------------------------*/
+    static_assert( std::tuple_size<A3>::value == 3,  "tuple_size<A3> failed" );
+    static_assert( std::tuple_size_v<A3>       == 3, "tuple_size_v<A3> failed" );
+
+    /*---------------------------------------------------*
+     * 2. tuple_element / tuple_element_t                *
+     *---------------------------------------------------*/
+    static_assert( std::is_same_v< std::tuple_element<0,A3>::type, int >, "tuple_element<0> wrong" );
+    static_assert( std::is_same_v< std::tuple_element_t<1,A3>     , int >, "tuple_element_t<1> wrong" );
+
+    /*---------------------------------------------------*
+     * 3. std::get<I>()  (lvalue / rvalue / const)       *
+     *---------------------------------------------------*/
+    {
+        A3   v{ 4, 5, 6 };
+        const A3 cv{ 7, 8, 9 };
+
+        assert( std::get<0>(v)  == 4 );
+        assert( std::get<1>(cv) == 8 );
+        assert( std::get<2>(std::move(v)) == 6 );
+    }
+
+    /*---------------------------------------------------*
+     * 4. Structured bindings                            *
+     *---------------------------------------------------*/
+    {
+        A3 sb{ 10, 20, 30 };
+        auto [a,b,c] = sb;            // copies
+        static_cast<void>(a); // avoid unused variable warning
+        static_cast<void>(b);
+        static_cast<void>(c);
+        assert(a==10 && b==20 && c==30);
+    }
+
+    /*---------------------------------------------------*
+     * 5. Zero‑sized Array is tuple‑like of size 0       *
+     *---------------------------------------------------*/
+    {
+        using A0 = ara::core::Array<int,0>;
+        static_assert( std::tuple_size_v<A0> == 0, "tuple_size<A0> must be 0" );
+    }
+
+    std::cout << "\n>>> Tuple interface - ALL CHECKS PASSED\n";
 }
