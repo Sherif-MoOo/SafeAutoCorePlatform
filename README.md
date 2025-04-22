@@ -97,7 +97,7 @@ The `open-aa-tests` directory contains test applications for the core platform:
 
 ## Prerequisites and Environment Setup
 
-### Ubuntu (GCC 11 || GCC 13)
+### Ubuntu (GCC 11 || GCC 13 || Clang 21)
 
 **Operating System**: Ubuntu 22.04 or Ubuntu 24.04
 
@@ -115,6 +115,17 @@ $ sudo apt-get install -y cmake build-essential
 
 # For GCC 11 and GCC 13 (Ubuntu 24.04 supports both)
 $ sudo apt-get install -y gcc-11 g++-11 gcc-13 g++-13
+
+# For LLVM support if wanted In Ubuntu
+$ echo "deb [arch=amd64] http://apt.llvm.org/noble llvm-toolchain-noble main" \
+  | sudo tee /etc/apt/sources.list.d/llvm-noble.list
+
+$ sudo apt update
+$ sudo apt install clang-21 lld-21 lldb-21
+$ sudo update-alternatives --install /usr/bin/clang   clang   /usr/bin/clang-21   100
+$ sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-21 100
+$ sudo update-alternatives --config clang
+$ sudo update-alternatives --config clang++
 ```
 
 ### Cross Compilation for AArch64
@@ -203,14 +214,16 @@ $ ./build.sh --clean -b gcc13_linux_aarch64 -t Release -j 1
 
 ## Build Targets
 
-| Build Target              | Compiler | Platform | Architecture | Build Types    |
-|---------------------------|----------|----------|--------------|----------------|
-| `gcc11_linux_x86_64`      | GCC 11   | Linux    | x86_64       | Debug/Release  |
-| `gcc11_linux_aarch64`     | GCC 11   | Linux    | aarch64le    | Debug/Release  |
-| `gcc13_linux_x86_64`      | GCC 13   | Linux    | x86_64       | Debug/Release  |
-| `gcc13_linux_aarch64`     | GCC 13   | Linux    | aarch64le    | Debug/Release  |
-| `qcc12_qnx800_aarch64`    | QCC 12   | QNX      | aarch64le    | Debug/Release  |
-| `qcc12_qnx800_x86_64`     | QCC 12   | QNX      | x86_64       | Debug/Release  |
+| Build Target              | Compiler  | Platform | Architecture | Build Types    |
+|---------------------------|-----------|----------|--------------|----------------|
+| `gcc11_linux_x86_64`      | GCC   11  | Linux    | x86_64       | Debug/Release  |
+| `gcc11_linux_aarch64`     | GCC   11  | Linux    | aarch64      | Debug/Release  |
+| `gcc13_linux_x86_64`      | GCC   13  | Linux    | x86_64       | Debug/Release  |
+| `gcc13_linux_aarch64`     | GCC   13  | Linux    | aarch64      | Debug/Release  |
+| `clang21_linux_x86_64`    | CLANG 21  | Linux    | x86_64       | Debug/Release  |
+| `clang21_linux_aarch64`   | CLANG 21  | Linux    | aarch64      | Debug/Release  |
+| `qcc12_qnx800_aarch64`    | QCC   12  | QNX 8.0  | aarch64le    | Debug/Release  |
+| `qcc12_qnx800_x86_64`     | QCC   12  | QNX 8.0  | x86_64       | Debug/Release  |
 
 *Note: “Debug” or “Release” is appended internally based on the build type.*
 
