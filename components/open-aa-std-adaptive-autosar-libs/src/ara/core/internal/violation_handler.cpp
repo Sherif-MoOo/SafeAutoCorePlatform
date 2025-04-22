@@ -101,10 +101,10 @@ auto ViolationHandler::Instance() noexcept -> ViolationHandler&
     /* Create string_view objects from the conversion results.
        If the conversion fails, an empty string_view is used instead. */
     std::string_view idxStr = (idxEc == std::errc{}) 
-                              ? std::string_view(idxBuffer, idxPtr - idxBuffer) 
+                              ? std::string_view(idxBuffer, static_cast<std::size_t>(idxPtr - idxBuffer)) 
                               : "";
     std::string_view sizeStr = (sizeEc == std::errc{}) 
-                               ? std::string_view(sizeBuffer, sizePtr - sizeBuffer) 
+                               ? std::string_view(sizeBuffer, static_cast<std::size_t>(sizePtr - sizeBuffer)) 
                                : "";
 
     /* Terminate the process by calling the Abort API.

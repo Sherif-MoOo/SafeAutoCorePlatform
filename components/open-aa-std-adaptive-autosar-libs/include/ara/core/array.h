@@ -54,11 +54,32 @@
 /**********************************************************************************************************************
  *  SECTION: Forward Declaration
  *********************************************************************************************************************/
+namespace ara::core {
 /*!
  * \brief  Forward declaration of the Array class template.
  */
 template <typename T, std::size_t N>
-class Array;
+class Array;    
+
+/*!
+ * \brief  Forward declaration of the get function template.
+ */
+template <std::size_t I, typename T, std::size_t N>
+constexpr auto get(ara::core::Array<T,N>&) noexcept -> T&;
+
+/*!
+ * \brief  Forward declaration of the get function template.
+ */
+template <std::size_t I, typename T, std::size_t N>
+constexpr auto get(const ara::core::Array<T,N>&) noexcept -> const T&;
+
+/*!
+ * \brief  Forward declaration of the get function template.
+ */
+template <std::size_t I, typename T, std::size_t N>
+constexpr auto get(ara::core::Array<T,N>&&) noexcept -> T&&;
+
+} // namespace ara::core
 
 /**********************************************************************************************************************
  *  TUPLE: INTERFACE SPECIALISATIONS
@@ -78,8 +99,22 @@ class Array;
  *
  *  The implementation is ZERO‑overhead: it only creates compile‑time metadata.
  *********************************************************************************************************************/
-namespace std
-{
+
+namespace std {
+
+  template<size_t I, typename T, size_t N>
+  constexpr auto get(ara::core::Array<T, N>& a) noexcept -> T& {
+    return ara::core::get<I>(a);
+  }
+  template<size_t I, typename T, size_t N>
+  constexpr auto get(const ara::core::Array<T, N>& a) noexcept -> const T& {
+    return ara::core::get<I>(a);
+  }
+  template<size_t I, typename T, size_t N>
+  constexpr auto get(ara::core::Array<T, N>&& a) noexcept -> T&& {
+    return ara::core::get<I>(static_cast< ara::core::Array<T, N>&&>(a));
+  }
+  
    /*---------------------------------------------------------------------------------------------------------------
     *  (1) tuple_size – “How many elements?”
     *-------------------------------------------------------------------------------------------------------------*/
@@ -191,7 +226,6 @@ private:
     static auto test(...) -> std::false_type;
 
 public:
-
     /* Integral constant type: std::true_type or std::false_type */
     using type = decltype(test<T[N]>(0));
 
@@ -200,6 +234,27 @@ public:
 
     /* The raw boolean result of the check */
     static constexpr value_type value = type::value;
+};
+
+/*!
+ * \brief Partial specialization for zero‑length arrays.
+ *
+ * For N == 0, no elements exist, so list‑initialization with any Args...
+ * is considered invalid. This specialization always inherits from
+ * std::false_type without attempting SFINAE on T[0].
+ *
+ * \tparam T    The element type of the array.
+ * \tparam Args The types of the initializer arguments.
+ *
+ * \note Conforms to AUTOSAR C++ Guidelines (SWS_CORE_11200).
+ * \since C++17
+ */
+template <typename T, typename... Args>
+struct is_brace_initializable_array<T, 0, Args...> : std::false_type
+{
+    using type       = std::false_type;
+    using value_type = bool;
+    static constexpr value_type value = false;
 };
 
 /*!
@@ -215,6 +270,7 @@ public:
 template <typename T, std::size_t N, typename... Args>
 inline constexpr bool is_brace_initializable_array_v =
     is_brace_initializable_array<T, N, Args...>::value;
+
 
 
 /*!
@@ -359,16 +415,7 @@ protected:
      * \note [SWS_CORE_01201], [SWS_CORE_01214], [SWS_CORE_01215], [SWS_CORE_01241]
      */
     template <typename... Args,
-              typename = std::enable_if_t<
-                  // Condition #1: Must not exceed N arguments
-                  (sizeof...(Args) <= N) &&
-                  // Condition #2: Each argument must be convertible to T
-                  (std::conjunction_v<std::is_convertible<Args, T>...>) &&
-                  // Condition #3: Brace-initialization does not cause narrowing
-                  (detail::is_brace_initializable_array_v<T, N, Args...>) &&
-                  // Condition #4: Prevent constructor from being selected when Args... is exactly Array<T, N>
-                  (!detail::is_single_same_array_v<Args...>)
-              >>
+              typename = std::enable_if_t<(sizeof...(Args) > 0)>>
     constexpr ArrayStorage(Args&&... args)
 #ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
         noexcept(std::conjunction_v<std::is_nothrow_constructible<T, Args&&>...>)
@@ -583,10 +630,10 @@ public:
         typename... Args,
         // Condition: either too many arguments OR not all convertible OR narrowing
         typename = std::enable_if_t<
-            (sizeof...(Args) > N) ||
             (!detail::is_single_same_array_v<Args...>) && 
-            ((!std::conjunction_v<std::is_convertible<Args, T>...>) ||
-             (!detail::is_brace_initializable_array_v<T, N, Args...>))
+            ( (sizeof...(Args) > N) || 
+              (!std::conjunction_v<std::is_convertible<Args, T>...>) ||
+              (!detail::is_brace_initializable_array_v<T, N, Args...>) )
         >,
         int = 0
     >

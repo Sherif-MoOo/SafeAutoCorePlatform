@@ -1202,7 +1202,7 @@ void TestTupleInterface()
 
     using A3 = ara::core::Array<int,3>;
     constexpr A3  ca{ 1, 2, 3 };
-
+    static_cast<void>(ca); // avoid unused variable warning
     /*---------------------------------------------------*
      * 1. tuple_size / tuple_size_v                      *
      *---------------------------------------------------*/
@@ -1221,7 +1221,8 @@ void TestTupleInterface()
     {
         A3   v{ 4, 5, 6 };
         const A3 cv{ 7, 8, 9 };
-
+        static_cast<void>(v); // avoid unused variable warning
+        static_cast<void>(cv);
         assert( std::get<0>(v)  == 4 );
         assert( std::get<1>(cv) == 8 );
         assert( std::get<2>(std::move(v)) == 6 );
