@@ -91,7 +91,7 @@ inline std::mutex g_abortMutex{};
 /***********************************************************************************************************************
  *  API FUNCTION: Abort
  ***********************************************************************************************************************/
-/* Aborts the current operation.
+/*! Aborts the current operation.
  *
  * This function outputs a log message (to the standard error stream and via DLT logging if implemented)
  * containing the provided message arguments, calls all installed AbortHandlers in reverse order,
