@@ -54,7 +54,7 @@ using StringView = std::string_view;
  *
  * [SWS_CORE_00050]
  */
-using AbortHandler = void (*)() noexcept;
+using AbortHandler = auto (*)() noexcept -> void;
 
 /***********************************************************************************************************************
  *  INTERNAL STORAGE & SYNCHRONIZATION FOR ABORT HANDLERS

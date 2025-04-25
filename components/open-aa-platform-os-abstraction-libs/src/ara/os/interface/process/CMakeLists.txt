@@ -14,7 +14,7 @@
 
 # Define the ara_os_process_interface library as an OBJECT library.
 add_library(ara_os_process_interface OBJECT
-    process_factory.cpp
+    process_interaction.cpp
 )
 
 #****************************************************************************************************

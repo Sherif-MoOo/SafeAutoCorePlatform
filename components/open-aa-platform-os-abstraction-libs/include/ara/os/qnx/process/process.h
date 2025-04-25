@@ -11,57 +11,54 @@
  *  \brief      QNX-specific implementation of ProcessInteraction.
  *
  *  \details
- *              Declares the QNX-specific ProcessInteractionImpl class.
- *              This implementation uses QNX’s procfs interface with devctl() to retrieve
- *              the process name from the process information.
- *
- *              This class is designed to be thread-safe, avoids dynamic memory allocation,
- *              and meets ASIL-D safety and security requirements.
+ *              Declares the QNX-specific ProcessQnxImpl class which retrieves the process name
+ *              via QNX procfs devctl(DCMD_PROC_INFO). Inherits from the CRTP base
+ *              ara::os::interface::process::ProcessInteraction<ProcessQnxImpl> for static dispatch.
+ *              The implementation is thread-safe, avoids heap allocation.
  **********************************************************************************************************************/
 
 #ifndef ARA_OS_QNX_PROCESS_PROCESS_H
 #define ARA_OS_QNX_PROCESS_PROCESS_H
+
+#include "ara/os/interface/process/process_interaction.h"
+#include <cstddef>  // For std::size_t
 
 namespace ara {
 namespace os {
 namespace qnx {
 namespace process {
 
-/*!
+/**
  * \brief QNX-specific implementation of the ProcessInteraction interface.
  *
  * \details
- * Provides a concrete implementation for retrieving the process name (the command name)
- * by using QNX’s procfs interface and the devctl() command DCMD_PROC_INFO.
+ * Provides process name retrieval by opening "/proc/self" and using devctl(DCMD_PROC_INFO)
+ * to obtain procfs_info.cmd. Inherits from ProcessInteraction<ProcessQnxImpl> to avoid virtual calls.
  */
-class ProcessInteractionImpl final : public ara::os::interface::process::ProcessInteraction {
+class ProcessQnxImpl final
+    : public ara::os::interface::process::ProcessInteraction<ProcessQnxImpl>
+{
 public:
-    /*!
-     * \brief Retrieves the process name.
+    /**
+     * \brief Retrieves the process name (command name) via devctl on "/proc/self".
      *
      * \param[out] buffer      Pointer to the output buffer.
-     * \param[in]  bufferSize  Size of the output buffer.
+     * \param[in]  bufferSize  Size of the output buffer in bytes.
      *
-     * \return An ErrorCode indicating the result.
+     * \return ErrorCode indicating:
+     *         - Success if the name was retrieved.
+     *         - NullBuffer if `buffer` is null.
+     *         - BufferTooSmall if `bufferSize` is zero or insufficient.
+     *         - RetrievalFailed for any devctl or parse error.
      *
-     * \note This implementation opens "/proc/self" and issues a devctl() call (DCMD_PROC_INFO)
-     *       to obtain a procfs_info structure that includes the process command name (typically in the
-     *       field "cmd"). The command name is then copied into the provided buffer using safe operations.
+     * \note This method is noexcept, thread-safe, and uses only stack-based buffers.
      */
-    auto GetProcessName(char* buffer, std::size_t bufferSize) const noexcept 
-        -> ara::os::interface::process::ErrorCode override;
+    auto GetProcessNameImpl(char* buffer,
+                            std::size_t bufferSize) const noexcept
+        -> ara::os::interface::process::ErrorCode;
 
-    ~ProcessInteractionImpl() override = default;
+    ~ProcessQnxImpl() = default;
 };
-
-/*!
- * \brief Factory function to obtain a QNX-specific ProcessInteraction instance.
- *
- * \return A const reference to a statically allocated ProcessInteractionImpl instance.
- *
- * \note This function avoids dynamic memory allocation and meets ASIL-D guidelines.
- */
-const ara::os::interface::process::ProcessInteraction& CreateProcessInteractionInstance();
 
 } // namespace process
 } // namespace qnx
@@ -69,4 +66,3 @@ const ara::os::interface::process::ProcessInteraction& CreateProcessInteractionI
 } // namespace ara
 
 #endif // ARA_OS_QNX_PROCESS_PROCESS_H
- 

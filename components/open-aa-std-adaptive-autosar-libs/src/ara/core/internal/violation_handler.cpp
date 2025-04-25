@@ -33,7 +33,7 @@
 #include <charconv>     /* For std::to_chars */
 
 // Include OS Abstraction Layer headers for ProcessInteraction
-#include "ara/os/interface/process/process_factory.h"       // For ProcessFactory
+#include "ara/os/interface/process/process_interaction.h"       // For ProcessFactory
 
 #include <string_view>                                      // Required for std::string_view
 #include "ara/core/internal/violation_handler.h"
@@ -127,7 +127,7 @@ auto ViolationHandler::Instance() noexcept -> ViolationHandler&
 
 /**********************************************************************************************************************
  *  FUNCTION: ViolationHandler::GetProcessIdentifier
- *********************************************************************************************************************/
+ **********************************************************************************************************************/
 /*!
  * \brief  Retrieves the identifier of the current process.
  *
@@ -140,31 +140,23 @@ auto ViolationHandler::Instance() noexcept -> ViolationHandler&
  * \note   [SWS_CORE_00090]
  */
  auto ViolationHandler::GetProcessIdentifier() noexcept -> std::string {
-    // Define a buffer size that is sufficiently large to hold the process name.
-    // The size should accommodate the expected maximum length plus the null terminator.
-    constexpr std::size_t processNameBufferSize = 256;
-    char processNameBuffer[processNameBufferSize] = {0};
+   // Define a buffer size that is sufficiently large to hold the process name.
+   constexpr std::size_t processNameBufferSize = 256;
+   char processNameBuffer[processNameBufferSize] = {0};
 
-    // Retrieve the singleton instance of the platform-specific ProcessInteraction.
-    // The factory returns a reference so no pointer-check is needed.
-    const auto& processInteraction = ara::os::interface::process::ProcessFactory::CreateInstance();
+   // Attempt to retrieve the process name via the CRTP-based dispatch function.
+   auto error = ara::os::interface::process::GetProcessName(
+       processNameBuffer, processNameBufferSize);
 
-    // Attempt to retrieve the process name into the local buffer.
-    auto error = processInteraction.GetProcessName(processNameBuffer, processNameBufferSize);
+   // If the process name could not be retrieved, use a default/fallback name.
+   if (error != ara::os::interface::process::ErrorCode::Success) {
+       std::strncpy(processNameBuffer, "UnknownProcess", processNameBufferSize - 1);
+       processNameBuffer[processNameBufferSize - 1] = '\0';
+   }
 
-    // If the process name could not be retrieved, use a default/fallback name.
-    if (error != ara::os::interface::process::ErrorCode::Success) {
-        // Copy a default string into the buffer ensuring no overflow.
-        std::strncpy(processNameBuffer, "UnknownProcess", processNameBufferSize - 1);
-        // Guarantee null termination.
-        processNameBuffer[processNameBufferSize - 1] = '\0';
-    }
-
-    // Construct and return a std::string from the buffer.
-    // Note: While std::string may allocate memory, the critical path avoids dynamic allocations.
-    return std::string(processNameBuffer);
+   // Construct and return a std::string from the buffer.
+   return std::string(processNameBuffer);
 }
-
 
 } // namespace internal
 } // namespace core

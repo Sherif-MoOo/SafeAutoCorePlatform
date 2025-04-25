@@ -11,53 +11,56 @@
  *  \brief      Linux-specific implementation of ProcessInteraction.
  *
  *  \details
- *              Declares the Linux-specific ProcessInteractionImpl class which retrieves the process name
- *              from the /proc filesystem. The implementation is thread-safe, avoids heap allocation,
- *              and meets ASIL-D safety and security guidelines.
+ *              Declares the Linux-specific ProcessLinuxImpl class which retrieves the process name
+ *              from the /proc filesystem. Inherits from the CRTP base
+ *              ara::os::interface::process::ProcessInteraction<ProcessLinuxImpl> to enable
+ *              compile-time dispatch without virtual calls. The implementation is thread-safe,
+ *              avoids heap allocation.
  **********************************************************************************************************************/
 
- #ifndef ARA_OS_LINUX_PROCESS_PROCESS_H
- #define ARA_OS_LINUX_PROCESS_PROCESS_H
-  
- namespace ara {
- namespace os {
- namespace linux {
- namespace process {
- 
+#ifndef ARA_OS_LINUX_PROCESS_PROCESS_H
+#define ARA_OS_LINUX_PROCESS_PROCESS_H
+
+#include "ara/os/interface/process/process_interaction.h"
+#include <cstddef>  // For std::size_t
+
+namespace ara {
+namespace os {
+namespace linux {
+namespace process {
+
 /*!
  * \brief Linux-specific implementation of the ProcessInteraction interface.
  *
  * \details
  * Implements process name retrieval using /proc/<pid>/comm.
- * All operations are done using safe file and string operations to meet ASIL-D standards.
+ * Inherits from ProcessInteraction<ProcessLinuxImpl> for static dispatch,
+ * avoiding any v-table overhead.
  */
-class ProcessInteractionImpl final : public ara::os::interface::process::ProcessInteraction {
+class ProcessLinuxImpl final
+    : public ara::os::interface::process::ProcessInteraction<ProcessLinuxImpl>
+{
 public:
     /*!
      * \brief Retrieves the process name from /proc/<pid>/comm.
      *
      * \param[out] buffer      Pointer to the output buffer.
-     * \param[in]  bufferSize  Size of the output buffer.
+     * \param[in]  bufferSize  Size of the output buffer in bytes.
      *
-     * \return An ErrorCode indicating success or failure.
+     * \return ErrorCode indicating:
+     *         - Success if the name was retrieved.
+     *         - NullBuffer if `buffer` is null.
+     *         - BufferTooSmall if `bufferSize` is zero or insufficient.
+     *         - RetrievalFailed for any I/O or parse error.
      *
-     * \note The method is thread-safe and avoids exceptions.
+     * \note This method is noexcept, thread-safe, and avoids dynamic allocation.
      */
-    auto GetProcessName(char* buffer, std::size_t bufferSize) const noexcept 
-        -> ara::os::interface::process::ErrorCode override;
+    auto GetProcessNameImpl(char* buffer,
+                            std::size_t bufferSize) const noexcept
+        -> ara::os::interface::process::ErrorCode;
 
-    ~ProcessInteractionImpl() override = default;
+    ~ProcessLinuxImpl() = default;
 };
-
-/*!
- * \brief Factory function to obtain a Linux-specific ProcessInteraction instance.
- *
- * \return A const reference to a statically allocated ProcessInteractionImpl instance.
- *
- * \note No dynamic memory allocation is performed. The instance is constructed
- *       on first use in a thread-safe manner.
- */
-const ara::os::interface::process::ProcessInteraction& CreateProcessInteractionInstance();
 
 } // namespace process
 } // namespace linux
