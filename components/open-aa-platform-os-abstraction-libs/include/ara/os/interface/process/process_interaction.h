@@ -44,7 +44,11 @@ enum class ErrorCode : uint8_t {
     UnknownError      /*!< An unspecified error occurred */
 };
 
-/*!
+/**********************************************************************************************************************
+ *  CRTP BASE TEMPLATE
+ **********************************************************************************************************************/
+
+/*! 
  * \brief  CRTP base for platform-specific ProcessInteraction.
  *
  * \tparam Derived  The concrete implementation class providing GetProcessNameImpl().
@@ -52,15 +56,17 @@ enum class ErrorCode : uint8_t {
 template <typename Derived>
 class ProcessInteraction {
 public:
-    /*!
-     * \brief  Dispatch to Derived::GetProcessNameImpl().
+    /*! 
+     * \brief Retrieves the name of the current process by dispatching to Derived.
      *
-     * \param[out] buffer      Buffer to receive the process name.
-     * \param[in]  bufferSize  Size of the buffer in bytes.
+     * \param[out] buffer      Pointer to the buffer where the process name will be stored.
+     * \param[in]  bufferSize  Size of the provided buffer in bytes.
      *
      * \return ErrorCode indicating the result.
      */
-    auto GetProcessName(char* buffer, std::size_t bufferSize) const noexcept -> ErrorCode;
+    inline auto GetProcessName(char* buffer, std::size_t bufferSize) const noexcept -> ErrorCode {
+        return static_cast<const Derived*>(this)->GetProcessNameImpl(buffer, bufferSize);
+    }
 };
 
 /*!
