@@ -25,11 +25,10 @@
  *  INCLUDES
  ***********************************************************************************************************************/
 #include <cstdlib>       /* For std::abort */
-#include <mutex>         /* For std::mutex, std::lock_guard */
-#include <cstddef>       /* For std::size_t */
 #include <string_view>   /* For std::string_view */
 #include <iostream>      /* For std::cerr */
-#include <type_traits>   /* For std::is_convertible_v */
+
+#include "ara/core/internal/utility.h"              // For utility functions and traits
 
 /***********************************************************************************************************************
  *  NAMESPACE: ara::core
@@ -55,38 +54,6 @@ using StringView = std::string_view;
  * [SWS_CORE_00050]
  */
 using AbortHandler = auto (*)() noexcept -> void;
-
-/***********************************************************************************************************************
- *  INTERNAL STORAGE & SYNCHRONIZATION FOR ABORT HANDLERS
-***********************************************************************************************************************/
-/**
- * @note    in the detail namespace are declared as inline (a feature introduced in C++17), 
- *          all translation units that include abort.h will share the same instance of these variables. 
- *          This means that the same AbortHandler array, count, and mutex are used across your entire program.
- */
-namespace detail {
-
-/* Maximum number of AbortHandlers supported. */
-inline constexpr std::size_t kMaxAbortHandlers{8U};
-
-/* Storage for installed AbortHandlers.
- * This fixed-size C-style array holds the pointers to the installed AbortHandlers.
- *
- * Note: We use inline variables (introduced in C++17) so that there is exactly one instance
- *       shared among all translation units that include this header. Using 'static' here would
- *       create a separate copy in each translation unit, which is not desired.
- */
-inline AbortHandler g_abortHandlers[kMaxAbortHandlers]{};
-
-/* Current count of installed AbortHandlers. */
-inline std::size_t g_abortHandlerCount{0U};
-
-/* Mutex to synchronize calls to Abort() and handler modifications.
- * While a call to Abort() is in progress, other threads will block.
- */
-inline std::mutex g_abortMutex{};
-
-} /* namespace detail */
 
 /***********************************************************************************************************************
  *  API FUNCTION: Abort

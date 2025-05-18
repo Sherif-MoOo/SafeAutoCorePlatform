@@ -82,9 +82,10 @@ auto ViolationHandler::Instance() noexcept -> ViolationHandler&
 /* This function is part of the ViolationHandler class and is called when an array access
    violation is detected. It logs an error message and terminates the process according
    to AUTOSAR requirements. */
-[[noreturn]] auto ViolationHandler::TriggerArrayAccessOutOfRangeViolation(std::string_view location,
-                                                                           std::size_t indexValue,
-                                                                           std::size_t arraySize) noexcept -> void
+[[noreturn]] auto ViolationHandler::TriggerArrayAccessOutOfRangeViolation(ArrayKey&& /*unused*/,
+                                                                          std::string_view location,
+                                                                          std::size_t indexValue,
+                                                                          std::size_t arraySize) noexcept -> void
 {
     /* Allocate fixed-size buffers for converting numeric values.
        Thirty-two characters is sufficient for representing a std::size_t value. */
