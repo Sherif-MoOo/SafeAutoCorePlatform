@@ -1186,7 +1186,7 @@ void TestTwoDimensionalArrays()
 }
 
 /**********************************************************************************************************************
- *  Test #15 :  Tuple‑interface compliance
+ *  Test #15 :  Tuple-interface compliance
  *  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  *  Covers:
  *      • std::tuple_size / tuple_size_v
@@ -1203,11 +1203,12 @@ void TestTupleInterface()
     using A3 = ara::core::Array<int,3>;
     constexpr A3  ca{ 1, 2, 3 };
     static_cast<void>(ca); // avoid unused variable warning
+
     /*---------------------------------------------------*
      * 1. tuple_size / tuple_size_v                      *
      *---------------------------------------------------*/
-    static_assert( std::tuple_size<A3>::value == 3,  "tuple_size<A3> failed" );
-    static_assert( std::tuple_size_v<A3>       == 3, "tuple_size_v<A3> failed" );
+    static_assert( std::tuple_size<A3>::value == 3,    "tuple_size<A3> failed" );
+    static_assert( std::tuple_size_v<A3>       == 3,   "tuple_size_v<A3> failed" );
 
     /*---------------------------------------------------*
      * 2. tuple_element / tuple_element_t                *
@@ -1241,12 +1242,40 @@ void TestTupleInterface()
     }
 
     /*---------------------------------------------------*
-     * 5. Zero‑sized Array is tuple‑like of size 0       *
+     * 5. Zero-sized Array is tuple-like of size 0       *
      *---------------------------------------------------*/
     {
         using A0 = ara::core::Array<int,0>;
         static_assert( std::tuple_size_v<A0> == 0, "tuple_size<A0> must be 0" );
     }
 
+    /*---------------------------------------------------*
+     * 6. std::apply                                     *
+     *---------------------------------------------------*/
+    // {
+    //     // sum all elements at compile time
+    //     constexpr int sum = std::apply(
+    //         [](int x, int y, int z){ return x + y + z; },
+    //         ca
+    //     );
+    //     static_assert(sum == 6, "std::apply sum failed");
+    // }
+
+    /*---------------------------------------------------*
+     * 7. std::tuple_cat                                 *
+     *---------------------------------------------------*/
+    // {
+    //     using A2 = ara::core::Array<int,2>;
+    //     constexpr A2 cb{ 4, 5 };
+    //     // concatenate two Arrays into a single tuple
+    //     constexpr auto tup = std::tuple_cat(ca, cb);
+    //     static_assert( std::tuple_size_v<decltype(tup)> == 5, "tuple_cat size wrong" );
+    //     // verify individual elements
+    //     assert( std::get<0>(tup) == 1 );
+    //     assert( std::get<3>(tup) == 4 );
+    //     assert( std::get<4>(tup) == 5 );
+    // }
+
     std::cout << "\n>>> Tuple interface - ALL CHECKS PASSED\n";
 }
+

@@ -58,6 +58,36 @@ namespace internal {
  */
 class ViolationHandler final {
 public:
+
+    struct ArrayKey{
+        constexpr ArrayKey(const ArrayKey&) noexcept = delete;
+        constexpr ArrayKey(ArrayKey&&) noexcept = delete;
+        constexpr auto operator=(const ArrayKey&) noexcept = delete;
+        constexpr auto operator=(ArrayKey&&) noexcept = delete;
+        ~ArrayKey() = default;
+
+        private:
+            /*!
+             * \brief  Private constructor to prevent instantiation.
+             *
+             * \details
+             * This constructor is private to ensure that the ArrayKey cannot be instantiated outside of this class.
+             */
+            constexpr ArrayKey() noexcept {
+                // This constructor is intentionally left empty.
+            };
+            /*!
+             * \brief  Grants friendship to the ara::core::Array class to allow exclusive access.
+             *
+             * \tparam T  The type of elements in the Array.
+             * \tparam N  The number of elements in the Array.
+             *
+             * \note   Ensures that ara::core::Array allowed trigger violations.
+             */
+            template <typename T, std::size_t N>
+            friend class ara::core::Array;
+    };
+
     /*!
      * \brief  Retrieves the singleton instance of ViolationHandler.
      *
@@ -66,49 +96,6 @@ public:
      * \note   Ensures that only one instance exists throughout the application lifecycle.
      */
     static auto Instance() noexcept -> ViolationHandler&;
-
-
-private:
-    /*!
-     * \brief  Private constructor to enforce the Singleton pattern.
-     *
-     * \details
-     * Prevents external instantiation of the ViolationHandler class. Only the Instance() method
-     * can access this constructor to create the singleton instance.
-     */
-    ViolationHandler() noexcept = default;
-
-    /*!
-     * \brief  Deletes the copy constructor.
-     *
-     * \details
-     * Prevents copying of the singleton instance.
-     */
-    ViolationHandler(const ViolationHandler&) = delete;
-
-    /*!
-     * \brief  Deletes the move constructor.
-     *
-     * \details
-     * Prevents moving of the singleton instance.
-     */
-    ViolationHandler(ViolationHandler&&) = delete;
-
-    /*!
-     * \brief  Deletes the copy assignment operator.
-     *
-     * \details
-     * Prevents copy assignment of the singleton instance.
-     */
-    auto operator=(const ViolationHandler&) noexcept -> ViolationHandler& = delete;
-
-    /*!
-     * \brief  Deletes the move assignment operator.
-     *
-     * \details
-     * Prevents move assignment of the singleton instance.
-     */
-    auto operator=(ViolationHandler&&) noexcept -> ViolationHandler& = delete;
 
     /*!
      * \brief  Triggers an ArrayAccessOutOfRangeViolation.
@@ -124,9 +111,53 @@ private:
      *
      * \note   [SWS_CORE_13017], [SWS_CORE_00090]
      */
-    [[noreturn]] auto TriggerArrayAccessOutOfRangeViolation(std::string_view location,
+    [[noreturn]] auto TriggerArrayAccessOutOfRangeViolation(ArrayKey&& /*unused*/,
+                                               std::string_view location,
                                                std::size_t indexValue,
                                                std::size_t arraySize) noexcept -> void;
+
+
+private:
+    /*!
+     * \brief  Private constructor to enforce the Singleton pattern.
+     *
+     * \details
+     * Prevents external instantiation of the ViolationHandler class. Only the Instance() method
+     * can access this constructor to create the singleton instance.
+     */
+    constexpr ViolationHandler() noexcept = default;
+
+    /*!
+     * \brief  Deletes the copy constructor.
+     *
+     * \details
+     * Prevents copying of the singleton instance.
+     */
+    constexpr ViolationHandler(const ViolationHandler&) = delete;
+
+    /*!
+     * \brief  Deletes the move constructor.
+     *
+     * \details
+     * Prevents moving of the singleton instance.
+     */
+    constexpr ViolationHandler(ViolationHandler&&) = delete;
+
+    /*!
+     * \brief  Deletes the copy assignment operator.
+     *
+     * \details
+     * Prevents copy assignment of the singleton instance.
+     */
+    constexpr auto operator=(const ViolationHandler&) noexcept -> ViolationHandler& = delete;
+
+    /*!
+     * \brief  Deletes the move assignment operator.
+     *
+     * \details
+     * Prevents move assignment of the singleton instance.
+     */
+    constexpr auto operator=(ViolationHandler&&) noexcept -> ViolationHandler& = delete;
                                                
 
     /*!
@@ -141,17 +172,7 @@ private:
      * \note   [SWS_CORE_00090]
      */
     auto GetProcessIdentifier() noexcept -> std::string;
-    
-    /*!
-     * \brief  Grants friendship to the ara::core::Array class to allow exclusive access.
-     *
-     * \tparam T  The type of elements in the Array.
-     * \tparam N  The number of elements in the Array.
-     *
-     * \note   Ensures that ara::core::Array allowed trigger violations.
-     */
-    template <typename T, std::size_t N>
-    friend class ara::core::Array;
+
 };
 
 } // namespace internal

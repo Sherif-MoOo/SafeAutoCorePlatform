@@ -41,27 +41,19 @@
  * [SWS_CORE_01241]: fill uses type traits for noexcept checks
  * [SWS_CORE_00040]: we do not throw exceptions – we do custom violation handling
  */
-#include <tuple>          // For std::tuple_size / tuple_element declarations
-#include <cstring>        // For std::memcpy, std::memset
-#include <cstddef>        // For std::size_t, std::ptrdiff_t
-#include <iostream>       // For std::cout (demonstrations)
-#include <iterator>       // For std::reverse_iterator
-#include <type_traits>    // For std::is_nothrow_move_constructible, std::is_nothrow_move_assignable, etc.
-#include <utility>        // For std::declval, std::move, std::forward
+#include <tuple>                                    // For std::tuple_size / tuple_element declarations
+#include <cstring>                                  // For std::memcpy, std::memset
+#include <iterator>                                 // For std::reverse_iterator
 
+#include "ara/core/internal/utility.h"              // For utility functions and traits
 #include "ara/core/internal/location_utils.h"       // For capturing file/line details
 #include "ara/core/internal/violation_handler.h"    // To Trigger the violation
+
 
 /**********************************************************************************************************************
  *  SECTION: Forward Declaration
  *********************************************************************************************************************/
 namespace ara::core {
-/*!
- * \brief  Forward declaration of the Array class template.
- */
-template <typename T, std::size_t N>
-class Array;    
-
 /*!
  * \brief  Forward declaration of the get function template.
  */
@@ -82,11 +74,12 @@ constexpr auto get(ara::core::Array<T,N>&&) noexcept -> T&&;
 
 } // namespace ara::core
 
+
 /**********************************************************************************************************************
  *  TUPLE: INTERFACE SPECIALISATIONS
  *  ---------------------------------------------------------------------------------------------------------------
- *  ⌂  std::tuple_size   [SWS_CORE_01280]
- *  ⌂  std::tuple_element[ SWS_CORE_01281 / 01285 ]
+ *  std::tuple_size          [SWS_CORE_01280]
+ *  std::tuple_element       [SWS_CORE_01281 / SWS_CORE_01285]
  *
  *  Rationale:
  *  ──────────
@@ -113,7 +106,7 @@ namespace std {
   }
   template<size_t I, typename T, size_t N>
   constexpr auto get(ara::core::Array<T, N>&& a) noexcept -> T&& {
-    return ara::core::get<I>(static_cast< ara::core::Array<T, N>&&>(a));
+    return ara::core::get<I>(std::move(a));
   }
   
    /*---------------------------------------------------------------------------------------------------------------
@@ -128,7 +121,7 @@ namespace std {
     * \note    [SWS_CORE_01280] – must model a C++14 UnaryTypeTrait whose BaseCharacteristic
     *        is std::integral_constant<std::size_t,N>.
     */
-    template<class T, std::size_t N>
+    template<typename T, std::size_t N>
     struct tuple_size< ara::core::Array<T,N> >
         : std::integral_constant<std::size_t, N>  // UnaryTypeTrait
     {};
@@ -149,7 +142,7 @@ namespace std {
     * \tparam  T  Element type stored in the Array.
     * \tparam  N  Number of elements in the Array.
     */
-    template<std::size_t I, class T, std::size_t N>
+    template<std::size_t I, typename T, std::size_t N>
     struct tuple_element<I, ara::core::Array<T,N>>
     {
         static_assert(I < N,
@@ -170,348 +163,6 @@ namespace std {
  */
 namespace ara {
 namespace core {
-
-/**********************************************************************************************************************
- *  SECTION: Internal Utilities
- *********************************************************************************************************************/
-/*!
- * \brief Contains internal details for handling internal utilities.
- *
- * This namespace encapsulates helper traits and functions that are used internally by the \c ara::core::Array 
- * implementation. These details are subject to change and are not part of the public API.
- *
- * \note This not proposed by the Specification of Adaptive Platform Core
- */
-namespace detail {
-
-constexpr auto is_constant_evaluated() noexcept -> bool {
-    #if defined(__cpp_lib_is_constant_evaluated) \
-        && (__cpp_lib_is_constant_evaluated >= 202002L)
-        return std::is_constant_evaluated();              // C++20 standard API
-    #elif defined(__has_builtin) && __has_builtin(__builtin_is_constant_evaluated)
-        return __builtin_is_constant_evaluated();         // GCC/Clang builtin in C++17
-    #elif defined(_MSC_VER)
-        return __is_constant_evaluated();                 // MSVC intrinsic
-    #else
-        return true;                                     // fallback: always compile-time
-    #endif
-}
-
-/*!
- * \brief Trait to detect whether an array of type T[N] can be list‑initialized
- *        with arguments of types Args... without narrowing conversions.
- *
- * This trait uses SFINAE to check the validity of the list‑initialization expression:
- *   T[N]{ std::declval<Args>()... }
- * If well‑formed (and no narrowing occurs), it inherits from std::true_type;
- * otherwise, from std::false_type.
- *
- * \tparam T    The element type of the array.
- * \tparam N    The number of elements in the array.
- * \tparam Args The types of the initializer arguments.
- *
- * \note Conforms to AUTOSAR C++ Guidelines (SWS_CORE_11200).
- * \since C++17
- * \see std::is_brace_constructible (C++20)
- */
-template <typename T, std::size_t N, typename... Args>
-struct is_brace_initializable_array
-{
-private:
-    /* Selected if U[N]{ Args... } is well‑formed */
-    template <typename U, typename = decltype(U{ std::declval<Args>()... })>
-    static auto test(int) -> std::true_type;
-
-    /* Fallback if substitution in the above fails */
-    template <typename...>
-    static auto test(...) -> std::false_type;
-
-public:
-    /* Integral constant type: std::true_type or std::false_type */
-    using type = decltype(test<T[N]>(0));
-
-    /* Shorthand for the boolean result (for trait compatibility) */
-    using value_type = bool;
-
-    /* The raw boolean result of the check */
-    static constexpr value_type value = type::value;
-};
-
-/*!
- * \brief Partial specialization for zero‑length arrays.
- *
- * For N == 0, no elements exist, so list‑initialization with any Args...
- * is considered invalid. This specialization always inherits from
- * std::false_type without attempting SFINAE on T[0].
- *
- * \tparam T    The element type of the array.
- * \tparam Args The types of the initializer arguments.
- *
- * \note Conforms to AUTOSAR C++ Guidelines (SWS_CORE_11200).
- * \since C++17
- */
-template <typename T, typename... Args>
-struct is_brace_initializable_array<T, 0, Args...> : std::false_type
-{
-    using type       = std::false_type;
-    using value_type = bool;
-    static constexpr value_type value = false;
-};
-
-/*!
- * \brief Variable template for is_brace_initializable_array.
- *
- * Simplifies usage:
- *   if constexpr (is_brace_initializable_array_v<MyType, 3, int, double, char>) { … }
- *
- * \tparam T    The element type of the array.
- * \tparam N    The number of elements in the array.
- * \tparam Args The types of the initializer arguments.
- */
-template <typename T, std::size_t N, typename... Args>
-inline constexpr bool is_brace_initializable_array_v =
-    is_brace_initializable_array<T, N, Args...>::value;
-
-
-
-/*!
- * \brief Primary helper trait to detect if a type is an \c ara::core::Array.
- *
- * By default, any type is not considered an \c ara::core::Array.
- *
- * \tparam T The type to check.
- */
-template <typename...>
-struct is_array : std::false_type {};
-
-/*!
- * \brief Specialization for \c ara::core::Array.
- *
- * If a type matches \c ara::core::Array<T, N> for any \c T and \c N,
- * this trait yields \c std::true_type.
- *
- * \tparam T The element type.
- * \tparam N The size of the array.
- */
-template <typename T, std::size_t N>
-struct is_array<ara::core::Array<T, N>> : std::true_type {};
-
-/*!
- * \brief Trait to detect if the parameter pack \c Args contains exactly one argument
- *        and that (after decay) is an \c ara::core::Array.
- *
- * This trait evaluates to \c true if:
- * - The number of arguments is exactly one, and
- * - The decayed type of that argument is recognized as an \c ara::core::Array.
- *
- * The fold expression (\c is_array<std::decay_t<Args>>::value && ...) applies the check to the
- * argument (in this case just one) and returns \c true only if the condition holds.
- *
- * \tparam Args The types of the arguments.
- */
-template <typename... Args>
-struct is_single_same_array 
-    : std::bool_constant<
-          (sizeof...(Args) == 1) && (is_array<std::decay_t<Args>>::value && ...)
-      > 
-{};
-
-/*!
- * \brief Convenience variable template for \c is_single_same_array.
- *
- * This variable template allows for a simplified syntax:
- *
- * \code
- * if constexpr (is_single_same_array_v<ArgType>)
- * {
- *     // ...
- * }
- * \endcode
- *
- * \tparam Args The types of the arguments.
- */
-template <typename... Args>
-inline constexpr bool is_single_same_array_v = is_single_same_array<Args...>::value;
-
-
-/*!
- * \brief Performs a lexicographical comparison between two ranges.
- *
- * This function compares the elements in the ranges \c [first1,last1) and \c [first2,last2)
- * one by one:
- * - For each pair of corresponding elements, if the element from the first range is less than the element
- *   from the second range, the function returns \c true.
- * - If the element from the second range is less than the element from the first range, the function returns \c false.
- * - If the elements are equal, the comparison continues.
- * - When the end of one of the ranges is reached:
- *     - If the first range is exhausted but the second still has elements, the first range is considered
- *       lexicographically less and the function returns \c true.
- *     - Otherwise, it returns \c false.
- *
- * \tparam InputIt1 The type of the input iterator for the first range.
- * \tparam InputIt2 The type of the input iterator for the second range.
- * \param first1 An iterator pointing to the first element of the first range.
- * \param last1  An iterator pointing past the last element of the first range.
- * \param first2 An iterator pointing to the first element of the second range.
- * \param last2  An iterator pointing past the last element of the second range.
- * \return \c true if the first range is lexicographically less than the second range; \c false otherwise.
- *
- * \note The function is declared as \c constexpr so that if both the iterators and the element comparison
- *       are \c constexpr, the entire operation can be evaluated at compile time.
- */
-template <typename InputIt1, typename InputIt2>
-constexpr auto lex_compare(InputIt1 first1, InputIt1 last1, InputIt2 first2, InputIt2 last2) noexcept -> bool {
-    for (; first1 != last1 && first2 != last2; ++first1, ++first2) {
-        if (*first1 < *first2)
-            return true;
-        if (*first2 < *first1)
-            return false;
-    }
-    return (first1 == last1) && (first2 != last2);
-}
-
-
-/**********************************************************************************************************************
- *  SECTION: Array Storage Base Classes
- *********************************************************************************************************************/
-/*!
-* \brief Base class for array storage.
-*
-* Splits out storage to handle partial specialization for \c N > 0 versus \c N == 0.
-*
-* \tparam T The type of elements.
-* \tparam N The number of elements in the array.
-* \tparam B A boolean indicating whether \c N > 0.
-*
-* \note [SWS_CORE_01201]
-*/
-template <typename T, std::size_t N, bool B = (N > 0)>
-struct ArrayStorage;
-
-/*!
- * \brief Primary template for Array storage when \c N > 0.
- *
- * Provides the actual storage for \c N elements of type \c T and supports direct brace‑initialization.
- *
- * \tparam T The element type.
- * \tparam N The number of elements in the array.
- *
- * \note [SWS_CORE_01201]
- */
-template <typename T, std::size_t N>
-struct ArrayStorage<T, N, true> {
-protected:
-    /*! \brief Actual storage for \c N elements of type \c T. */
-    T data_[N]{};
-
-    /*!
-     * \brief Variadic constructor to initialize \c data_ with up to \c N arguments using brace‑initialization.
-     *
-     * The constructor is constrained to accept at most \c N arguments, all of which must be convertible to \c T,
-     * and such that brace‑initialization does not cause narrowing conversions.
-     *
-     * \tparam Args The types of the constructor arguments.
-     * \param args The arguments to initialize the array.
-     *
-     * \note [SWS_CORE_01201], [SWS_CORE_01214], [SWS_CORE_01215], [SWS_CORE_01241]
-     */
-    template <typename... Args,
-              typename = std::enable_if_t<(sizeof...(Args) > 0)>>
-    constexpr ArrayStorage(Args&&... args)
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
-        noexcept(std::conjunction_v<std::is_nothrow_constructible<T, Args&&>...>)
-#else
-        noexcept
-#endif
-        : data_{std::forward<Args>(args)...} 
-    {
-#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
-        static_assert(std::conjunction_v<std::is_nothrow_constructible<T, Args&&>...>,
-            "\n[ERROR] in ara::core::Array: The type T and args must be noexcept.\n");
-#endif  
-    }
-
-    /*!
-     * \brief Default constructor for the storage.
-     *
-     * Zero‑initializes \c data_.
-     */
-    constexpr ArrayStorage() noexcept = default;
-
-    /*!
-     * \brief Defaulted copy constructor.
-     */
-    constexpr ArrayStorage(const ArrayStorage&) noexcept = default;
-
-    /*!
-     * \brief Defaulted move constructor.
-     */
-    constexpr ArrayStorage(ArrayStorage&&) noexcept = default;
-
-    /*!
-     * \brief Defaulted copy assignment operator.
-     */
-    constexpr ArrayStorage& operator=(const ArrayStorage&) noexcept = default;
-
-    /*!
-     * \brief Defaulted move assignment operator.
-     */
-    constexpr ArrayStorage& operator=(ArrayStorage&&) noexcept = default;
-};
-
-/*!
- * \brief Partial specialization for Array storage when \c N == 0.
- *
- * No actual storage is allocated for zero‑sized arrays.
- *
- * \tparam T The element type.
- * \tparam N The (zero) number of elements in the array.
- *
- * \note [SWS_CORE_01201]
- */
-template <typename T, std::size_t N>
-struct ArrayStorage<T, N, false> {
-protected:
-    /*!
-     * \brief Variadic constructor for \c N == 0.
-     *
-     * This constructor is enabled only when no arguments are provided.
-     *
-     * \tparam Args The types of constructor arguments (must be empty).
-     */
-    template <typename... Args,
-              typename = std::enable_if_t<(sizeof...(Args) == 0)>>
-    constexpr ArrayStorage(Args&&...) noexcept { /* Do Nothing */ }
-
-    /*!
-     * \brief Default constructor for zero‑sized storage.
-     */
-    constexpr ArrayStorage() noexcept = default;
-
-    /*!
-     * \brief Defaulted copy constructor.
-     */
-    constexpr ArrayStorage(const ArrayStorage&) noexcept = default;
-
-    /*!
-     * \brief Defaulted move constructor.
-     */
-    constexpr ArrayStorage(ArrayStorage&&) noexcept = default;
-
-    /*!
-     * \brief Defaulted copy assignment operator.
-     */
-    constexpr ArrayStorage& operator=(const ArrayStorage&) noexcept = default;
-
-    /*!
-     * \brief Defaulted move assignment operator.
-     */
-    constexpr ArrayStorage& operator=(ArrayStorage&&) noexcept = default;
-};
- 
-
-} // namespace detail
-    
 
 /**********************************************************************************************************************
  *  CLASS: ara::core::Array
@@ -1267,7 +918,8 @@ private:
                                                         size_type arraySize) const noexcept -> void
     {   
         auto& violation_trigger = ara::core::internal::ViolationHandler::Instance();
-        violation_trigger.TriggerArrayAccessOutOfRangeViolation(location, invalidIndex, arraySize);
+        violation_trigger.TriggerArrayAccessOutOfRangeViolation(ara::core::internal::ViolationHandler::ArrayKey{}, 
+                                                                location, invalidIndex, arraySize);
     }
 
 };
