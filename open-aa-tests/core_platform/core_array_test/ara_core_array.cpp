@@ -458,6 +458,23 @@ void TestComparisonOperators()
     ara::core::Array<int,3> arrayB = {1,2,3};
     ara::core::Array<int,3> arrayC = {1,2,4};
 
+    static_assert(
+        ara::core::Array<int,4>{1,2,3,4} == ara::core::Array<int,4>{1,2,3,4},
+        "constexpr operator== failed for int[4]"
+    );
+    static_assert(
+        !(ara::core::Array<int,4>{1,2,3,4} == ara::core::Array<int,4>{1,2,3,5}),
+        "constexpr operator== failed to detect inequality for int[4]"
+    );
+    static_assert(
+        ara::core::Array<int,4>{1,2,3,4} < ara::core::Array<int,4>{1,2,3,5},
+        "constexpr operator< failed for int[4]"
+    );
+    static_assert(
+        !(ara::core::Array<int,4>{1,2,3,5} < ara::core::Array<int,4>{1,2,3,4}),
+        "constexpr operator< failed to detect non-inequality for int[4]"
+    );
+    
     // Checking equality
     std::cout << "arrayA == arrayB => " << (arrayA == arrayB) << " (expected true)\n";
     assert(arrayA == arrayB);
