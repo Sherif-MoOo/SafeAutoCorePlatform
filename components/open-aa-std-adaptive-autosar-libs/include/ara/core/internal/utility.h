@@ -30,6 +30,24 @@ namespace ara::core {
 template <typename T, std::size_t N>
 class Array;    
 
+/*!
+ * \brief  Forward declaration of the get function template.
+ */
+template <std::size_t I, typename T, std::size_t N>
+constexpr auto get(ara::core::Array<T,N>&) noexcept -> T&;
+
+/*!
+ * \brief  Forward declaration of the get function template.
+ */
+template <std::size_t I, typename T, std::size_t N>
+constexpr auto get(const ara::core::Array<T,N>&) noexcept -> const T&;
+
+/*!
+ * \brief  Forward declaration of the get function template.
+ */
+template <std::size_t I, typename T, std::size_t N>
+constexpr auto get(ara::core::Array<T,N>&&) noexcept -> T&&;
+
 } // namespace ara::core
 
 
@@ -107,6 +125,90 @@ inline std::mutex g_abortMutex{};
     #else
         return false;                                     // fallback: always run-time
     #endif
+}
+
+
+/***********************************************************************************************************************
+ *  INTERNAL: IS_TUPLE_LIKE
+ ***********************************************************************************************************************/
+/*!
+ * \brief  Trait to detect if a type is tuple-like.
+ *
+ * This trait checks if the type T has a valid std::tuple_size specialization,
+ * indicating that it behaves like a tuple.
+ *
+ * \tparam T The type to check.
+ */
+template<typename T, typename = void>
+struct is_tuple_like : std::false_type {};
+
+template<typename T>
+struct is_tuple_like<T,
+        std::void_t< decltype(std::tuple_size<std::remove_cv_t<T>>::value) >>
+      : std::true_type {};
+
+template<typename T>
+inline constexpr bool is_tuple_like_v = is_tuple_like<T>::value;
+
+
+/*!
+ * \brief  Converts a tuple-like type to a std::tuple.
+ *
+ * This function template converts a tuple-like type (e.g., ara::core::Array)
+ * into a std::tuple, preserving the types of its elements.
+ *
+ * \tparam Src The source tuple-like type to convert.
+ * \param src The source tuple-like object to convert.
+ * \return A std::tuple containing the elements of the source object.
+ */
+template<typename Src, std::size_t... I>
+constexpr auto to_std_tuple_impl(Src&& src, std::index_sequence<I...>)
+{
+    /* unqualified get -> ADL; NO ‘using std::get;’ */
+    return std::tuple< std::decay_t<decltype(get<I>(src))>... >{
+               get<I>(std::forward<Src>(src))... };
+}
+
+/*!
+ * \brief  Converts a tuple-like type to a std::tuple.
+ *
+ * This function template converts a tuple-like type (e.g., ara::core::Array)
+ * into a std::tuple, preserving the types of its elements.
+ *
+ * \tparam Src The source tuple-like type to convert.
+ * \param src The source tuple-like object to convert.
+ * \return A std::tuple containing the elements of the source object.
+ */
+template<typename Src>
+constexpr auto to_std_tuple(Src&& src)
+{
+    constexpr std::size_t N =
+        std::tuple_size_v<std::remove_cv_t<std::remove_reference_t<Src>>>;
+    return to_std_tuple_impl(std::forward<Src>(src),
+                             std::make_index_sequence<N>{});
+}
+
+/*!
+ * \brief  Helper function to apply a callable to the elements of a tuple-like object.
+ *
+ * This function forwards the callable and the tuple-like object, expanding the
+ * tuple-like object's elements as arguments to the callable.
+ *
+ * \tparam F     The type of the callable (function, lambda, etc.).
+ * \tparam Tuple The type of the tuple-like object.
+ * \tparam I     The index sequence for unpacking the tuple-like object's elements.
+ *
+ * \param f   The callable to apply.
+ * \param tup The tuple-like object containing the elements to pass to the callable.
+ * \return    The result of calling f with the unpacked elements of tup.
+ */
+template<typename F, typename Tuple, std::size_t... I>
+constexpr decltype(auto) apply_impl(F&& f,
+                                    Tuple&& tup,
+                                    std::index_sequence<I...>)
+{
+    /* again: unqualified get – ADL only */
+    return std::forward<F>(f)( get<I>(std::forward<Tuple>(tup))... );
 }
 
 /*!
