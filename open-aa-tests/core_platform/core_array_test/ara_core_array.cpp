@@ -1267,31 +1267,35 @@ void TestTupleInterface()
     }
 
     /*---------------------------------------------------*
-     * 6. std::apply                                     *
+     * 6. variadic-sum with ara::core::apply              *
      *---------------------------------------------------*/
-    // {
-    //     // sum all elements at compile time
-    //     constexpr int sum = std::apply(
-    //         [](int x, int y, int z){ return x + y + z; },
-    //         ca
-    //     );
-    //     static_assert(sum == 6, "std::apply sum failed");
-    // }
-
+    {
+        /*  generic lambda: accepts any number of arguments,
+            returns their sum with a fold-expression        */
+        constexpr int sum = ara::core::apply(
+            [](auto... xs) constexpr { return (xs + ...); },
+            ca
+        );
+        static_assert(sum == 6, "variadic sum failed");
+    }
+    
     /*---------------------------------------------------*
-     * 7. std::tuple_cat                                 *
+     * 7. ara::core::tuple_cat                            *
      *---------------------------------------------------*/
-    // {
-    //     using A2 = ara::core::Array<int,2>;
-    //     constexpr A2 cb{ 4, 5 };
-    //     // concatenate two Arrays into a single tuple
-    //     constexpr auto tup = std::tuple_cat(ca, cb);
-    //     static_assert( std::tuple_size_v<decltype(tup)> == 5, "tuple_cat size wrong" );
-    //     // verify individual elements
-    //     assert( std::get<0>(tup) == 1 );
-    //     assert( std::get<3>(tup) == 4 );
-    //     assert( std::get<4>(tup) == 5 );
-    // }
+    {
+        using A2 = ara::core::Array<int,2>;
+        constexpr A2 cb{ 4, 5 };
+    
+        /* concatenate two Arrays into a single tuple */
+        constexpr auto tup = ara::core::tuple_cat(ca, cb);
+        static_assert( std::tuple_size_v<decltype(tup)> == 5,
+                       "tuple_cat size wrong" );
+    
+        /* verify individual elements */
+        static_assert( std::get<0>(tup) == 1 );
+        static_assert( std::get<3>(tup) == 4 );
+        static_assert( std::get<4>(tup) == 5 );
+    }
 
     std::cout << "\n>>> Tuple interface - ALL CHECKS PASSED\n";
 }

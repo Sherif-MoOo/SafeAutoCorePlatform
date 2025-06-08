@@ -51,31 +51,6 @@
 
 
 /**********************************************************************************************************************
- *  SECTION: Forward Declaration
- *********************************************************************************************************************/
-namespace ara::core {
-/*!
- * \brief  Forward declaration of the get function template.
- */
-template <std::size_t I, typename T, std::size_t N>
-constexpr auto get(ara::core::Array<T,N>&) noexcept -> T&;
-
-/*!
- * \brief  Forward declaration of the get function template.
- */
-template <std::size_t I, typename T, std::size_t N>
-constexpr auto get(const ara::core::Array<T,N>&) noexcept -> const T&;
-
-/*!
- * \brief  Forward declaration of the get function template.
- */
-template <std::size_t I, typename T, std::size_t N>
-constexpr auto get(ara::core::Array<T,N>&&) noexcept -> T&&;
-
-} // namespace ara::core
-
-
-/**********************************************************************************************************************
  *  TUPLE: INTERFACE SPECIALISATIONS
  *  ---------------------------------------------------------------------------------------------------------------
  *  std::tuple_size          [SWS_CORE_01280]
@@ -152,7 +127,67 @@ namespace std {
         using type = T;                         // every element is T
     };
 } // namespace std
- 
+
+
+/**********************************************************************************************************************
+ *  TUPLE-LIKE UTILITIES
+ *  ---------------------------------------------------------------------------------------------------------------
+ *  ara::core::apply      – constexpr replacement for std::apply that works with ADL
+ *  ara::core::tuple_cat  – concatenates any number of tuple-protocol objects
+ *********************************************************************************************************************/
+namespace ara {
+namespace core {
+
+/**********************************************************************************************************************
+ *  ara::core::apply
+ *********************************************************************************************************************/
+/*! 
+ * \brief  Applies a callable to the elements of a tuple-like object.
+ *
+ * \details
+ * - This function is a constexpr replacement for std::apply that works with ADL.
+ * - It forwards the callable and the tuple-like object, expanding the tuple-like object's elements as arguments to the callable.
+ *
+ * \tparam F     The type of the callable (function, lambda, etc.).
+ * \tparam Tuple The type of the tuple-like object.
+ * \param f   The callable to apply.
+ * \param tup The tuple-like object containing the elements to pass to the callable.
+ * \return    The result of calling f with the unpacked elements of tup.
+ */
+template<typename F, typename Tuple,
+         typename = std::enable_if_t<
+             detail::is_tuple_like_v<std::remove_reference_t<Tuple>>>>
+constexpr decltype(auto) apply(F&& f, Tuple&& tup)
+{
+    constexpr std::size_t N =
+        std::tuple_size_v<std::remove_cv_t<std::remove_reference_t<Tuple>>>;
+    return detail::apply_impl(std::forward<F>(f),
+                              std::forward<Tuple>(tup),
+                              std::make_index_sequence<N>{});
+}
+
+/*!
+ * \brief  Concatenates any number of tuple-like objects into a single std::tuple.
+ *
+ * \details
+ * - This function concatenates any number of tuple-like objects into a single std::tuple.
+ * - It uses detail::to_std_tuple to convert each tuple-like object to a std::tuple before concatenation.
+ *
+ * \tparam Tuples The types of the tuple-like objects to concatenate.
+ * \param tpls   The tuple-like objects to concatenate.
+ * \return       A std::tuple containing all elements from the input tuple-like objects.
+ */
+template<typename... Tuples,
+         typename = std::enable_if_t<
+             (detail::is_tuple_like_v<std::remove_reference_t<Tuples>> && ... )>>
+constexpr auto tuple_cat(Tuples&&... tpls)
+{
+    return std::tuple_cat( detail::to_std_tuple(std::forward<Tuples>(tpls))... );
+}
+
+} // namespace core
+} // namespace ara
+
 
 /**********************************************************************************************************************
  *  NAMESPACE: ara::core
