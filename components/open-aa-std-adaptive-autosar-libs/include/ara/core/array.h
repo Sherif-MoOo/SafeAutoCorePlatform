@@ -1018,7 +1018,45 @@ constexpr auto operator==(const Array<T, N>& lhs, const Array<T, N>& rhs)
 #else
     noexcept
 #endif
--> bool
+-> std::enable_if_t<std::is_trivially_copyable_v<T> && std::is_standard_layout_v<T>, bool>
+{
+#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+    static_assert(noexcept(std::declval<T&>() == std::declval<T&>()),
+        "\n[ERROR] in ara::core::Array: The type T's operator== must be marked 'noexcept' when exceptions are disabled.\n");
+#endif
+
+    if (!detail::is_constant_evaluated()) { 
+
+        return std::memcmp(lhs.data(), rhs.data(), N * sizeof(T)) == 0;
+    } else {
+        for (std::size_t i = 0; i < N; ++i) {
+            if (!(lhs[i] == rhs[i])) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+/*!
+ * \brief  Checks if two Arrays have \e equal content (elementwise).
+ *
+ * \tparam T  The type of elements stored in the arrays.
+ * \tparam N  The number of elements in the arrays.
+ * \param  lhs The first array to compare.
+ * \param  rhs The second array to compare.
+ * \return \c true if all elements are equal; \c false otherwise.
+ *
+ * \note   [SWS_CORE_01290]
+ */
+template <typename T, std::size_t N>
+constexpr auto operator==(const Array<T, N>& lhs, const Array<T, N>& rhs)
+#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+    noexcept(noexcept(std::declval<T&>() == std::declval<T&>()))
+#else
+    noexcept
+#endif
+-> std::enable_if_t<!std::is_trivially_copyable_v<T> || !std::is_standard_layout_v<T>, bool>
 {
 #ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
     static_assert(noexcept(std::declval<T&>() == std::declval<T&>()),
@@ -1030,6 +1068,7 @@ constexpr auto operator==(const Array<T, N>& lhs, const Array<T, N>& rhs)
             return false;
         }
     }
+
     return true;
 }
 
@@ -1079,7 +1118,43 @@ constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
 #else
     noexcept
 #endif
--> bool
+-> std::enable_if_t<std::is_trivially_copyable_v<T> && std::is_standard_layout_v<T> &&
+                    (sizeof(T) == 1), bool>
+{
+#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+    static_assert(noexcept(std::declval<T&>() < std::declval<T&>()),
+        "\n[ERROR] in ara::core::Array: The type T's operator< must be marked 'noexcept' when exceptions are disabled.\n");
+#endif
+
+    if (!detail::is_constant_evaluated()) {
+
+        return std::memcmp(lhs.data(), rhs.data(), N) < 0;
+    }
+
+    return detail::lex_compare(lhs.begin(), lhs.end(),
+                               rhs.begin(), rhs.end());
+}
+
+/*!
+ * \brief  Lexicographical compare: returns true if \c lhs < \c rhs.
+ *
+ * \tparam T  The type of elements stored in the arrays.
+ * \tparam N  The number of elements in the arrays.
+ * \param  lhs The first array to compare.
+ * \param  rhs The second array to compare.
+ * \return \c true if \c lhs is lexicographically less than \c rhs; \c false otherwise.
+ *
+ * \note   [SWS_CORE_01292]
+ */
+template <typename T, std::size_t N>
+constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
+#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+    noexcept(noexcept(std::declval<T&>() < std::declval<T&>()))
+#else
+    noexcept
+#endif
+-> std::enable_if_t<!std::is_trivially_copyable_v<T> || !std::is_standard_layout_v<T> ||
+                    (sizeof(T) != 1), bool>
 {
 #ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
     static_assert(noexcept(std::declval<T&>() < std::declval<T&>()),
