@@ -18,10 +18,13 @@
  *  INCLUDES
  *********************************************************************************************************************/
 #include <algorithm>                        // For std::all_of
+#include <atomic>                           // For std::atomic, memory_order
 #include <cstdint>                          // For the std types
-#include <iostream>                         // For the std::cout and cerr
-#include <csignal>                          // For signal Block to handle shutdown
+#include <iostream>                         // For std::cout / std::cerr
+#include <csignal>                          // For signal block / sigwait
 #include <cstring>                          // For std::strerror
+#include <thread>                           // For std::thread
+#include <chrono>                           // For steady_clock timing
 
 #include "ara/core/array.h"                 // For platform core Array class
 #include "ara/core/abort.h"
@@ -33,11 +36,11 @@ namespace manager {
 /** -------------------------------------------------------------------------------------------------------------------
  *  @brief      Static member initialization.
  *
- *  Initializes The Running cycle, the static flag and mutex.
+ *  Initializes the running-cycle constant, the singleton-instance flag and the guarding mutex.
  */
 constexpr std::uint32_t kRunningCycle{5000U};
-bool DemoManager::instanceCreated_{false};
-std::mutex DemoManager::mutex_{};
+bool                    DemoManager::instanceCreated_{false};
+std::mutex              DemoManager::mutex_{};          // used only for singleton & wait-loop
 
 /** -------------------------------------------------------------------------------------------------------------------
  *  @brief      Retrieves the unique instance of DemoManager.
@@ -49,218 +52,153 @@ std::mutex DemoManager::mutex_{};
  *  @return     std::optional<std::reference_wrapper<DemoManager>> Optional containing the instance reference or
  *              an empty optional if the instance has already been created.
  */
-auto DemoManager::StartManager() noexcept -> std::optional<std::reference_wrapper<DemoManager>> {
+auto DemoManager::StartManager() noexcept -> std::optional<std::reference_wrapper<DemoManager>>
+{
     std::lock_guard<std::mutex> lock(mutex_);
-    if (instanceCreated_) {
+    if (instanceCreated_) {                      // somebody already grabbed it
         return std::nullopt;
     }
-    static DemoManager instance;
+    static DemoManager instance;                 // static-lifetime, no heap
     instanceCreated_ = true;
     return std::ref(instance);
 }
 
 /** -------------------------------------------------------------------------------------------------------------------
  *  @brief      Private constructor implementation.
- *
- *  Initializes the DemoManager instance. Any required initialization code can be placed here.
  */
 DemoManager::DemoManager() noexcept
-    : graceful_shutdown_handler_thread_{},
-      shutdown_notifier_{},
-      turn_off_requested_{false}
+  : graceful_shutdown_handler_thread_{},
+    shutdown_notifier_{},
+    turn_off_requested_{false}
 {
     InitializeDemoManager();
 }
 
-DemoManager::~DemoManager() noexcept {
-
-    std::cout << "[demo mngr][INFO] Demo Manager demolished."<< std::endl;
+DemoManager::~DemoManager() noexcept
+{
+    std::cout << "[demo mngr][INFO] Demo Manager demolished." << std::endl;
 }
 
 /** -------------------------------------------------------------------------------------------------------------------
  *  @brief      Private init method implementation.
- *
- *   the instance init sequence.
  */
-auto DemoManager::InitializeDemoManager() noexcept -> void {
-
-    /*Start the signal handler thread and check for errors in thread creation*/
+auto DemoManager::InitializeDemoManager() noexcept -> void
+{
+    /* Spawn the dedicated signal-handling thread */
     graceful_shutdown_handler_thread_ = std::thread(&DemoManager::GracefulShutdownHandler, this);
     if (!graceful_shutdown_handler_thread_.joinable()) {
-
         ara::core::Abort("[demo mngr][FATAL] Graceful shutdown handler thread creation failed.");
     }
 
-
-    std::cout << "[demo mngr][INFO] Demo Manager initialized successfuly."<< std::endl;
+    std::cout << "[demo mngr][INFO] Demo Manager initialized successfully." << std::endl;
 }
 
 /** -------------------------------------------------------------------------------------------------------------------
- *  @brief      Private init method implementation.
- *
- *   the instance init sequence.
+ *  @brief      Signal-handler thread: waits for SIGTERM/SIGINT and requests shutdown.
  */
-auto DemoManager::GracefulShutdownHandler() noexcept -> void {
-    
-    /*Set shutdown thread name for debugging*/
+auto DemoManager::GracefulShutdownHandler() noexcept -> void
+{
+    /* Set thread name for debugging */
     pthread_setname_np(pthread_self(), "demo_sig");
 
-    bool success{false};
-    
-    sigset_t singals{};
+    sigset_t signals{};
+    constexpr ara::core::Array<int, 2> kShutdownSigs{SIGTERM, SIGINT};
 
-    int def_sig{-1};
-
-    constexpr const ara::core::Array<int,2> kShutdownSigs{SIGTERM, SIGINT};
-
-    auto const add_sig_status = [&singals](int const& sig)  noexcept -> bool {
-
-        return (sigaddset(&singals, sig) == 0);
-    };
-
-    /*Empty the unitialized signal set*/
-    if(sigemptyset(&singals) == 0) {
-        
-        /*add the SIGTERM, and SIGINT to the singal set*/
-        if(std::all_of(kShutdownSigs.cbegin(), kShutdownSigs.cend(), add_sig_status)) {
-
-            /*Block these signals in this thread so they can be caught by sigwait*/
-            if (pthread_sigmask(SIG_BLOCK, &singals, nullptr) == 0) {
-
-                /*The thread is blocked and Wait for a signal to be received*/
-                if(sigwait(&singals, &def_sig) == 0) {
-                    
-                    std::lock_guard<std::mutex> lock(mutex_);
-
-                    switch(def_sig) {
-
-                        case kShutdownSigs[0]:
-
-                            std::cout << "[demo mngr][INFO] Demo Manager caught a SIGTERM." << std::endl;
-                            break;
-                        
-                        case kShutdownSigs[1]:
-                            std::cout << "[demo mngr][INFO] Demo Manager caught a SIGINT." << std::endl;
-                            break;
-
-                    }
-
-                    turn_off_requested_.store(true);
-                    shutdown_notifier_.notify_all();
-                    success = true;
-
-                }
-            }
-        }
+    if (sigemptyset(&signals) != 0 ||
+        std::any_of(kShutdownSigs.cbegin(), kShutdownSigs.cend(),
+                    [&signals](int s) { return sigaddset(&signals, s) != 0; }) ||
+        pthread_sigmask(SIG_BLOCK, &signals, nullptr) != 0)
+    {
+        ara::core::Abort("[demo mngr][FATAL] Initialise shutdown signal handling failed.");
     }
 
-    if(!success) {
-
-        ara::core::Abort("[demo mngr][FATAL] Initialize shutdown signal handling failed.");
+    int received{};
+    if (sigwait(&signals, &received) != 0) {
+        ara::core::Abort("[demo mngr][FATAL] sigwait() failed.");
     }
 
+    /* Log which signal we caught (no mutex required for console output) */
+    switch (received) {
+        case SIGTERM: std::cout << "[demo mngr][INFO] Demo Manager caught a SIGTERM." << std::endl; break;
+        case SIGINT:  std::cout << "[demo mngr][INFO] Demo Manager caught a SIGINT."  << std::endl; break;
+        default:      std::cout << "[demo mngr][WARN] Demo Manager caught an unknown signal." << std::endl; break;
+    }
 
-
-
+    /* --- Acquire/Release publication edge ---------------------------------- */
+    turn_off_requested_.store(true, std::memory_order_release);   // publish flag
+    shutdown_notifier_.notify_all();                              // wake manager loop
 }
 
 /** -------------------------------------------------------------------------------------------------------------------
  *  @brief      Runs the manager and returns an exit code.
- *
- *  Executes the primary functionality of the manager and returns a success exit code.
- *
- *  @return     std::uint8_t Exit code indicating success.
  */
-auto DemoManager::RunManager() noexcept -> std::uint8_t {
-    
+auto DemoManager::RunManager() noexcept -> std::uint8_t
+{
     std::uint8_t exit_code{EXIT_SUCCESS};
+    bool         thread_running{true};
 
-    bool thread_running{true};
-
-    /* Retrieve the native pthread handle */
-    pthread_t native_handle = pthread_self();
-
-    /* Define scheduling parameters */
+    pthread_t   native_handle = pthread_self();
     sched_param param{};
+    int         current_policy{-1};
 
-    int current_policy{-1};
-
-    /* Use unique_lock for compatibility with condition_variable */
-    std::unique_lock<std::mutex> lock(mutex_);
-
-    /* Get current scheduling parameters to preserve existing priority */ 
+    /* Preserve current scheduling parameters */
     if (pthread_getschedparam(native_handle, &current_policy, &param) != 0) {
-
         ara::core::Abort("[demo mngr][FATAL] Failed to get current scheduling parameters: ",
-                          std::strerror(errno));
+                         std::strerror(errno));
     }
 
-    std::cout << "[demo mngr][INFO] Manager Is on Running State" << std::endl;
+    std::cout << "[demo mngr][INFO] Manager is in Running state." << std::endl;
+
+    /* Unique_lock needed only for the condition-variable */
+    std::unique_lock<std::mutex> lock(mutex_);
 
     do {
         auto start_time = std::chrono::steady_clock::now();
 
-            std::cout << "[demo mngr][INFO] Current Scheduling Policy: ";
-            switch (current_policy) {
-                case SCHED_FIFO:
-                    std::cout << "SCHED_FIFO";
-                    break;
-                case SCHED_RR:
-                    std::cout << "SCHED_RR";
-                    break;
-                case SCHED_OTHER:
-                    std::cout << "SCHED_OTHER";
-                    break;
-                default:
-                    std::cout << "UNKNOWN";
-            }
-            std::cout << ", Priority: " << param.sched_priority << std::endl;
+        /* Periodic debug print */
+        std::cout << "[demo mngr][INFO] Current scheduling policy: ";
+        switch (current_policy) {
+            case SCHED_FIFO:  std::cout << "SCHED_FIFO";  break;
+            case SCHED_RR:    std::cout << "SCHED_RR";    break;
+            case SCHED_OTHER: std::cout << "SCHED_OTHER"; break;
+            default:          std::cout << "UNKNOWN";
+        }
+        std::cout << ", priority: " << param.sched_priority << std::endl;
 
-        /* Calculate the time taken and adjust the sleep duration accordingly */
+        /* Compute remaining time in the cycle */
         auto elapsed_time   = std::chrono::steady_clock::now() - start_time;
         auto remaining_time = std::chrono::milliseconds(kRunningCycle) - elapsed_time;
 
         if (remaining_time > std::chrono::milliseconds(0)) {
-
-            thread_running = !shutdown_notifier_.wait_for(lock, remaining_time, [this]() { 
-                return turn_off_requested_.load(); 
-            });
-
+            /* Wait until next tick *or* until the shutdown flag is published */
+            thread_running = !shutdown_notifier_.wait_for(
+                lock,
+                remaining_time,
+                [this] {
+                    return turn_off_requested_.load(std::memory_order_acquire);   // acquire edge
+                });
         } else {
+            std::cout << "[demo mngr][WARN] Manager over-ran the configured "
+                      << kRunningCycle << " ms cycle (took "
+                      << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time).count()
+                      << " ms)." << std::endl;
 
-            std::cout << "[demo mngr][WARN] Manager took more than the configured time: "
-                            << kRunningCycle
-                            << " ms"
-                            << " and the execution,"
-                            << " time taken is: "
-                            << std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time).count())
-                            << " ms.";
-
-            thread_running = !turn_off_requested_.load();
-
+            thread_running = !turn_off_requested_.load(std::memory_order_acquire);
         }
-
-        
     } while (thread_running);
 
     TerminateDemoManager();
-    
-    return exit_code; // 0 typically indicates success
+    return exit_code;   // EXIT_SUCCESS
 }
 
-
 /** -------------------------------------------------------------------------------------------------------------------
- *  @brief      Private end of class method implementation.
- *
- *   the instance demolishing sequence.
+ *  @brief      Private tear-down sequence.
  */
-auto DemoManager::TerminateDemoManager() noexcept -> void {
-
+auto DemoManager::TerminateDemoManager() noexcept -> void
+{
     if (graceful_shutdown_handler_thread_.joinable()) {
-
         graceful_shutdown_handler_thread_.join();
     }
-
 }
 
 } // namespace manager
