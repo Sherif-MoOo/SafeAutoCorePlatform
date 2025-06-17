@@ -22,9 +22,9 @@
 
 #include <cstddef>               // For std::size_t
 #include <limits>                // For std::numeric_limits
-#include <type_traits>          // For std::remove_cv_t, std::is_same_v
-#include <iterator>             // For std::reverse_iterator
-#include <utility>              // For std::forward, std::declval
+#include <type_traits>           // For std::remove_cv_t, std::is_same_v
+#include <iterator>              // For std::reverse_iterator
+#include <utility>               // For std::forward, std::declval
 
 
 namespace ara {
@@ -71,8 +71,106 @@ public:
 
     static constexpr size_type extent = Extent;                            /*!< [SWS_CORE_01931] The size of the span, or dynamic_extent if dynamic.      */
 
-    constexpr Span(const Span& other) noexcept = default;                  /*!< [SWS_CORE_01949] Copy constructor.                                         */
 
+    /*! \brief  Default constructor for Span.
+     *
+     * This constructor initializes an empty span with no elements.
+     * It is equivalent to a span of size 0.
+     *
+     * \note [SWS_CORE_01940] Default constructor initializes an empty span.
+     */
+    constexpr Span(const Span& other) noexcept = default;  
+    
+    /*! \brief  Default constructor for Span.
+     *
+     * This constructor initializes an empty span with no elements.
+     * It is equivalent to a span of size 0.
+     *
+     * \note [SWS_CORE_01941] Default constructor.
+     * \note This constructor only participates in overload resolution when:
+     *       (Extent == dynamic_extent || Extent == 0) is true
+     */
+    template <typename = std::enable_if_t<Extent == dynamic_extent || Extent == 0>>
+    constexpr Span() noexcept 
+        : data_{nullptr}, size_{0} 
+    {
+    }
+
+    /*! \brief SFINAE constructor for invalid default construction.
+     *
+     * \note This constructor only participates in overload resolution when:
+     *       - Extent != dynamic_extent && Extent != 0
+     */
+    template <typename T_ = T,
+              typename = std::enable_if_t<Extent != dynamic_extent && Extent != 0>,
+              typename = void>  // Extra dummy parameter to make signature different
+    constexpr Span() noexcept
+    {
+        static_assert(Extent == dynamic_extent || Extent == 0,
+             "\n[ERROR] Cannot default construct Span<T, Extent> when Extent is neither dynamic_extent nor 0.\n"
+             "A static extent span with size > 0 must be initialized with data.\n");
+    }
+
+    
+    constexpr auto operator=(const Span& other) noexcept -> Span& = default;
+
+    /*! \brief  Converting constructor for compatible Span types.
+     *
+     * This constructor allows construction of a cv-qualified Span from a normal Span,
+     * and also of a dynamic_extent Span from a static extent one.
+     * 
+     * \tparam U The type of elements within the other Span.
+     * \tparam N The Extent of the other Span.
+     * \param other The other Span instance to convert from.
+     *
+     * \note [SWS_CORE_01950] Converting constructor.
+     * \note This constructor only participates in overload resolution when:
+     *       - Extent == dynamic_extent || Extent == N is true
+     *       - U(*)[] is convertible to T(*)[]
+     *
+     * \details Enables conversions like:
+     *          - Span<int, 5> to Span<int> (static to dynamic)
+     *          - Span<int, 5> to Span<const int, 5> (add const qualification)
+     *          - Span<int> to Span<const int> (add const qualification)
+     */
+    template <typename U, std::size_t N,
+              typename = std::enable_if_t<
+                  (Extent == dynamic_extent || Extent == N) &&
+                  std::is_convertible_v<U(*)[], T(*)[]>
+              >>
+    constexpr Span(const Span<U, N>& other) noexcept
+        : data_{other.data_}, size_{other.size_}
+        {
+
+        }
+    
+
+    /*! \brief SFINAE constructor for converting Span types.
+     *
+     * \tparam U The type of elements within the other Span.
+     * \tparam N The Extent of the other Span.
+     * \note This constructor only participates in overload resolution when:
+     *       - Extent != dynamic_extent && Extent != N
+     *       - U(*)[] is not convertible to T(*)[]
+     */
+    template <typename U, std::size_t N,
+              typename = std::enable_if_t<!((Extent == dynamic_extent || Extent == N) && std::is_convertible_v<U(*)[], T(*)[]>)>,
+              typename = void>  // Extra dummy parameter to make signature different
+    constexpr Span(const Span<U, N>& /*other*/) noexcept
+        {
+            static_assert(Extent == dynamic_extent || Extent == N,
+                 "\n[ERROR] Cannot convert Span<U, N> to Span<T, Extent> when Extent is not dynamic_extent or N.\n");
+            
+            static_assert(std::is_convertible_v<U(*)[], T(*)[]>,
+                 "\n[ERROR] Cannot convert Span<U, N> to Span<T, Extent> when U is not convertible to T.\n");     
+        }
+
+    
+
+private:
+
+    pointer data_;                                                      
+    size_type size_;                                                    
 
 };
 
@@ -107,7 +205,7 @@ constexpr auto MakeSpan(T* ptr, typename Span<T>::size_type size) noexcept -> Sp
  */
 template <typename T>
 constexpr auto MakeSpan(T* firstElem, T* lastElem) noexcept -> Span<T> {
-    return Span<T>(firstElem, lastElem - firstElem);
+    return Span<T>(firstElem, lastElem);
 }
 
 /*! \brief  Creates a span from an array.
@@ -119,8 +217,8 @@ constexpr auto MakeSpan(T* firstElem, T* lastElem) noexcept -> Span<T> {
  * \note   [SWS_CORE_01992] This function is a convenience wrapper to create a span from an array.
  */
 template <typename T, std::size_t N>
-constexpr auto MakeSpan(T(&arr)[N]) noexcept -> Span<T> {
-    return Span<T>(arr, N);
+constexpr auto MakeSpan(T(&arr)[N]) noexcept -> Span<T, N> {
+    return Span<T, N>(arr, N);
 }
 
 /*! \brief  Creates a span from a container.
@@ -149,33 +247,33 @@ constexpr auto MakeSpan(const Container& cont) noexcept -> Span<typename Contain
     return Span<typename Container::value_type const>(cont.data(), cont.size());
 }
 
-/*! \brief  Converts a span of elements to a span of bytes.
- *
- * \tparam ElementType The type of elements in the span.
- * \tparam Extent The size of the span (or dynamic_extent for dynamic size).
- * \param s The span to convert.
- * \return A span of bytes representing the same data as the original span.
- *
- * \note   [SWS_CORE_01980] This function is used to reinterpret the data in a span as bytes.
- */
-template <typename ElementType, std::size Extent>
-auto as_bytes(Span<ElementType, Extent> s) noexcept -> Span<const Byte, Extent==dynamic_extent? dynamic_extent : Extent * sizeof(ElementType)> {
-    return Span<const Byte, Extent==dynamic_extent? dynamic_extent : Extent * sizeof(ElementType)>(reinterpret_cast<const Byte*>(s.data()), s.size_bytes());
-}
+// /*! \brief  Converts a span of elements to a span of bytes.
+//  *
+//  * \tparam ElementType The type of elements in the span.
+//  * \tparam Extent The size of the span (or dynamic_extent for dynamic size).
+//  * \param s The span to convert.
+//  * \return A span of bytes representing the same data as the original span.
+//  *
+//  * \note   [SWS_CORE_01980] This function is used to reinterpret the data in a span as bytes.
+//  */
+// template <typename ElementType, std::size Extent>
+// auto as_bytes(Span<ElementType, Extent> s) noexcept -> Span<const Byte, Extent==dynamic_extent? dynamic_extent : Extent * sizeof(ElementType)> {
+//     return Span<const Byte, Extent==dynamic_extent? dynamic_extent : Extent * sizeof(ElementType)>(reinterpret_cast<const Byte*>(s.data()), s.size_bytes());
+// }
 
-/*! \brief  Converts a span of elements to a writable span of bytes.
- *
- * \tparam ElementType The type of elements in the span.
- * \tparam Extent The size of the span (or dynamic_extent for dynamic size).
- * \param s The span to convert.
- * \return A writable span of bytes representing the same data as the original span.
- *
- * \note   [SWS_CORE_01981] This function is used to reinterpret the data in a span as writable bytes.
- */
-template <typename ElementType, std::size Extent>
-auto as_writable_bytes(Span<ElementType, Extent> s) noexcept -> Span<Byte, Extent==dynamic_extent? dynamic_extent : Extent * sizeof(ElementType)> {
-    return Span<Byte, Extent==dynamic_extent? dynamic_extent : Extent * sizeof(ElementType)>(reinterpret_cast<Byte*>(s.data()), s.size_bytes());
-}
+// /*! \brief  Converts a span of elements to a writable span of bytes.
+//  *
+//  * \tparam ElementType The type of elements in the span.
+//  * \tparam Extent The size of the span (or dynamic_extent for dynamic size).
+//  * \param s The span to convert.
+//  * \return A writable span of bytes representing the same data as the original span.
+//  *
+//  * \note   [SWS_CORE_01981] This function is used to reinterpret the data in a span as writable bytes.
+//  */
+// template <typename ElementType, std::size Extent>
+// auto as_writable_bytes(Span<ElementType, Extent> s) noexcept -> Span<Byte, Extent==dynamic_extent? dynamic_extent : Extent * sizeof(ElementType)> {
+//     return Span<Byte, Extent==dynamic_extent? dynamic_extent : Extent * sizeof(ElementType)>(reinterpret_cast<Byte*>(s.data()), s.size_bytes());
+// }
 
 } // namespace core
 } // namespace ara

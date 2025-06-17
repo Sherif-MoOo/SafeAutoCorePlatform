@@ -124,6 +124,33 @@ auto ViolationHandler::Instance() noexcept -> ViolationHandler&
     );
 }
 
+[[noreturn]] auto ViolationHandler::TriggerByteRangeViolation(ByteKey&& /*unused*/,
+                                                    std::string_view location,
+                                                    long long value) noexcept -> void
+{
+    // Allocate a buffer for the numeric value.
+    char valueBuffer[32]{0};
+
+    // Convert the value to characters using std::to_chars.
+    auto [valuePtr, ec] = std::to_chars(valueBuffer, valueBuffer + sizeof(valueBuffer), value);
+
+    // Create a string_view from the conversion result.
+    std::string_view valueStr = (ec == std::errc{}) 
+                                ? std::string_view(valueBuffer, static_cast<std::size_t>(valuePtr - valueBuffer)) 
+                                : "";
+
+    // Terminate the process by calling the Abort API.
+    ara::core::Abort(
+        "[App vlt][FATAL]: Violation detected in ",
+        GetProcessIdentifier(),
+        " Byte range violation at ",
+        location,
+        ": Byte range violation: Invalid byte value ",
+        valueStr,
+        "."
+    );
+}
+
 
 
 /**********************************************************************************************************************

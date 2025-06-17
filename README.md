@@ -180,7 +180,7 @@ $ ./build.sh [OPTIONS]
 - **`-s, --sdp-path`**: Path to `qnxsdp-env.sh` for QNX builds.
 - **`-j, --jobs`**: Number of parallel jobs.
 - **`-e, --exception-safety`**: Choose exception safety mode:
-    - `conditional` (default): Defines `ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS`
+    - `conditional` (default): Defines `ENABLE_PLATFORM_CONDITIONAL_EXCEPTION`
     - `safe`: Does not define the macro (safe mode)
 
 ### Example Commands

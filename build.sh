@@ -248,7 +248,7 @@ configure_project() {
     fi
 
     if [ "$EXCEPTION_SAFETY_MODE" = "conditional" ]; then
-        cmd+=("-DARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS=1")
+        cmd+=("-DENABLE_PLATFORM_CONDITIONAL_EXCEPTION=1")
     fi
 
     cmd+=("--preset" "$PRESET_NAME")

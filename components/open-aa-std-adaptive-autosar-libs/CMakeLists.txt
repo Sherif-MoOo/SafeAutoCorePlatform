@@ -58,6 +58,23 @@ target_link_libraries(ara_core_array INTERFACE
 )
 
 # ----------------------------------------------------------------------
+# 3) ARA::CORE::Byte
+# ----------------------------------------------------------------------
+add_library(ara_core_byte INTERFACE)
+add_library(ara::core::byte ALIAS ara_core_byte)
+
+# Provide include directories for ara::core::byte
+target_include_directories(ara_core_byte INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>  # Path to byte headers during build
+    $<INSTALL_INTERFACE:include>                            # Path to byte headers after installation
+)
+
+# link INTERFACE libraries
+target_link_libraries(ara_core_byte INTERFACE
+    ara::core::violation
+)
+
+# ----------------------------------------------------------------------
 # 3) Installation of Headers
 # ----------------------------------------------------------------------
 # Install the ara/core headers, including array.h and internal headers
@@ -71,7 +88,7 @@ install(DIRECTORY
 # 4) Export & Package: ara_core_targets
 # ----------------------------------------------------------------------
 # Create a single export set for all ara::core targets to avoid duplication
-install(TARGETS ara_core_abort ara_core_violation ara_core_array
+install(TARGETS ara_core_abort ara_core_violation ara_core_array ara_core_byte
     EXPORT ara_core_targets  # Single export set for both targets
     ARCHIVE DESTINATION lib/core                    # Installation path for static libraries
     LIBRARY DESTINATION lib                         # Installation path for shared libraries (if applicable)

@@ -52,10 +52,10 @@ if(POLICY CMP0177)
     cmake_policy(SET CMP0177 NEW)
 endif()
 
-if(DEFINED ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS)
-  message(STATUS "Conditional exceptions flag is enabled: ${ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS}")
+if(DEFINED ENABLE_PLATFORM_CONDITIONAL_EXCEPTION)
+  message(STATUS "Conditional exceptions flag is enabled: ${ENABLE_PLATFORM_CONDITIONAL_EXCEPTION}")
   # Add it as a compile definition to all targets:
-  add_compile_definitions(ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS)
+  add_compile_definitions(ENABLE_PLATFORM_CONDITIONAL_EXCEPTION)
 endif()
 
 

@@ -45,6 +45,7 @@
 #include <cstring>                                  // For std::memcpy, std::memset
 #include <iterator>                                 // For std::reverse_iterator
 
+#include "ara/core/byte.h"                          // For ara::core::Byte type
 #include "ara/core/internal/utility.h"              // For utility functions and traits
 #include "ara/core/internal/location_utils.h"       // For capturing file/line details
 #include "ara/core/internal/violation_handler.h"    // To Trigger the violation
@@ -225,7 +226,7 @@ template <typename T, std::size_t N>
 class Array final : private detail::ArrayStorage<T, N>
 {
 public:
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     // In Conditional Safe Mode, allow potentially-throwing types
 #else
     /*!
@@ -287,7 +288,7 @@ public:
                   (!detail::is_single_same_array_v<Args...>)
               >>
     constexpr Array(Args&&... args) 
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
         noexcept(std::conjunction_v<std::is_nothrow_constructible<T, Args&&>...>)
 #else
         noexcept
@@ -295,7 +296,7 @@ public:
         : detail::ArrayStorage<T, N>(std::forward<Args>(args)...)
     {
         // Base class handles data_ initialization.
-#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
         static_assert(std::conjunction_v<std::is_nothrow_constructible<T, Args&&>...>,
             "\n[ERROR] in ara::core::Array: The type T and args must be noexcept.\n");
 #endif
@@ -730,7 +731,7 @@ public:
      */
     template <typename U = T, size_type M = N>
     constexpr auto fill(const T& val)
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(std::is_nothrow_copy_assignable_v<T>)
 #else
     noexcept
@@ -739,7 +740,7 @@ public:
                         std::is_trivially_constructible_v<U> && (M > 0), void>
     {
 
-#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
         // Ensure T's fill is noexcept if exceptions are disabled
         static_assert(std::is_nothrow_copy_assignable_v<T>,
             "\n[ERROR] ara::core::Array: The type T's fill operation must be noexcept when exceptions are disabled.\n");
@@ -781,7 +782,7 @@ public:
      */
     template <typename U = T, size_type M = N>
     constexpr auto fill(const T& val)
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(std::is_nothrow_copy_assignable_v<T>)
 #else
     noexcept
@@ -790,7 +791,7 @@ public:
                         !std::is_trivially_constructible_v<U> && (M > 0), void>
     {
 
-#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
         // Ensure T's fill is noexcept if exceptions are disabled
         static_assert(std::is_nothrow_copy_assignable_v<T>,
             "\n[ERROR] ara::core::Array: The type T's fill operation must be noexcept when exceptions are disabled.\n");
@@ -832,7 +833,7 @@ public:
      */
     template <typename U = T, size_type M = N>
     constexpr auto fill(const T& val)
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(std::is_nothrow_copy_assignable_v<T>)
 #else
     noexcept
@@ -840,7 +841,7 @@ public:
     -> std::enable_if_t<!std::is_trivially_copyable_v<U> || (M == 0), void>
     {
 
-#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
         // Ensure T's fill is noexcept if exceptions are disabled
         static_assert(std::is_nothrow_copy_assignable_v<T>,
             "\n[ERROR] ara::core::Array: The type T's fill operation must be noexcept when exceptions are disabled.\n");
@@ -869,14 +870,14 @@ public:
      */
     template <typename U = T, size_type M = N>
     constexpr auto swap(Array& other) 
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
         noexcept(noexcept(std::swap(std::declval<T&>(), std::declval<T&>())))
 #else
         noexcept
 #endif
     -> std::enable_if_t<std::is_trivially_copyable_v<U> && (M > 0), void>
     {   
-#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
         // Ensure T's swap is noexcept if exceptions are disabled
         static_assert(noexcept(std::swap(std::declval<T&>(), std::declval<T&>())),
             "\n[ERROR] ara::core::Array: The type T's swap operation must be noexcept when exceptions are disabled.\n");
@@ -910,14 +911,14 @@ public:
      */
     template <typename U = T, size_type M = N>
     constexpr auto swap(Array& other) 
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
         noexcept(noexcept(std::swap(std::declval<T&>(), std::declval<T&>())))
 #else
         noexcept
 #endif
     -> std::enable_if_t<!std::is_trivially_copyable_v<U> || (M == 0), void>
     {   
-#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
         // Ensure T's swap is noexcept if exceptions are disabled
         static_assert(noexcept(std::swap(std::declval<T&>(), std::declval<T&>())),
             "\n[ERROR] ara::core::Array: The type T's swap operation must be noexcept when exceptions are disabled.\n");
@@ -1048,14 +1049,14 @@ constexpr auto get(const Array<T, N>& arr) noexcept -> const T&
  */
 template <typename T, std::size_t N>
 constexpr auto operator==(const Array<T, N>& lhs, const Array<T, N>& rhs)
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(std::declval<T&>() == std::declval<T&>()))
 #else
     noexcept
 #endif
 -> std::enable_if_t<std::is_trivially_copyable_v<T> && std::is_standard_layout_v<T>, bool>
 {
-#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     static_assert(noexcept(std::declval<T&>() == std::declval<T&>()),
         "\n[ERROR] in ara::core::Array: The type T's operator== must be marked 'noexcept' when exceptions are disabled.\n");
 #endif
@@ -1086,14 +1087,14 @@ constexpr auto operator==(const Array<T, N>& lhs, const Array<T, N>& rhs)
  */
 template <typename T, std::size_t N>
 constexpr auto operator==(const Array<T, N>& lhs, const Array<T, N>& rhs)
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(std::declval<T&>() == std::declval<T&>()))
 #else
     noexcept
 #endif
 -> std::enable_if_t<!std::is_trivially_copyable_v<T> || !std::is_standard_layout_v<T>, bool>
 {
-#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     static_assert(noexcept(std::declval<T&>() == std::declval<T&>()),
         "\n[ERROR] in ara::core::Array: The type T's operator== must be marked 'noexcept' when exceptions are disabled.\n");
 #endif
@@ -1120,14 +1121,14 @@ constexpr auto operator==(const Array<T, N>& lhs, const Array<T, N>& rhs)
  */
 template <typename T, std::size_t N>
 constexpr auto operator!=(const Array<T, N>& lhs, const Array<T, N>& rhs)
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(!(lhs == rhs)))
 #else
     noexcept
 #endif
 -> bool
 {
-#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     static_assert(noexcept(!(lhs == rhs)),
         "\n[ERROR] in ara::core::Array: The operator!= must be marked 'noexcept' when exceptions are disabled.\n");
 #endif
@@ -1148,7 +1149,7 @@ constexpr auto operator!=(const Array<T, N>& lhs, const Array<T, N>& rhs)
  */
 template <typename T, std::size_t N>
 constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(std::declval<T&>() < std::declval<T&>()))
 #else
     noexcept
@@ -1156,7 +1157,7 @@ constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
 -> std::enable_if_t<std::is_trivially_copyable_v<T> && std::is_standard_layout_v<T> &&
                     (sizeof(T) == 1), bool>
 {
-#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     static_assert(noexcept(std::declval<T&>() < std::declval<T&>()),
         "\n[ERROR] in ara::core::Array: The type T's operator< must be marked 'noexcept' when exceptions are disabled.\n");
 #endif
@@ -1183,7 +1184,7 @@ constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
  */
 template <typename T, std::size_t N>
 constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(std::declval<T&>() < std::declval<T&>()))
 #else
     noexcept
@@ -1191,7 +1192,7 @@ constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
 -> std::enable_if_t<!std::is_trivially_copyable_v<T> || !std::is_standard_layout_v<T> ||
                     (sizeof(T) != 1), bool>
 {
-#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     static_assert(noexcept(std::declval<T&>() < std::declval<T&>()),
         "\n[ERROR] in ara::core::Array: The type T's operator< must be marked 'noexcept' when exceptions are disabled.\n");
 #endif
@@ -1213,14 +1214,14 @@ constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
  */
 template <typename T, std::size_t N>
 constexpr auto operator<=(const Array<T, N>& lhs, const Array<T, N>& rhs)
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(!(rhs < lhs)))
 #else
     noexcept
 #endif
 -> bool
 {
-#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     static_assert(noexcept(!(rhs < lhs)),
         "\n[ERROR] in ara::core::Array: The operator<= must be marked 'noexcept' when exceptions are disabled.\n");
 #endif
@@ -1241,14 +1242,14 @@ constexpr auto operator<=(const Array<T, N>& lhs, const Array<T, N>& rhs)
  */
 template <typename T, std::size_t N>
 constexpr auto operator>(const Array<T, N>& lhs, const Array<T, N>& rhs)
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(rhs < lhs))
 #else
     noexcept
 #endif
 -> bool
 {
-#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     static_assert(noexcept(rhs < lhs),
         "\n[ERROR] in ara::core::Array: The operator> must be marked 'noexcept' when exceptions are disabled.\n");
 #endif
@@ -1269,14 +1270,14 @@ constexpr auto operator>(const Array<T, N>& lhs, const Array<T, N>& rhs)
  */
 template <typename T, std::size_t N>
 constexpr auto operator>=(const Array<T, N>& lhs, const Array<T, N>& rhs)
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(!(lhs < rhs)))
 #else
     noexcept
 #endif
 -> bool
 {
-#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     static_assert(noexcept(!(lhs < rhs)),
         "\n[ERROR] in ara::core::Array: The operator>= must be marked 'noexcept' when exceptions are disabled.\n");
 #endif
@@ -1302,20 +1303,61 @@ constexpr auto operator>=(const Array<T, N>& lhs, const Array<T, N>& rhs)
  */
 template <typename T, std::size_t N>
 constexpr auto swap(Array<T, N>& lhs, Array<T, N>& rhs)
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(lhs.swap(rhs)))
 #else
     noexcept
 #endif
 -> void
 {
-#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     // Ensure T's swap is noexcept if exceptions are disabled
     static_assert(noexcept(lhs.swap(rhs)),
         "\n[ERROR] ara::core::Array: The type T's swap operation must be noexcept when exceptions are disabled.\n");
 #endif
 
     lhs.swap(rhs);
+}
+
+/********************************************************************************************
+ *  to_array - Modern C++ utility [Enhancement beyond AUTOSAR spec]
+ ********************************************************************************************/
+/*!
+ * \brief  Creates an ara::core::Array from a built-in array (lvalue).
+ *
+ * \tparam T  The element type.
+ * \tparam N  The number of elements.
+ * \param  a  The built-in array to convert.
+ * \return    An ara::core::Array containing copies of the elements.
+ *
+ * \details This is similar to std::to_array from C++20, adapted for ara::core::Array.
+ *          Enables: auto arr = ara::core::to_array({1, 2, 3, 4});
+ *
+ * \note   This is an enhancement beyond base AUTOSAR requirements for modern C++ compatibility.
+ */
+template <typename T, std::size_t N>
+constexpr auto to_array(T (&a)[N]) noexcept(std::is_nothrow_copy_constructible_v<T>) -> Array<T, N>
+{
+    return detail::to_array_impl(a, std::make_index_sequence<N>{});
+}
+
+/*!
+ * \brief  Creates an ara::core::Array from a built-in array (rvalue).
+ *
+ * \tparam T  The element type.
+ * \tparam N  The number of elements.
+ * \param  a  The built-in array to move from.
+ * \return    An ara::core::Array containing moved elements.
+ *
+ * \details This is similar to std::to_array from C++20, adapted for ara::core::Array.
+ *          Enables move semantics for array creation.
+ *
+ * \note   This is an enhancement beyond base AUTOSAR requirements for modern C++ compatibility.
+ */
+template <typename T, std::size_t N>
+constexpr auto to_array(T (&&a)[N]) noexcept(std::is_nothrow_move_constructible_v<T>) -> Array<T, N>
+{
+    return detail::to_array_impl(std::move(a), std::make_index_sequence<N>{});
 }
 
 /********************************************************************************************
