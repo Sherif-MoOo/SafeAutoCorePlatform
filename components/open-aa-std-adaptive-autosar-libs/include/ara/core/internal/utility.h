@@ -212,6 +212,26 @@ constexpr decltype(auto) apply_impl(F&& f,
 }
 
 /*!
+ * \brief  Helper to implement to_array for lvalue arrays.
+ */
+template <typename T, std::size_t N, std::size_t... I>
+constexpr auto to_array_impl(T (&a)[N], std::index_sequence<I...>) 
+    noexcept(std::is_nothrow_copy_constructible_v<T>) -> Array<T, N>
+{
+    return {{a[I]...}};
+}
+
+/*!
+ * \brief  Helper to implement to_array for rvalue arrays.
+ */
+template <typename T, std::size_t N, std::size_t... I>
+constexpr auto to_array_impl(T (&&a)[N], std::index_sequence<I...>) 
+    noexcept(std::is_nothrow_move_constructible_v<T>) -> Array<T, N>
+{
+    return {{std::move(a[I])...}};
+}
+
+/*!
  * \brief Trait to detect whether an array of type T[N] can be list‑initialized
  *        with arguments of types Args... without narrowing conversions.
  *
@@ -430,14 +450,14 @@ protected:
     template <typename... Args,
               typename = std::enable_if_t<(sizeof...(Args) > 0)>>
     constexpr ArrayStorage(Args&&... args)
-#ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
         noexcept(std::conjunction_v<std::is_nothrow_constructible<T, Args&&>...>)
 #else
         noexcept
 #endif
         : data_{std::forward<Args>(args)...} 
     {
-#ifndef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
         static_assert(std::conjunction_v<std::is_nothrow_constructible<T, Args&&>...>,
             "\n[ERROR] in ara::core::Array: The type T and args must be noexcept.\n");
 #endif  

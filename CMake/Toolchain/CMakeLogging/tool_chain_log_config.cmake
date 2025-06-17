@@ -295,12 +295,12 @@ else()
   log_info("EXCEPTION_SAFETY_MODE: (not defined)")
 endif()
 
-# Check if ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS is defined in CMAKE_CXX_FLAGS
-string(FIND "${CMAKE_CXX_FLAGS}" "-DARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS=1" macro_pos)
+# Check if ENABLE_PLATFORM_CONDITIONAL_EXCEPTION is defined in CMAKE_CXX_FLAGS
+string(FIND "${CMAKE_CXX_FLAGS}" "-DENABLE_PLATFORM_CONDITIONAL_EXCEPTION=1" macro_pos)
 if(macro_pos GREATER_EQUAL 0)
-  log_info("ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS is defined as 1")
+  log_info("ENABLE_PLATFORM_CONDITIONAL_EXCEPTION is defined as 1")
 else()
-  log_info("ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS is NOT defined")
+  log_info("ENABLE_PLATFORM_CONDITIONAL_EXCEPTION is NOT defined")
 endif()
 
 log_decorator("-------------------------------------------------------------")

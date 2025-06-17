@@ -313,7 +313,7 @@ void TestGetFunction()
 {
     std::cout << "\n=== Test 2: get<I>() Functionality ===\n";
     
-    #ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+    #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
         // Conditional Safe Mode: Use types that may throw
         ara::core::Array<std::string,3> strArr = {"Alpha", "Beta", "Gamma"};
 
@@ -577,7 +577,7 @@ void TestWithUserDefinedStruct()
                   << structArr[i].id << ", Score=" << structArr[i].score << ")\n";
     }
 
-    #ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+    #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
         // Conditional Safe Mode: Additional tests with std::string
         std::cout << "\n=== Additional Test: Usage with std::string in Conditional Safe Mode ===\n";
         ara::core::Array<std::string,3> strArr = {"Alpha", "Beta", "Gamma"};
@@ -1181,7 +1181,7 @@ void TestTwoDimensionalArrays()
         std::cout << "\n";
     }
 
-    #ifdef ARA_CORE_ARRAY_ENABLE_CONDITIONAL_EXCEPTIONS
+    #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
         // Conditional Safe Mode: Additional tests with two-dimensional arrays involving std::string
         std::cout << "\n=== Additional Test: Two-Dimensional Arrays with std::string ===\n";
         ara::core::Array<ara::core::Array<std::string,2>, 2> strMatrix = {

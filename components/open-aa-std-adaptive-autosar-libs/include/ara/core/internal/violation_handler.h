@@ -37,6 +37,8 @@ namespace core {
 template <typename T, std::size_t N>
 class Array;
 
+class Byte; // Forward declaration of the Byte class
+
 namespace internal {
 
 /**********************************************************************************************************************
@@ -88,6 +90,31 @@ public:
             friend class ara::core::Array;
     };
 
+    struct ByteKey{
+        constexpr ByteKey(const ByteKey&) noexcept = delete;
+        constexpr ByteKey(ByteKey&&) noexcept = delete;
+        constexpr auto operator=(const ByteKey&) noexcept = delete;
+        constexpr auto operator=(ByteKey&&) noexcept = delete;
+        ~ByteKey() = default;
+
+        private:
+            /*!
+             * \brief  Private constructor to prevent instantiation.
+             *
+             * \details
+             * This constructor is private to ensure that the ByteKey cannot be instantiated outside of this class.
+             */
+            constexpr ByteKey() noexcept {
+                // This constructor is intentionally left empty.
+            };
+            /*!
+             * \brief  Grants friendship to the ara::core::Byte class to allow exclusive access.
+             *
+             * \note   Ensures that ara::core::Byte allowed trigger violations.
+             */
+            friend class ara::core::Byte;
+    };
+
     /*!
      * \brief  Retrieves the singleton instance of ViolationHandler.
      *
@@ -115,6 +142,23 @@ public:
                                                std::string_view location,
                                                std::size_t indexValue,
                                                std::size_t arraySize) noexcept -> void;
+
+    /*!
+     * \brief  Triggers a ByteRangeViolation.
+     *
+     * \param  location   An implementation-defined identifier of the location where the violation was detected
+     *                    (e.g., "file.cpp:123").
+     * \param  value      The invalid value that caused the violation.
+     *
+     * \details
+     * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+     * and does not throw exceptions.
+     *
+     * \note   [SWS_CORE_00090]
+     */
+    [[noreturn]] auto TriggerByteRangeViolation(ByteKey&& /*unused*/,
+                                                std::string_view location,
+                                                long long value) noexcept -> void;
 
 
 private:
