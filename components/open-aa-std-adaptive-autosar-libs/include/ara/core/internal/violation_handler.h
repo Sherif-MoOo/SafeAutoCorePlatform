@@ -25,6 +25,7 @@
  *********************************************************************************************************************/
 #ifndef ARA_CORE_INTERNAL_VIOLATION_HANDLER_H_
 #define ARA_CORE_INTERNAL_VIOLATION_HANDLER_H_
+#include <limits>                                   // For numeric_limits
 
 /**********************************************************************************************************************
  *  NAMESPACE: ara::core::internal
@@ -37,7 +38,10 @@ namespace core {
 template <typename T, std::size_t N>
 class Array;
 
-class Byte; // Forward declaration of the Byte class
+class Byte;
+
+template<typename ElementType, std::size_t Extent>
+class Span;
 
 namespace internal {
 
@@ -115,6 +119,33 @@ public:
             friend class ara::core::Byte;
     };
 
+    
+    struct SpanKey{
+        constexpr SpanKey(const SpanKey&) noexcept = delete;
+        constexpr SpanKey(SpanKey&&) noexcept = delete;
+        constexpr auto operator=(const SpanKey&) noexcept = delete;
+        constexpr auto operator=(SpanKey&&) noexcept = delete;
+        ~SpanKey() = default;
+
+        private:
+            /*!
+             * \brief  Private constructor to prevent instantiation.
+             *
+             * \details
+             * This constructor is private to ensure that the SpanKey cannot be instantiated outside of this class.
+             */
+            constexpr SpanKey() noexcept {
+                // This constructor is intentionally left empty.
+            };
+            /*!
+             * \brief  Grants friendship to the ara::core::Span class to allow exclusive access.
+             *
+             * \note   Ensures that ara::core::Span allowed trigger violations.
+             */
+            template<typename ElementType, std::size_t Extent>
+            friend class ara::core::Span;
+    };
+
     /*!
      * \brief  Retrieves the singleton instance of ViolationHandler.
      *
@@ -159,6 +190,17 @@ public:
     [[noreturn]] auto TriggerByteRangeViolation(ByteKey&& /*unused*/,
                                                 std::string_view location,
                                                 long long value) noexcept -> void;
+
+    
+    [[noreturn]] auto TriggerSpanSizeViolation(SpanKey&& /*unused*/,
+                                               std::string_view location,
+                                               std::size_t actual,
+                                               std::size_t expected) noexcept -> void;
+
+    [[noreturn]] auto TriggerSpanBoundsViolation(SpanKey&& /*unused*/,
+                                                 std::string_view location,
+                                                 std::size_t index,
+                                                 std::size_t size) noexcept -> void;
 
 
 private:

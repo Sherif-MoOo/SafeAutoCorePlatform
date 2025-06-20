@@ -45,7 +45,6 @@
 #include <cstring>                                  // For std::memcpy, std::memset
 #include <iterator>                                 // For std::reverse_iterator
 
-#include "ara/core/byte.h"                          // For ara::core::Byte type
 #include "ara/core/internal/utility.h"              // For utility functions and traits
 #include "ara/core/internal/location_utils.h"       // For capturing file/line details
 #include "ara/core/internal/violation_handler.h"    // To Trigger the violation
@@ -1167,7 +1166,7 @@ constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
         return std::memcmp(lhs.data(), rhs.data(), N) < 0;
     }
 
-    return detail::lex_compare(lhs.begin(), lhs.end(),
+    return detail::constexpr_lexicographical_compare(lhs.begin(), lhs.end(),
                                rhs.begin(), rhs.end());
 }
 
@@ -1197,7 +1196,7 @@ constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
         "\n[ERROR] in ara::core::Array: The type T's operator< must be marked 'noexcept' when exceptions are disabled.\n");
 #endif
 
-    return detail::lex_compare(lhs.begin(), lhs.end(),
+    return detail::constexpr_lexicographical_compare(lhs.begin(), lhs.end(),
                                rhs.begin(), rhs.end());
 }
 

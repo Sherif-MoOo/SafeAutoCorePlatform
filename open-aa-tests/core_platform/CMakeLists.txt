@@ -17,3 +17,5 @@ add_subdirectory(core_array_test)
 add_subdirectory(core_abort_test)
 
 add_subdirectory(core_byte_test)
+
+add_subdirectory(core_span_test)
