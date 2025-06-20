@@ -58,7 +58,7 @@ target_link_libraries(ara_core_array INTERFACE
 )
 
 # ----------------------------------------------------------------------
-# 3) ARA::CORE::Byte
+# 4) ARA::CORE::BYTE
 # ----------------------------------------------------------------------
 add_library(ara_core_byte INTERFACE)
 add_library(ara::core::byte ALIAS ara_core_byte)
@@ -75,7 +75,24 @@ target_link_libraries(ara_core_byte INTERFACE
 )
 
 # ----------------------------------------------------------------------
-# 3) Installation of Headers
+# 5) ARA::CORE::SPAN
+# ----------------------------------------------------------------------
+add_library(ara_core_span INTERFACE)
+add_library(ara::core::span ALIAS ara_core_span)
+
+# Provide include directories for ara::core::span
+target_include_directories(ara_core_span INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>  # Path to span headers during build
+    $<INSTALL_INTERFACE:include>                            # Path to span headers after installation
+)
+
+# link INTERFACE libraries
+target_link_libraries(ara_core_span INTERFACE
+    ara::core::violation
+)
+
+# ----------------------------------------------------------------------
+# 6) Installation of Headers
 # ----------------------------------------------------------------------
 # Install the ara/core headers, including array.h and internal headers
 install(DIRECTORY

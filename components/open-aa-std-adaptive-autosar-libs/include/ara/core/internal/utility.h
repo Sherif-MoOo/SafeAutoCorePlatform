@@ -24,11 +24,30 @@
  *  SECTION: Forward Declaration
  *********************************************************************************************************************/
 namespace ara::core {
+
+/**********************************************************************************************************************
+ *  CONSTANTS
+ *********************************************************************************************************************/
+/*!
+ * \brief  A constant of type std::size_t denoting that the span has dynamic extent
+ *
+ * \details
+ * - [SWS_CORE_01901]: Used to indicate runtime-determined span size
+ * - Set to maximum value of size_t as per standard specification
+ * - Enables distinction between static and dynamic extent spans
+ *
+ * \note This matches std::dynamic_extent from C++20
+ */
+inline constexpr std::size_t dynamic_extent = std::numeric_limits<std::size_t>::max();
+
 /*!
  * \brief  Forward declaration of the Array class template.
  */
 template <typename T, std::size_t N>
 class Array;    
+
+template<typename ElementType, std::size_t Extent = dynamic_extent>
+class Span;
 
 /*!
  * \brief  Forward declaration of the get function template.
@@ -393,7 +412,7 @@ inline constexpr bool is_single_same_array_v = is_single_same_array<Args...>::va
  *       are \c constexpr, the entire operation can be evaluated at compile time.
  */
 template <typename InputIt1, typename InputIt2>
-constexpr auto lex_compare(InputIt1 first1, InputIt1 last1, InputIt2 first2, InputIt2 last2) noexcept -> bool {
+constexpr auto constexpr_lexicographical_compare(InputIt1 first1, InputIt1 last1, InputIt2 first2, InputIt2 last2) noexcept -> bool {
     for (; first1 != last1 && first2 != last2; ++first1, ++first2) {
         if (*first1 < *first2)
             return true;
@@ -402,6 +421,139 @@ constexpr auto lex_compare(InputIt1 first1, InputIt1 last1, InputIt2 first2, Inp
     }
     return (first1 == last1) && (first2 != last2);
 }
+
+/*!
+ * \brief  Constexpr-compatible find implementation for C++17
+ */
+template<typename InputIt, typename T>
+constexpr InputIt constexpr_find(InputIt first, InputIt last, const T& value) {
+    for (; first != last; ++first) {
+        if (*first == value) {
+            return first;
+        }
+    }
+    return last;
+}
+
+/*!
+ * \brief  Constexpr-compatible equal implementation
+ */
+template<typename InputIt1, typename InputIt2>
+constexpr bool constexpr_equal(InputIt1 first1, InputIt1 last1, InputIt2 first2) {
+    for (; first1 != last1; ++first1, ++first2) {
+        if (!(*first1 == *first2)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**********************************************************************************************************************
+ *  SPAN: IMPLEMENTATION DETAILS - TYPE TRAITS AND SFINAE HELPERS
+ *********************************************************************************************************************/
+ 
+/*!
+ * \brief  void_t helper for detection idiom
+ */
+template<typename...>
+using void_t = void;
+
+/*!
+ * \brief  Detection helper for C-style arrays
+ */
+template<typename T>
+struct is_c_array : std::false_type {};
+
+template<typename T, std::size_t N>
+struct is_c_array<T[N]> : std::true_type {};
+
+template<typename T>
+inline constexpr bool is_c_array_v = is_c_array<T>::value;
+
+/*!
+ * \brief  Detection helper for std::array
+ */
+template<typename T>
+struct is_std_array : std::false_type {};
+
+template<typename T, std::size_t N>
+struct is_std_array<std::array<T, N>> : std::true_type {};
+
+template<typename T>
+inline constexpr bool is_std_array_v = is_std_array<T>::value;
+
+/*!
+ * \brief  Detection helper for Span specializations
+ */
+template<typename T>
+struct is_span : std::false_type {};
+
+template<typename T, std::size_t E>
+struct is_span<Span<T, E>> : std::true_type {};
+
+template<typename T>
+inline constexpr bool is_span_v = is_span<T>::value;
+
+/*!
+ * \brief  Check if type has contiguous storage (data() and size() members)
+ */
+template<typename T, typename = void>
+struct has_data_and_size : std::false_type {};
+
+template<typename T>
+struct has_data_and_size<T, void_t<
+    decltype(std::declval<T&>().data()),
+    decltype(std::declval<T&>().size()),
+    std::enable_if_t<std::is_pointer_v<decltype(std::declval<T&>().data())>>
+>> : std::true_type {};
+
+template<typename T>
+inline constexpr bool has_data_and_size_v = has_data_and_size<T>::value;
+
+/*!
+ * \brief  Check if type is a range (has begin() and end())
+ */
+template<typename T, typename = void>
+struct is_range : std::false_type {};
+
+template<typename T>
+struct is_range<T, void_t<
+    decltype(std::begin(std::declval<T&>())),
+    decltype(std::end(std::declval<T&>()))
+>> : std::true_type {};
+
+template<typename T>
+inline constexpr bool is_range_v = is_range<T>::value;
+
+/*!
+ * \brief  Check if range has contiguous iterators
+ */
+template<typename T, typename = void>
+struct is_contiguous_range : std::false_type {};
+
+template<typename T>
+struct is_contiguous_range<T, void_t<
+    std::enable_if_t<is_range_v<T>>,
+    std::enable_if_t<has_data_and_size_v<T>>
+>> : std::true_type {};
+
+template<typename T>
+inline constexpr bool is_contiguous_range_v = is_contiguous_range<T>::value;
+
+/*!
+ * \brief  Check element type compatibility for span construction
+ */
+template<typename From, typename To>
+struct is_element_type_compatible : std::false_type {};
+
+template<typename From, typename To>
+struct is_element_type_compatible<From*, To> : std::bool_constant<
+    std::is_convertible_v<From(*)[], To(*)[]>
+> {};
+
+template<typename From, typename To>
+inline constexpr bool is_element_type_compatible_v = is_element_type_compatible<From, To>::value;
+
 
 /**********************************************************************************************************************
  *  SECTION: Array Storage Base Classes
@@ -539,6 +691,48 @@ protected:
      * \brief Defaulted move assignment operator.
      */
     constexpr ArrayStorage& operator=(ArrayStorage&&) noexcept = default;
+};
+
+/***********************************************************************************************************************
+ *  SPAN: STORAGE BASE CLASS
+ ***********************************************************************************************************************/
+/*!
+ * \brief  Storage optimization for static vs dynamic extent
+ */
+template<typename ElementType, std::size_t Extent>
+class span_storage_base {
+protected:
+    ElementType* data_ = nullptr;
+    
+    constexpr span_storage_base() noexcept = default;
+    constexpr span_storage_base(ElementType* data, std::size_t) noexcept : data_(data) {}
+    
+    constexpr std::size_t size() const noexcept { return Extent; }
+    constexpr void set_size(std::size_t) noexcept {}
+};
+
+template<typename ElementType>
+class span_storage_base<ElementType, dynamic_extent> {
+protected:
+    ElementType* data_ = nullptr;
+    std::size_t size_ = 0;
+    
+    constexpr span_storage_base() noexcept = default;
+    constexpr span_storage_base(ElementType* data, std::size_t size) noexcept 
+        : data_(data), size_(size) {}
+    
+    constexpr std::size_t size() const noexcept { return size_; }
+    constexpr void set_size(std::size_t size) noexcept { size_ = size; }
+};
+
+/*!
+ * \brief  Calculate subspan extent at compile time
+ */
+template<std::size_t Extent, std::size_t Offset, std::size_t Count>
+struct subspan_extent {
+    static constexpr std::size_t value = 
+        Count != dynamic_extent ? Count :
+        (Extent != dynamic_extent ? Extent - Offset : dynamic_extent);
 };
 
 } // namespace detail

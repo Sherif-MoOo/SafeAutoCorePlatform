@@ -124,6 +124,19 @@ auto ViolationHandler::Instance() noexcept -> ViolationHandler&
     );
 }
 
+/*!
+ * \brief  Triggers a ByteRangeViolation.
+ *
+ * \param  location   An implementation-defined identifier of the location where the violation was detected
+ *                    (e.g., "file.cpp:123").
+ * \param  value      The invalid value that caused the violation.
+ *
+ * \details
+ * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+ * and does not throw exceptions.
+ *
+ * \note   [SWS_CORE_00090]
+ */
 [[noreturn]] auto ViolationHandler::TriggerByteRangeViolation(ByteKey&& /*unused*/,
                                                     std::string_view location,
                                                     long long value) noexcept -> void
@@ -147,6 +160,104 @@ auto ViolationHandler::Instance() noexcept -> ViolationHandler&
         location,
         ": Byte range violation: Invalid byte value ",
         valueStr,
+        "."
+    );
+}
+
+/*!
+ * \brief  Triggers a SpanSizeViolation.
+ *
+ * \param  location   An implementation-defined identifier of the location where the violation was detected
+ *                    (e.g., "file.cpp:123").
+ * \param  actual     The actual size of the span.
+ * \param  expected   The expected size of the span.
+ *
+ * \details
+ * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+ * and does not throw exceptions.
+ *
+ * \note   [SWS_CORE_00090]
+ */
+[[noreturn]] auto ViolationHandler::TriggerSpanSizeViolation(SpanKey&& /*unused*/,
+                                                    std::string_view location,
+                                                    std::size_t actual,
+                                                    std::size_t expected) noexcept -> void
+{
+    // Allocate buffers for the numeric values.
+    char actualBuffer[32]{0};
+    char expectedBuffer[32]{0};
+
+    // Convert 'actual' and 'expected' to characters using std::to_chars.
+    auto [actualPtr, actualEc] = std::to_chars(actualBuffer, actualBuffer + sizeof(actualBuffer), actual);
+    auto [expectedPtr, expectedEc] = std::to_chars(expectedBuffer, expectedBuffer + sizeof(expectedBuffer), expected);
+
+    // Create string_view objects from the conversion results.
+    std::string_view actualStr = (actualEc == std::errc{}) 
+                                 ? std::string_view(actualBuffer, static_cast<std::size_t>(actualPtr - actualBuffer)) 
+                                 : "";
+    std::string_view expectedStr = (expectedEc == std::errc{}) 
+                                   ? std::string_view(expectedBuffer, static_cast<std::size_t>(expectedPtr - expectedBuffer)) 
+                                   : "";
+
+    // Terminate the process by calling the Abort API.
+    ara::core::Abort(
+        "[App vlt][FATAL]: Violation detected in ",
+        GetProcessIdentifier(),
+        " at ",
+        location,
+        ": Span size violation: Actual size ",
+        actualStr,
+        " does not match expected size ",
+        expectedStr,
+        "."
+    );
+}
+
+/*! 
+ * \brief  Triggers a SpanBoundsViolation.
+ *
+ * \param  location   An implementation-defined identifier of the location where the violation was detected
+ *                    (e.g., "file.cpp:123").
+ * \param  index      The index that was out of bounds.
+ * \param  size       The size of the span.
+ *
+ * \details
+ * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+ * and does not throw exceptions.
+ *
+ * \note   [SWS_CORE_00090]
+ */
+[[noreturn]] auto ViolationHandler::TriggerSpanBoundsViolation(SpanKey&& /*unused*/,
+                                                    std::string_view location,
+                                                    std::size_t index,
+                                                    std::size_t size) noexcept -> void
+{
+    // Allocate buffers for the numeric values.
+    char indexBuffer[32]{0};
+    char sizeBuffer[32]{0};
+
+    // Convert 'index' and 'size' to characters using std::to_chars.
+    auto [indexPtr, indexEc] = std::to_chars(indexBuffer, indexBuffer + sizeof(indexBuffer), index);
+    auto [sizePtr, sizeEc] = std::to_chars(sizeBuffer, sizeBuffer + sizeof(sizeBuffer), size);
+
+    // Create string_view objects from the conversion results.
+    std::string_view indexStr = (indexEc == std::errc{}) 
+                                ? std::string_view(indexBuffer, static_cast<std::size_t>(indexPtr - indexBuffer)) 
+                                : "";
+    std::string_view sizeStr = (sizeEc == std::errc{}) 
+                               ? std::string_view(sizeBuffer, static_cast<std::size_t>(sizePtr - sizeBuffer)) 
+                               : "";
+
+    // Terminate the process by calling the Abort API.
+    ara::core::Abort(
+        "[App vlt][FATAL]: Violation detected in ",
+        GetProcessIdentifier(),
+        " at ",
+        location,
+        ": Span bounds violation: Index ",
+        indexStr,
+        " is out of bounds for span of size ",
+        sizeStr,
         "."
     );
 }
