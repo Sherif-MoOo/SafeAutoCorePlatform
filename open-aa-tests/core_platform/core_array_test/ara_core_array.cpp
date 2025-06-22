@@ -32,7 +32,7 @@
 #if defined(__linux__)
 #include <sys/prctl.h>
 #endif
-#include "ara/core/span.h"        // For ara::core::Span
+#include "ara/core/string_view.h"        // For ara::core::StringView
 #include "ara/core/array.h" // The custom Array implementation header
 #include <cstdint>          // For std::uint8_t
 #include <iostream>         // For std::cout (demonstrations)

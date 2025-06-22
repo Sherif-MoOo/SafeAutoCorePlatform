@@ -28,6 +28,7 @@
 #include <string_view>   /* For std::string_view */
 #include <iostream>      /* For std::cerr */
 
+#include "ara/core/string_view.h"                   // For ara::core::StringView
 #include "ara/core/internal/utility.h"              // For utility functions and traits
 
 /***********************************************************************************************************************
@@ -35,15 +36,6 @@
 ***********************************************************************************************************************/
 namespace ara {
 namespace core {
-
-/***********************************************************************************************************************
- *  TYPE ALIASES
-***********************************************************************************************************************/
-/* Alias for a string view [TODO: remove it and use real ara::core::StringView implementation].
- * This type is used to enforce that all arguments provided to Abort() are convertible
- * to a string view.
- */
-using StringView = std::string_view;
 
 /***********************************************************************************************************************
  *  ABORT HANDLER DEFINITION
@@ -84,7 +76,7 @@ template <typename... Args>
     /* Ensure all arguments are convertible to ara::core::StringView */
     static_assert((std::is_convertible_v<Args, StringView> && ...),
         "\n[ERROR] All arguments to ara::core::Abort() must be convertible to ara::core::StringView.\n");
-
+    
     /* Lock the mutex to ensure thread-safety and block other calls while abort is in progress */
     std::lock_guard<std::mutex> lock(detail::g_abortMutex);
 

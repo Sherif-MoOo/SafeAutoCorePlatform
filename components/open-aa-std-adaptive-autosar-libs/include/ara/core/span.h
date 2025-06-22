@@ -53,6 +53,7 @@
 #include <initializer_list>                         // For C++26-like initializer_list support
 #include <array>                                    // For std::array support
 
+#include "ara/core/ranges.h"                        // For ranges support in span
 #include "ara/core/byte.h"                          // For ara::core::Byte type
 #include "ara/core/internal/utility.h"              // For utility functions and traits
 #include "ara/core/internal/location_utils.h"       // For capturing file/line details
@@ -1223,15 +1224,6 @@ template<typename T>
 inline constexpr bool is_span_v = is_span<T>::value;
 
 /*!
- * \brief Span satisfies borrowed_range concept
- */
-template<typename T>
-struct enable_borrowed_range : std::false_type {};
-
-template<typename T, std::size_t E>
-struct enable_borrowed_range<Span<T, E>> : std::true_type {};
-
-/*!
  * \brief Create a range view from span
  */
 template<typename T, std::size_t E>
@@ -1244,7 +1236,7 @@ template<typename T, std::size_t E>
  * \brief Transform view for spans
  */
 template<typename T, std::size_t E, typename F>
-class transform_view {
+class span_transform_view {
 public:
     using span_type = Span<T, E>;
     using value_type = std::invoke_result_t<F, T&>;
@@ -1269,16 +1261,16 @@ public:
         constexpr iterator(typename span_type::iterator it, const F* f) 
             : it_(it), func_(f) {}
         
-        [[nodiscard]] constexpr value_type operator*() const {
+        [[nodiscard]] constexpr value_type operator*() const noexcept{
             return (*func_)(*it_);
         }
-        
-        constexpr iterator& operator++() {
+
+        constexpr iterator& operator++() noexcept {
             ++it_;
             return *this;
         }
-        
-        constexpr iterator operator++(int) {
+
+        constexpr iterator operator++(int) noexcept {
             iterator tmp = *this;
             ++*this;
             return tmp;
@@ -1293,10 +1285,10 @@ public:
         }
     };
     
-    constexpr transform_view(span_type s, F f) : span_(s), func_(std::move(f)) {}
-    
-    [[nodiscard]] constexpr iterator begin() const { return iterator(span_.begin(), &func_); }
-    [[nodiscard]] constexpr iterator end() const { return iterator(span_.end(), &func_); }
+    constexpr span_transform_view(span_type s, F f) noexcept : span_(s), func_(std::move(f)) {}
+
+    [[nodiscard]] constexpr iterator begin() const noexcept { return iterator(span_.begin(), &func_); }
+    [[nodiscard]] constexpr iterator end() const noexcept { return iterator(span_.end(), &func_); }
     [[nodiscard]] constexpr auto size() const noexcept { return span_.size(); }
     [[nodiscard]] constexpr bool empty() const noexcept { return span_.empty(); }
 };
@@ -1305,15 +1297,15 @@ public:
  * \brief Create transform view
  */
 template<typename T, std::size_t E, typename F>
-[[nodiscard]] constexpr auto transform(Span<T, E> s, F&& f) {
-    return transform_view<T, E, std::decay_t<F>>(s, std::forward<F>(f));
+[[nodiscard]] constexpr auto transform(Span<T, E> s, F&& f) noexcept {
+    return span_transform_view<T, E, std::decay_t<F>>(s, std::forward<F>(f));
 }
 
 /*!
  * \brief Filter view for spans
  */
 template<typename T, std::size_t E, typename Pred>
-class filter_view {
+class span_filter_view {
 public:
     using span_type = Span<T, E>;
     
@@ -1343,21 +1335,21 @@ public:
         
         constexpr iterator(typename span_type::iterator curr,
                           typename span_type::iterator end,
-                          const Pred* p)
+                          const Pred* p) noexcept
             : current_(curr), end_(end), pred_(p) {
             advance_to_next();
         }
-        
-        [[nodiscard]] constexpr reference operator*() const { return *current_; }
-        [[nodiscard]] constexpr pointer operator->() const { return current_.base(); }
-        
-        constexpr iterator& operator++() {
+
+        [[nodiscard]] constexpr reference operator*() const noexcept { return *current_; }
+        [[nodiscard]] constexpr pointer operator->() const noexcept { return current_.base(); }
+
+        constexpr iterator& operator++() noexcept {
             ++current_;
             advance_to_next();
             return *this;
         }
-        
-        constexpr iterator operator++(int) {
+
+        constexpr iterator operator++(int) noexcept {
             iterator tmp = *this;
             ++*this;
             return tmp;
@@ -1371,15 +1363,15 @@ public:
             return !(*this == other);
         }
     };
-    
-    constexpr filter_view(span_type s, Pred p) : span_(s), pred_(std::move(p)) {}
-    
-    [[nodiscard]] constexpr iterator begin() const { 
-        return iterator(span_.begin(), span_.end(), &pred_); 
+
+    constexpr span_filter_view(span_type s, Pred p) noexcept : span_(s), pred_(std::move(p)) {}
+
+    [[nodiscard]] constexpr iterator begin() const noexcept {
+        return iterator(span_.begin(), span_.end(), &pred_);
     }
-    
-    [[nodiscard]] constexpr iterator end() const { 
-        return iterator(span_.end(), span_.end(), &pred_); 
+
+    [[nodiscard]] constexpr iterator end() const noexcept {
+        return iterator(span_.end(), span_.end(), &pred_);
     }
 };
 
@@ -1387,8 +1379,8 @@ public:
  * \brief Create filter view
  */
 template<typename T, std::size_t E, typename Pred>
-[[nodiscard]] constexpr auto filter(Span<T, E> s, Pred&& p) {
-    return filter_view<T, E, std::decay_t<Pred>>(s, std::forward<Pred>(p));
+[[nodiscard]] constexpr auto filter(Span<T, E> s, Pred&& p) noexcept {
+    return span_filter_view<T, E, std::decay_t<Pred>>(s, std::forward<Pred>(p));
 }
 
 /*!
@@ -1474,7 +1466,7 @@ template<typename Range,
 namespace ara {
 namespace core {
 
-namespace {
+namespace span_test {
 
 // Test types
 using TestSpan = Span<int, 5>;
@@ -1534,7 +1526,7 @@ static_assert(range_span.size() == 5, "Range construction must work");
 // C++26 enhanced features verification
 static_assert(test_span.contains(3), "Contains must work in constexpr");
 
-} // anonymous namespace
+} // span_test namespace
 
 } // namespace core
 } // namespace ara

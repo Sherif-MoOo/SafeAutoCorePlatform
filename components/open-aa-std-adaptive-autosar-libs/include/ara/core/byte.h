@@ -1047,10 +1047,10 @@ template <typename T,
  * - Enhanced feature inspired by C++26 proposals
  * - Supports decimal, hex (0x), octal (0), and binary (0b) literals
  */
-namespace literals {
-namespace byte_literals {
+inline namespace literals {
+inline namespace byte_literals {
 
-namespace detail {
+namespace parser {
 
 /* template-dependent false for assertions */
 template<char... Cs> struct always_false : std::false_type {};
@@ -1117,13 +1117,13 @@ public:
         static_cast<std::uint8_t>(raw);   // safe: raw is 0-255
 };
 
-} // namespace detail
+} // namespace parser
 
 /* user-defined literal ------------------------------------------------------*/
 template<char... Cs>
 [[nodiscard]] constexpr ara::core::Byte operator ""_byte() noexcept
 {
-    return ara::core::Byte{ detail::parse_byte<Cs...>::value };
+    return ara::core::Byte{ parser::parse_byte<Cs...>::value };
 }
 
 } // namespace byte_literals
