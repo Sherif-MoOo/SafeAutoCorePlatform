@@ -19,7 +19,8 @@
 #include <type_traits>                              // For std::is_nothrow_move_constructible, std::is_nothrow_move_assignable, etc.
 #include <utility>                                  // For std::declval, std::move, std::forward
 #include <cstddef>                                  // For std::size_t, std::ptrdiff_t
-
+#include <string>                                   // for std::basic_string
+#include <string_view>                              // for std::basic_string_view
 /**********************************************************************************************************************
  *  SECTION: Forward Declaration
  *********************************************************************************************************************/
@@ -48,6 +49,9 @@ class Array;
 
 template<typename ElementType, std::size_t Extent = dynamic_extent>
 class Span;
+
+template<typename CharT, typename Traits>
+class BasicStringView;
 
 /*!
  * \brief  Forward declaration of the get function template.
@@ -385,6 +389,16 @@ struct is_single_same_array
 template <typename... Args>
 inline constexpr bool is_single_same_array_v = is_single_same_array<Args...>::value;
 
+template<typename CharT, typename = void>
+struct default_traits
+{
+    /*  Pull the traits through a system-header alias – no warnings here. */
+    using type = typename std::basic_string_view<CharT>::traits_type;
+};
+
+/*  const-qualified forms forward to the base type (AUTOSAR-style). */
+template<typename CharT>
+struct default_traits<const CharT, void> : default_traits<CharT> {};
 
 /*!
  * \brief Performs a lexicographical comparison between two ranges.
@@ -446,6 +460,77 @@ constexpr bool constexpr_equal(InputIt1 first1, InputIt1 last1, InputIt2 first2)
         }
     }
     return true;
+}
+
+/*!
+ * \brief Constexpr strlen implementation for C++17
+ */
+template<typename CharT, typename Traits>
+constexpr auto constexpr_strlen(const CharT* str) noexcept -> std::size_t
+{
+    if constexpr (std::is_same_v<CharT, char>) {
+        // Use built-in for char if available
+        return __builtin_strlen(str);
+    } else {
+        std::size_t len = 0;
+        while (str[len] != CharT{}) {
+            ++len;
+        }
+        return len;
+    }
+}
+
+/*!
+ * \brief Constexpr char_traits::compare for C++17
+ */
+template<typename CharT, typename Traits>
+constexpr auto constexpr_compare(const CharT* s1, const CharT* s2, std::size_t count) noexcept -> int
+{
+    for (std::size_t i = 0; i < count; ++i) {
+        if (Traits::lt(s1[i], s2[i])) return -1;
+        if (Traits::lt(s2[i], s1[i])) return 1;
+    }
+    return 0;
+}
+
+/*!
+ * \brief Constexpr find implementation
+ */
+template<typename CharT, typename Traits>
+constexpr auto constexpr_find(const CharT* str, std::size_t count, CharT ch) noexcept -> const CharT*
+{
+    for (std::size_t i = 0; i < count; ++i) {
+        if (Traits::eq(str[i], ch)) {
+            return str + i;
+        }
+    }
+    return nullptr;
+}
+
+/*!
+ * \brief Constexpr search implementation
+ */
+template<typename CharT, typename Traits>
+constexpr auto constexpr_search(const CharT* first, const CharT* last,
+                               const CharT* s_first, const CharT* s_last) noexcept -> const CharT*
+{
+    const auto len = static_cast<std::size_t>(last - first);
+    const auto s_len = static_cast<std::size_t>(s_last - s_first);
+    
+    if (s_len == 0) return first;
+    if (s_len > len) return last;
+    
+    for (std::size_t i = 0; i <= len - s_len; ++i) {
+        bool found = true;
+        for (std::size_t j = 0; j < s_len; ++j) {
+            if (!Traits::eq(first[i + j], s_first[j])) {
+                found = false;
+                break;
+            }
+        }
+        if (found) return first + i;
+    }
+    return last;
 }
 
 /**********************************************************************************************************************
@@ -553,6 +638,56 @@ struct is_element_type_compatible<From*, To> : std::bool_constant<
 
 template<typename From, typename To>
 inline constexpr bool is_element_type_compatible_v = is_element_type_compatible<From, To>::value;
+
+/*!
+ * \brief  Always-false helper for static_asserts in dependent contexts
+ */
+template<typename...>
+inline constexpr bool dependent_false_v = false;
+
+/*!
+ * \brief  Detect whether \c T provides \c data() and \c size() that are both noexcept.
+ *
+ *         Raw pointers are deliberately *excluded* from being considered string-like.
+ */
+template<typename T, typename = void>
+struct has_string_like_interface : std::false_type {};
+
+template<typename T>
+struct has_string_like_interface<T,
+    std::void_t<
+        decltype(std::data(std::declval<const T&>())),
+        decltype(std::size(std::declval<const T&>()))
+    >
+> : std::true_type {};
+
+/*! \brief  Raw pointers are *not* string-like. */
+template<typename T>
+struct has_string_like_interface<T*, void> : std::false_type {};
+
+template<typename T>
+inline constexpr bool has_string_like_interface_v =
+    has_string_like_interface<T>::value;
+
+/*!
+ * \brief  Determine whether \c T can be converted into a pointer to \c CharT via
+ *         its \c data() member (only checked if the type passed the previous test).
+ */
+template<typename T, typename CharT, bool = has_string_like_interface_v<T>>
+struct is_string_view_compatible_impl : std::false_type {};
+
+template<typename T, typename CharT>
+struct is_string_view_compatible_impl<T, CharT, true>
+    : std::bool_constant<
+          std::is_convertible_v<
+              decltype(std::data(std::declval<const T&>())),
+              const CharT*
+          >
+      > {};
+
+template<typename T, typename CharT>
+inline constexpr bool is_string_view_compatible_v =
+    is_string_view_compatible_impl<T, CharT>::value;
 
 
 /**********************************************************************************************************************

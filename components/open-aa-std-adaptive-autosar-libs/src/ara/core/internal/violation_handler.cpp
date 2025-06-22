@@ -176,7 +176,6 @@ auto ViolationHandler::Instance() noexcept -> ViolationHandler&
  * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
  * and does not throw exceptions.
  *
- * \note   [SWS_CORE_00090]
  */
 [[noreturn]] auto ViolationHandler::TriggerSpanSizeViolation(SpanKey&& /*unused*/,
                                                     std::string_view location,
@@ -225,7 +224,6 @@ auto ViolationHandler::Instance() noexcept -> ViolationHandler&
  * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
  * and does not throw exceptions.
  *
- * \note   [SWS_CORE_00090]
  */
 [[noreturn]] auto ViolationHandler::TriggerSpanBoundsViolation(SpanKey&& /*unused*/,
                                                     std::string_view location,
@@ -262,6 +260,253 @@ auto ViolationHandler::Instance() noexcept -> ViolationHandler&
     );
 }
 
+/*!
+ * \brief  Triggers a StringViewPosViolation.
+ *
+ * \param  location   An implementation-defined identifier of the location where the violation was detected
+ *                    (e.g., "file.cpp:123").
+ * \param  pos        The position that was out of range.
+ * \param  size       The size of the string view.
+ *
+ * \details
+ * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+ * and does not throw exceptions.
+ *
+ */
+[[noreturn]] auto ViolationHandler::TriggerStringViewPosViolation(StringViewKey&& /*unused*/,
+                                                    std::string_view location,
+                                                    std::size_t pos,
+                                                    std::size_t size) noexcept -> void
+{
+    // Allocate buffers for the numeric values.
+    char posBuffer[32]{0};
+    char sizeBuffer[32]{0};
+
+    // Convert 'pos' and 'size' to characters using std::to_chars.
+    auto [posPtr, posEc] = std::to_chars(posBuffer, posBuffer + sizeof(posBuffer), pos);
+    auto [sizePtr, sizeEc] = std::to_chars(sizeBuffer, sizeBuffer + sizeof(sizeBuffer), size);
+
+    // Create string_view objects from the conversion results.
+    std::string_view posStr = (posEc == std::errc{}) 
+                              ? std::string_view(posBuffer, static_cast<std::size_t>(posPtr - posBuffer)) 
+                              : "";
+    std::string_view sizeStr = (sizeEc == std::errc{}) 
+                               ? std::string_view(sizeBuffer, static_cast<std::size_t>(sizePtr - sizeBuffer)) 
+                               : "";
+
+    // Terminate the process by calling the Abort API.
+    ara::core::Abort(
+        "[App vlt][FATAL]: Violation detected in ",
+        GetProcessIdentifier(),
+        " at ",
+        location,
+        ": String view position violation: Position ",
+        posStr,
+        " is out of range for string view of size ",
+        sizeStr,
+        "."
+    );
+}
+
+/*! 
+ * \brief  Triggers a StringViewBoundsViolation.
+ *
+ * \param  location   An implementation-defined identifier of the location where the violation was detected
+ *                    (e.g., "file.cpp:123").
+ * \param  index      The index that was out of bounds.
+ * \param  size       The size of the string view.
+ *
+ * \details
+ * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+ * and does not throw exceptions.
+ *
+ */
+[[noreturn]] auto ViolationHandler::TriggerStringViewBoundsViolation(StringViewKey&& /*unused*/,
+                                                    std::string_view location,
+                                                    std::size_t index,
+                                                    std::size_t size) noexcept -> void
+{
+    // Allocate buffers for the numeric values.
+    char indexBuffer[32]{0};
+    char sizeBuffer[32]{0};
+
+    // Convert 'index' and 'size' to characters using std::to_chars.
+    auto [indexPtr, indexEc] = std::to_chars(indexBuffer, indexBuffer + sizeof(indexBuffer), index);
+    auto [sizePtr, sizeEc] = std::to_chars(sizeBuffer, sizeBuffer + sizeof(sizeBuffer), size);
+
+    // Create string_view objects from the conversion results.
+    std::string_view indexStr = (indexEc == std::errc{}) 
+                                ? std::string_view(indexBuffer, static_cast<std::size_t>(indexPtr - indexBuffer)) 
+                                : "";
+    std::string_view sizeStr = (sizeEc == std::errc{}) 
+                               ? std::string_view(sizeBuffer, static_cast<std::size_t>(sizePtr - sizeBuffer)) 
+                               : "";
+
+    // Terminate the process by calling the Abort API.
+    ara::core::Abort(
+        "[App vlt][FATAL]: Violation detected in ",
+        GetProcessIdentifier(),
+        " at ",
+        location,
+        ": String view bounds violation: Index ",
+        indexStr,
+        " is out of bounds for string view of size ",
+        sizeStr,
+        "."
+    );
+}
+
+/*! 
+ * \brief  Triggers a StringViewNullptrViolation.
+ *
+ * \param  location   An implementation-defined identifier of the location where the violation was detected
+ *                    (e.g., "file.cpp:123").
+ *
+ * \details
+ * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+ * and does not throw exceptions.
+ *
+ */
+[[noreturn]] auto ViolationHandler::TriggerStringViewNullptrViolation(StringViewKey&& /*unused*/,
+                                                    std::string_view location) noexcept -> void
+{
+    // Terminate the process by calling the Abort API.
+    ara::core::Abort(
+        "[App vlt][FATAL]: Violation detected in ",
+        GetProcessIdentifier(),
+        " at ",
+        location,
+        ": String view nullptr violation."
+    );
+}
+
+/*! 
+ * \brief  Triggers a StringViewEmptyViolation.
+ *
+ * \param  location   An implementation-defined identifier of the location where the violation was detected
+ *                    (e.g., "file.cpp:123").
+ * \param  operation  The operation that caused the violation (e.g., "access", "substring").
+ *
+ * \details
+ * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+ * and does not throw exceptions.
+ *
+ */
+[[noreturn]] auto ViolationHandler::TriggerStringViewEmptyViolation(StringViewKey&& /*unused*/,
+                                                    std::string_view location,
+                                                    const char* operation) noexcept -> void
+{
+    // Terminate the process by calling the Abort API.
+    ara::core::Abort(
+        "[App vlt][FATAL]: Violation detected in ",
+        GetProcessIdentifier(),
+        " at ",
+        location,
+        ": String view empty violation during ",
+        operation,
+        "."
+    );
+}
+
+/*! 
+ * \brief  Triggers a StringViewIndexViolation.
+ *
+ * \param  location   An implementation-defined identifier of the location where the violation was detected
+ *                    (e.g., "file.cpp:123").
+ * \param  index      The index that was out of bounds.
+ * \param  size       The size of the string view.
+ *
+ * \details
+ * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+ * and does not throw exceptions.
+ *
+ */
+[[noreturn]] auto ViolationHandler::TriggerStringViewIndexViolation(StringViewKey&& /*unused*/,
+                                                    std::string_view location,
+                                                    std::size_t index,
+                                                    std::size_t size) noexcept -> void
+{
+    // Allocate buffers for the numeric values.
+    char indexBuffer[32]{0};
+    char sizeBuffer[32]{0};
+
+    // Convert 'index' and 'size' to characters using std::to_chars.
+    auto [indexPtr, indexEc] = std::to_chars(indexBuffer, indexBuffer + sizeof(indexBuffer), index);
+    auto [sizePtr, sizeEc] = std::to_chars(sizeBuffer, sizeBuffer + sizeof(sizeBuffer), size);
+
+    // Create string_view objects from the conversion results.
+    std::string_view indexStr = (indexEc == std::errc{}) 
+                                ? std::string_view(indexBuffer, static_cast<std::size_t>(indexPtr - indexBuffer)) 
+                                : "";
+    std::string_view sizeStr = (sizeEc == std::errc{}) 
+                               ? std::string_view(sizeBuffer, static_cast<std::size_t>(sizePtr - sizeBuffer)) 
+                               : "";
+
+    // Terminate the process by calling the Abort API.
+    ara::core::Abort(
+        "[App vlt][FATAL]: Violation detected in ",
+        GetProcessIdentifier(),
+        " at ",
+        location,
+        ": String view index violation: Index ",
+        indexStr,
+        " is out of bounds for string view of size ",
+        sizeStr,
+        "."
+    );
+}
+
+/*! 
+ * \brief  Triggers a StringViewRemoveViolation.
+ *
+ * \param  location   An implementation-defined identifier of the location where the violation was detected
+ *                    (e.g., "file.cpp:123").
+ * \param  n          The number of characters to remove.
+ * \param  size       The size of the string view.
+ * \param  operation  The operation that caused the violation (e.g., "remove", "erase").
+ *
+ * \details
+ * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+ * and does not throw exceptions.
+ *
+ */
+[[noreturn]] auto ViolationHandler::TriggerStringViewRemoveViolation(StringViewKey&& /*unused*/,
+                                                    std::string_view location,
+                                                    std::size_t n,
+                                                    std::size_t size,
+                                                    const char* operation) noexcept -> void
+{
+    // Allocate buffers for the numeric values.
+    char nBuffer[32]{0};
+    char sizeBuffer[32]{0};
+
+    // Convert 'n' and 'size' to characters using std::to_chars.
+    auto [nPtr, nEc] = std::to_chars(nBuffer, nBuffer + sizeof(nBuffer), n);
+    auto [sizePtr, sizeEc] = std::to_chars(sizeBuffer, sizeBuffer + sizeof(sizeBuffer), size);
+
+    // Create string_view objects from the conversion results.
+    std::string_view nStr = (nEc == std::errc{}) 
+                            ? std::string_view(nBuffer, static_cast<std::size_t>(nPtr - nBuffer)) 
+                            : "";
+    std::string_view sizeStr = (sizeEc == std::errc{}) 
+                               ? std::string_view(sizeBuffer, static_cast<std::size_t>(sizePtr - sizeBuffer)) 
+                               : "";
+
+    // Terminate the process by calling the Abort API.
+    ara::core::Abort(
+        "[App vlt][FATAL]: Violation detected in ",
+        GetProcessIdentifier(),
+        " at ",
+        location,
+        ": String view remove violation during ",
+        operation,
+        ": Attempted to remove ",
+        nStr,
+        " characters from string view of size ",
+        sizeStr,
+        "."
+    );
+}
 
 
 /**********************************************************************************************************************

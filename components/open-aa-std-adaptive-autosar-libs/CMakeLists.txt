@@ -92,6 +92,23 @@ target_link_libraries(ara_core_span INTERFACE
 )
 
 # ----------------------------------------------------------------------
+# 5) ARA::CORE::STRING_VIEW
+# ----------------------------------------------------------------------
+add_library(ara_core_string_view INTERFACE)
+add_library(ara::core::string_view ALIAS ara_core_string_view)
+
+# Provide include directories for ara::core::string_view
+target_include_directories(ara_core_string_view INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>  # Path to string_view headers during build
+    $<INSTALL_INTERFACE:include>                            # Path to string_view headers after installation
+)
+
+# link INTERFACE libraries
+target_link_libraries(ara_core_string_view INTERFACE
+    ara::core::violation
+)
+
+# ----------------------------------------------------------------------
 # 6) Installation of Headers
 # ----------------------------------------------------------------------
 # Install the ara/core headers, including array.h and internal headers
