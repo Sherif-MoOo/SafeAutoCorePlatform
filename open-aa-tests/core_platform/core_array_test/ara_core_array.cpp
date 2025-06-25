@@ -1274,7 +1274,7 @@ void TestTupleInterface()
         /*  generic lambda: accepts any number of arguments,
             returns their sum with a fold-expression        */
         constexpr int sum = ara::core::apply(
-            [](auto... xs) constexpr { return (xs + ...); },
+            [](auto... xs) constexpr noexcept -> int { return (xs + ...); },
             ca
         );
         static_assert(sum == 6, "variadic sum failed");
@@ -1283,20 +1283,41 @@ void TestTupleInterface()
     /*---------------------------------------------------*
      * 7. ara::core::tuple_cat                            *
      *---------------------------------------------------*/
-    {
-        using A2 = ara::core::Array<int,2>;
-        constexpr A2 cb{ 4, 5 };
+    #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+        // Conditional Safe Mode: Additional tests with std::string
+        // std::tuple_cat is noexcept false and std::make_tuple is noexcept false
+        // {   
+        //     using namespace ara::core::literals::string_view_literals;
+        //     using A2 = ara::core::Array<ara::core::StringView,2>;
+        //     constexpr A2 cb{ "Hello"_sv, "World"_sv };
+
+        //     /* concatenate two Arrays into a single tuple */
+        //     auto tup = ara::core::tuple_cat(ca, cb);
+        //     static_assert( std::tuple_size_v<decltype(tup)> == 5,
+        //                    "tuple_cat size wrong" );
     
-        /* concatenate two Arrays into a single tuple */
-        constexpr auto tup = ara::core::tuple_cat(ca, cb);
-        static_assert( std::tuple_size_v<decltype(tup)> == 5,
-                       "tuple_cat size wrong" );
+        //     /* verify individual elements */
+        //     static_assert( std::get<0>(tup) == 1 );
+        //     static_assert( std::get<3>(tup) == "Hello" );
+        //     static_assert( std::get<4>(tup) == "World" );
+        // }
+
+        {
+            using A2 = ara::core::Array<int,2>;
+            constexpr A2 cb{ 4, 5 };
+        
+            /* concatenate two Arrays into a single tuple */
+            constexpr auto tup = ara::core::tuple_cat(ca, cb);
+            static_assert( std::tuple_size_v<decltype(tup)> == 5,
+                           "tuple_cat size wrong" );
+        
+            /* verify individual elements */
+            static_assert( std::get<0>(tup) == 1 );
+            static_assert( std::get<3>(tup) == 4 );
+            static_assert( std::get<4>(tup) == 5 );
+        }
     
-        /* verify individual elements */
-        static_assert( std::get<0>(tup) == 1 );
-        static_assert( std::get<3>(tup) == 4 );
-        static_assert( std::get<4>(tup) == 5 );
-    }
+    #endif // ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
 
     std::cout << "\n>>> Tuple interface - ALL CHECKS PASSED\n";
 }

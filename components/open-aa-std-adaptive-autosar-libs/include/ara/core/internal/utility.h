@@ -157,103 +157,231 @@ inline std::mutex g_abortMutex{};
 /*!
  * \brief  Trait to detect if a type is tuple-like.
  *
- * This trait checks if the type T has a valid std::tuple_size specialization,
- * indicating that it behaves like a tuple.
+ * \details This trait checks if the type T has a valid std::tuple_size specialization,
+ *          indicating that it behaves like a tuple (supports structured bindings, get<I>, etc.).
+ *          A tuple-like type must support:
+ *          - std::tuple_size<T>
+ *          - std::tuple_element<I, T>
+ *          - get<I>(t) via ADL or std::get<I>
  *
  * \tparam T The type to check.
+ *
+ * \note This trait is SFINAE-friendly and won't cause hard errors for non-tuple-like types.
  */
 template<typename T, typename = void>
 struct is_tuple_like : std::false_type {};
 
 template<typename T>
 struct is_tuple_like<T,
-        std::void_t< decltype(std::tuple_size<std::remove_cv_t<T>>::value) >>
-      : std::true_type {};
+        std::void_t<
+            decltype(std::tuple_size<std::remove_cv_t<T>>::value),
+            std::enable_if_t<(std::tuple_size<std::remove_cv_t<T>>::value >= 0)>
+        >>
+    : std::true_type {};
 
+/*!
+ * \brief  Helper variable template for is_tuple_like.
+ */
 template<typename T>
 inline constexpr bool is_tuple_like_v = is_tuple_like<T>::value;
 
-
+/**********************************************************************************************************************
+ *  INVOKE RESULT HELPER (for better SFINAE)
+ *********************************************************************************************************************/
 /*!
- * \brief  Converts a tuple-like type to a std::tuple.
+ * \brief  Helper to safely detect the result of invoking a callable.
  *
- * This function template converts a tuple-like type (e.g., ara::core::Array)
- * into a std::tuple, preserving the types of its elements.
+ * \details Provides SFINAE-friendly way to detect if a callable can be invoked
+ *          with given arguments and what the result type would be.
+ */
+template<typename F, typename... Args>
+using invoke_result_t = decltype(std::declval<F>()(std::declval<Args>()...));
+
+/**********************************************************************************************************************
+ *  TUPLE CONVERSION UTILITIES
+ *********************************************************************************************************************/
+/*!
+ * \brief  Implementation helper to convert a tuple-like type to std::tuple.
  *
- * \tparam Src The source tuple-like type to convert.
- * \param src The source tuple-like object to convert.
- * \return A std::tuple containing the elements of the source object.
+ * \details Creates a tuple of values (not references) from a tuple-like object.
+ *          This matches the behavior of std::tuple_cat which uses value semantics:
+ *          - For lvalues: copies the elements
+ *          - For rvalues: moves the elements
+ *          - Always decays types (removes cv-qualifiers and references)
+ *
+ * \tparam Src The source tuple-like type.
+ * \tparam I   Index sequence for unpacking.
+ * \param  src The source tuple-like object.
+ * \return     A std::tuple containing values (copies/moves) of the elements.
+ *
+ * \note Uses unqualified get for proper ADL lookup.
  */
 template<typename Src, std::size_t... I>
-constexpr auto to_std_tuple_impl(Src&& src, std::index_sequence<I...>)
+[[nodiscard]] constexpr auto to_std_tuple_impl(Src&& src, std::index_sequence<I...>)
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    noexcept(noexcept(std::make_tuple(get<I>(std::forward<Src>(src))...)))
+#else
+    noexcept
+#endif
+    -> decltype(std::make_tuple(get<I>(std::forward<Src>(src))...))
 {
-    /* unqualified get -> ADL; NO ‘using std::get;’ */
-    return std::tuple< std::decay_t<decltype(get<I>(src))>... >{
-               get<I>(std::forward<Src>(src))... };
+    // Using unqualified get for ADL - finds the best get via argument-dependent lookup
+    // std::make_tuple applies std::decay to each argument:
+    // - T& -> T (copy)
+    // - const T& -> T (copy)
+    // - T&& -> T (move)
+    // - const T&& -> T (move)
+    
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    static_assert(noexcept(std::make_tuple(get<I>(std::forward<Src>(src))...)),
+        "\n[ERROR] detail::to_std_tuple_impl: Tuple construction must be noexcept when exceptions are disabled.\n");
+#endif
+    
+    return std::make_tuple(get<I>(std::forward<Src>(src))...);
 }
 
 /*!
- * \brief  Converts a tuple-like type to a std::tuple.
+ * \brief  Converts a tuple-like type to std::tuple.
  *
- * This function template converts a tuple-like type (e.g., ara::core::Array)
- * into a std::tuple, preserving the types of its elements.
+ * \details Converts any tuple-like type (e.g., ara::core::Array, std::array, std::pair)
+ *          into a std::tuple with value semantics. This is designed to work with
+ *          std::tuple_cat and similar utilities that expect value semantics.
  *
- * \tparam Src The source tuple-like type to convert.
- * \param src The source tuple-like object to convert.
- * \return A std::tuple containing the elements of the source object.
+ * \tparam Src The source tuple-like type.
+ * \param  src The source tuple-like object.
+ * \return     A std::tuple containing values (copies/moves) of the elements.
+ *
+ * \pre The type std::remove_reference_t<Src> must satisfy is_tuple_like_v.
  */
 template<typename Src>
-constexpr auto to_std_tuple(Src&& src)
+[[nodiscard]] constexpr auto to_std_tuple(Src&& src)
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    noexcept(noexcept(to_std_tuple_impl(
+        std::forward<Src>(src),
+        std::make_index_sequence<std::tuple_size_v<
+            std::remove_cv_t<std::remove_reference_t<Src>>>>{})))
+#else
+    noexcept
+#endif
+    -> decltype(to_std_tuple_impl(
+        std::forward<Src>(src),
+        std::make_index_sequence<std::tuple_size_v<
+            std::remove_cv_t<std::remove_reference_t<Src>>>>{}))
 {
-    constexpr std::size_t N =
-        std::tuple_size_v<std::remove_cv_t<std::remove_reference_t<Src>>>;
+    static_assert(is_tuple_like_v<std::remove_reference_t<Src>>,
+        "\n[ERROR] detail::to_std_tuple: Type must be tuple-like (have tuple_size, tuple_element, and get).\n");
+    
+    constexpr std::size_t N = std::tuple_size_v<
+        std::remove_cv_t<std::remove_reference_t<Src>>>;
+    
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    static_assert(noexcept(to_std_tuple_impl(
+        std::forward<Src>(src),
+        std::make_index_sequence<N>{})),
+        "\n[ERROR] detail::to_std_tuple: Conversion must be noexcept when exceptions are disabled.\n");
+#endif
+    
     return to_std_tuple_impl(std::forward<Src>(src),
                              std::make_index_sequence<N>{});
 }
 
+/**********************************************************************************************************************
+ *  APPLY IMPLEMENTATION
+ *********************************************************************************************************************/
 /*!
- * \brief  Helper function to apply a callable to the elements of a tuple-like object.
+ * \brief  Implementation helper for apply function.
  *
- * This function forwards the callable and the tuple-like object, expanding the
- * tuple-like object's elements as arguments to the callable.
+ * \details Expands the tuple-like object and invokes the callable with its elements.
+ *          Perfectly forwards the elements to preserve value categories when calling
+ *          the function. Uses unqualified get for proper ADL lookup.
  *
- * \tparam F     The type of the callable (function, lambda, etc.).
- * \tparam Tuple The type of the tuple-like object.
- * \tparam I     The index sequence for unpacking the tuple-like object's elements.
- *
- * \param f   The callable to apply.
- * \param tup The tuple-like object containing the elements to pass to the callable.
- * \return    The result of calling f with the unpacked elements of tup.
+ * \tparam F     The callable type.
+ * \tparam Tuple The tuple-like type.
+ * \tparam I     Index sequence for unpacking.
+ * \param  f     The callable to invoke.
+ * \param  tup   The tuple-like object containing arguments.
+ * \return       The result of invoking f with the tuple elements.
  */
 template<typename F, typename Tuple, std::size_t... I>
-constexpr decltype(auto) apply_impl(F&& f,
-                                    Tuple&& tup,
-                                    std::index_sequence<I...>)
+constexpr auto apply_impl(F&& f, Tuple&& tup, std::index_sequence<I...>)
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    noexcept(noexcept(std::forward<F>(f)(get<I>(std::forward<Tuple>(tup))...)))
+#else
+    noexcept
+#endif
+    -> invoke_result_t<F&&, decltype(get<I>(std::forward<Tuple>(tup)))...>
 {
-    /* again: unqualified get – ADL only */
-    return std::forward<F>(f)( get<I>(std::forward<Tuple>(tup))... );
+    // Using unqualified get for ADL - this allows user-defined types to provide
+    // their own get function that will be found via argument-dependent lookup
+    
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    static_assert(noexcept(std::forward<F>(f)(get<I>(std::forward<Tuple>(tup))...)),
+        "\n[ERROR] detail::apply_impl: Callable invocation must be noexcept when exceptions are disabled.\n");
+#endif
+    
+    return std::forward<F>(f)(get<I>(std::forward<Tuple>(tup))...);
 }
 
+/**********************************************************************************************************************
+ *  TO_ARRAY IMPLEMENTATION HELPERS
+ *********************************************************************************************************************/
 /*!
- * \brief  Helper to implement to_array for lvalue arrays.
+ * \brief  Implementation helper for to_array with lvalue arrays.
+ *
+ * \details Creates an ara::core::Array by copying elements from a built-in array.
+ *          This is used to implement ara::core::to_array for lvalue arrays.
+ *
+ * \tparam T The element type.
+ * \tparam N The number of elements.
+ * \tparam I Index sequence for unpacking.
+ * \param  a The built-in array to copy from.
+ * \return   An ara::core::Array containing copies of the elements.
  */
 template <typename T, std::size_t N, std::size_t... I>
-constexpr auto to_array_impl(T (&a)[N], std::index_sequence<I...>) 
-    noexcept(std::is_nothrow_copy_constructible_v<T>) -> Array<T, N>
+[[nodiscard]] constexpr auto to_array_impl(T (&a)[N], std::index_sequence<I...>)
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    noexcept(std::is_nothrow_copy_constructible_v<T>)
+#else
+    noexcept
+#endif
+    -> ara::core::Array<std::remove_cv_t<T>, N>
 {
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    static_assert(std::is_nothrow_copy_constructible_v<T>,
+        "\n[ERROR] detail::to_array_impl: Type T must be nothrow copy constructible when exceptions are disabled.\n");
+#endif
+    
     return {{a[I]...}};
 }
 
 /*!
- * \brief  Helper to implement to_array for rvalue arrays.
+ * \brief  Implementation helper for to_array with rvalue arrays.
+ *
+ * \details Creates an ara::core::Array by moving elements from a built-in array.
+ *          This is used to implement ara::core::to_array for rvalue arrays.
+ *
+ * \tparam T The element type.
+ * \tparam N The number of elements.
+ * \tparam I Index sequence for unpacking.
+ * \param  a The built-in array to move from.
+ * \return   An ara::core::Array containing moved elements.
  */
 template <typename T, std::size_t N, std::size_t... I>
-constexpr auto to_array_impl(T (&&a)[N], std::index_sequence<I...>) 
-    noexcept(std::is_nothrow_move_constructible_v<T>) -> Array<T, N>
+[[nodiscard]] constexpr auto to_array_impl(T (&&a)[N], std::index_sequence<I...>)
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    noexcept(std::is_nothrow_move_constructible_v<T>)
+#else
+    noexcept
+#endif
+    -> ara::core::Array<std::remove_cv_t<T>, N>
 {
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    static_assert(std::is_nothrow_move_constructible_v<T>,
+        "\n[ERROR] detail::to_array_impl: Type T must be nothrow move constructible when exceptions are disabled.\n");
+#endif
+    
     return {{std::move(a[I])...}};
 }
-
 /*!
  * \brief Trait to detect whether an array of type T[N] can be list‑initialized
  *        with arguments of types Args... without narrowing conversions.
@@ -276,11 +404,11 @@ struct is_brace_initializable_array
 private:
     /* Selected if U[N]{ Args... } is well‑formed */
     template <typename U, typename = decltype(U{ std::declval<Args>()... })>
-    static auto test(int) -> std::true_type;
+    static auto test(int) noexcept -> std::true_type;
 
     /* Fallback if substitution in the above fails */
     template <typename...>
-    static auto test(...) -> std::false_type;
+    static auto test(...) noexcept -> std::false_type;
 
 public:
     /* Integral constant type: std::true_type or std::false_type */
@@ -389,6 +517,63 @@ struct is_single_same_array
 template <typename... Args>
 inline constexpr bool is_single_same_array_v = is_single_same_array<Args...>::value;
 
+/*!
+ * \brief  Trait to detect if a type has bitwise equality.
+ *
+ * This trait checks if a type can be compared for equality using bitwise operations.
+ * It requires the type to be trivially copyable, standard layout, and not a floating-point type or bool.
+ *
+ * \tparam T The type to check.
+ */
+template<typename T>
+struct has_bitwise_equality 
+    : std::conjunction<
+        std::is_trivially_copyable<T>,
+        std::is_standard_layout<T>,
+        std::negation<std::is_floating_point<T>>,
+        std::negation<std::is_same<T, bool>>
+      > {};
+
+/*! \brief Variable template for has_bitwise_equality.
+ * This variable template allows for a simplified syntax to check if a type has bitwise equality.
+ * \tparam T The type to check.
+ * \details
+ * - Evaluates to true if the type is trivially copyable, standard layout,
+ *   and not a floating-point type or bool.
+ * - Can be used in constexpr contexts to enable compile-time checks.
+ */
+template<typename T>
+inline constexpr bool has_bitwise_equality_v = has_bitwise_equality<T>::value;
+
+/*!
+ * \brief  Trait to detect if a type is byte-comparable.
+ *
+ * This trait checks if a type can be compared byte-wise, which is typically the case for
+ * unsigned integral types of size 1 (e.g., uint8_t).
+ *
+ * \tparam T The type to check.
+ */
+template<typename T>
+struct byte_comparable
+    : std::bool_constant<
+          std::is_trivially_copyable_v<T> &&
+          std::is_standard_layout_v<T>   &&
+          std::is_unsigned_v<T>          &&
+          sizeof(T) == 1
+      > {};
+
+/*! \brief Variable template for byte_comparable.
+ * This variable template allows for a simplified syntax to check if a type is byte-comparable.
+ * \tparam T The type to check.
+ * \details
+ * - Evaluates to true if the type is trivially copyable, standard layout,
+ *   unsigned, and has a size of 1 byte.
+ * - Can be used in constexpr contexts to enable compile-time checks.
+ */
+template<typename T>
+inline constexpr bool byte_comparable_v = byte_comparable<T>::value;
+
+
 template<typename CharT, typename = void>
 struct default_traits
 {
@@ -425,13 +610,25 @@ struct default_traits<const CharT, void> : default_traits<CharT> {};
  * \note The function is declared as \c constexpr so that if both the iterators and the element comparison
  *       are \c constexpr, the entire operation can be evaluated at compile time.
  */
-template <typename InputIt1, typename InputIt2>
-constexpr auto constexpr_lexicographical_compare(InputIt1 first1, InputIt1 last1, InputIt2 first2, InputIt2 last2) noexcept -> bool {
-    for (; first1 != last1 && first2 != last2; ++first1, ++first2) {
-        if (*first1 < *first2)
-            return true;
-        if (*first2 < *first1)
-            return false;
+template<typename InputIt1, typename InputIt2>
+constexpr bool constexpr_lexicographical_compare(InputIt1 first1, InputIt1 last1,
+                                                  InputIt2 first2, InputIt2 last2)
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    noexcept(noexcept(*first1 < *first2) && noexcept(*first1 == *first2))
+#else
+    noexcept
+#endif
+{   
+
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    static_assert(noexcept(*first1 < *first2) && noexcept(*first1 == *first2),
+        "\n[ERROR] in ara::core::constexpr_lexicographical_compare: "
+        "The element comparison must be noexcept when exceptions are disabled.\n");
+#endif
+
+    for (; (first1 != last1) && (first2 != last2); ++first1, ++first2) {
+        if (*first1 < *first2) return true;
+        if (*first2 < *first1) return false;
     }
     return (first1 == last1) && (first2 != last2);
 }
@@ -721,8 +918,9 @@ template <typename T, std::size_t N>
 struct ArrayStorage<T, N, true> {
 protected:
     /*! \brief Actual storage for \c N elements of type \c T. */
-    T data_[N]{};
+    alignas(T) T data_[N];
 
+public:
     /*!
      * \brief Variadic constructor to initialize \c data_ with up to \c N arguments using brace‑initialization.
      *
@@ -735,7 +933,18 @@ protected:
      * \note [SWS_CORE_01201], [SWS_CORE_01214], [SWS_CORE_01215], [SWS_CORE_01241]
      */
     template <typename... Args,
-              typename = std::enable_if_t<(sizeof...(Args) > 0)>>
+              typename = std::enable_if_t<
+                  // Condition #1: Must not exceed N arguments
+                  (sizeof...(Args) <= N) &&
+                  // Condition #2: Each argument must be convertible to T
+                  (std::conjunction_v<std::is_convertible<Args, T>...>) &&
+                  // Condition #3: Brace-initialization does not cause narrowing
+                  (detail::is_brace_initializable_array_v<T, N, Args...>) &&
+                  // Condition #4: Prevent constructor from being selected when Args... is exactly Array<T, N>
+                  (!detail::is_single_same_array_v<Args...>) &&
+                  // Condition #5: Not empty parameter pack (use default constructor instead)
+                  (sizeof...(Args) > 0)
+              >>
     constexpr ArrayStorage(Args&&... args)
 #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
         noexcept(std::conjunction_v<std::is_nothrow_constructible<T, Args&&>...>)
@@ -748,6 +957,41 @@ protected:
         static_assert(std::conjunction_v<std::is_nothrow_constructible<T, Args&&>...>,
             "\n[ERROR] in ara::core::Array: The type T and args must be noexcept.\n");
 #endif  
+    }
+
+    // -----------------------------------------------------------------------------------
+    //  REJECTING CONSTRUCTOR (TOO MANY OR WRONG TYPES) [SWS_CORE_01241]
+    // -----------------------------------------------------------------------------------
+    /*!
+     * \brief Overload constructor that catches calls violating the above constraints.
+     *
+     * \tparam Args  Parameter pack that either exceeds N or has arguments not convertible to T.
+     * \note         This never actually constructs anything; it only fires `static_assert` errors.
+     *
+     * \note  [SWS_CORE_01241]
+     */
+    template <
+        typename... Args,
+        // Condition: either too many arguments OR not all convertible OR narrowing
+        typename = std::enable_if_t<
+            (!detail::is_single_same_array_v<Args...>) && 
+            ( (sizeof...(Args) > N) || 
+              (!std::conjunction_v<std::is_convertible<Args, T>...>) ||
+              (!detail::is_brace_initializable_array_v<T, N, Args...>) )
+        >,
+        int = 0
+    >
+    constexpr explicit ArrayStorage(Args&&...) noexcept
+    {
+        static_assert(sizeof...(Args) <= N,
+            "\n[ERROR] Too many arguments passed to Array<T,N> constructor!\n"
+            "        Up to N elements are allowed.\n");
+
+        static_assert(std::conjunction_v<std::is_convertible<Args, T>...>,
+            "\n[ERROR] One or more arguments cannot be converted to T.\n");
+
+        static_assert(detail::is_brace_initializable_array_v<T, N, Args...>,
+            "\n[ERROR] Brace-initialization would cause narrowing conversions.\n");
     }
 
     /*!
@@ -790,7 +1034,7 @@ protected:
  */
 template <typename T, std::size_t N>
 struct ArrayStorage<T, N, false> {
-protected:
+public:
     /*!
      * \brief Variadic constructor for \c N == 0.
      *
@@ -800,7 +1044,7 @@ protected:
      */
     template <typename... Args,
               typename = std::enable_if_t<(sizeof...(Args) == 0)>>
-    constexpr ArrayStorage(Args&&...) noexcept { /* Do Nothing */ }
+    constexpr explicit ArrayStorage(Args&&...) noexcept { /* Do Nothing */ }
 
     /*!
      * \brief Default constructor for zero‑sized storage.

@@ -137,20 +137,9 @@ public:
      */
     template <typename IntegralType,
               typename = std::enable_if_t<std::is_integral_v<IntegralType>>>
-    constexpr explicit Byte(IntegralType val) 
-#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-        noexcept(!std::numeric_limits<IntegralType>::is_signed || 
-                 (std::numeric_limits<IntegralType>::max() <= 255))
-#else
-        noexcept
-#endif
+    constexpr explicit Byte(IntegralType val) noexcept
         : value_(static_cast<underlying_type>(val))
     {
-#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-        // In strict no-exception mode, ensure construction is truly noexcept
-        static_assert(std::is_nothrow_constructible_v<underlying_type, IntegralType>,
-            "\n[ERROR] in ara::core::Byte: Construction must be noexcept when exceptions are disabled.\n");
-#endif
         
         // C++17 compatible bounds checking
         if constexpr (std::is_signed_v<IntegralType>) {

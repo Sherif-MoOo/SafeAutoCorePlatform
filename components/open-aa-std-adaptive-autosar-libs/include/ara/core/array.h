@@ -13,17 +13,21 @@
  *
  *  \details    This file defines and implements the ara::core::Array template class, a fixed-size array container
  *              designed for the OpenAA project. It provides functionalities similar to std::array with additional
- *              customizations to meet Adaptive AUTOSAR requirements (e.g., [SWS_CORE_00040], [SWS_CORE_13017],
- *              [SWS_CORE_11200], [SWS_CORE_01201], etc.), including violation handling and optimized memory allocation.
+ *              customizations to meet Adaptive AUTOSAR requirements, including violation handling and optimized 
+ *              memory allocation. The implementation exceeds AUTOSAR requirements by providing C++26 features
+ *              backported to C++17, comprehensive SFINAE for user-friendly errors, and extensive compiler
+ *              compatibility.
  *
- *  \note       Based on the Adaptive AUTOSAR SWS (e.g., R24-11) requirements for the "Array" type, especially:
- *              - [SWS_CORE_01201] (Definition of ara::core::Array)
- *              - [SWS_CORE_01265], [SWS_CORE_01266] (operator[])
- *              - [SWS_CORE_01273], [SWS_CORE_01274] (at())
- *              - [SWS_CORE_01241] (fill())
- *              - [SWS_CORE_00040] (No exceptions used – custom violation handling)
- *              - [SWS_CORE_13017] (Out-of-range message format)
- *              - [SWS_CORE_01290..01295] (comparison operators)
+ *  \note       Based on the Adaptive AUTOSAR SWS R24-11 requirements for the "Array" type:
+ *              - [SWS_CORE_01201] Definition of ara::core::Array
+ *              - [SWS_CORE_01210-01220] Type aliases
+ *              - [SWS_CORE_01240-01242] Constructors and operations  
+ *              - [SWS_CORE_01250-01261] Iterator support
+ *              - [SWS_CORE_01262-01274] Element access
+ *              - [SWS_CORE_01280-01285] Tuple interface
+ *              - [SWS_CORE_01290-01296] Comparison operators
+ *              - [SWS_CORE_00040] No exceptions - violation handling
+ *              - [SWS_CORE_11200] Behaves like std::array except for differences
  *********************************************************************************************************************/
  
 #ifndef OPEN_AA_ADAPTIVE_AUTOSAR_LIBS_INCLUDE_ARA_CORE_ARRAY_H_
@@ -45,6 +49,7 @@
 #include <cstring>                                  // For std::memcpy, std::memset
 #include <iterator>                                 // For std::reverse_iterator
 
+#include "ara/core/byte.h"                          // For ara::core::Byte type
 #include "ara/core/internal/utility.h"              // For utility functions and traits
 #include "ara/core/internal/location_utils.h"       // For capturing file/line details
 #include "ara/core/internal/violation_handler.h"    // To Trigger the violation
@@ -71,61 +76,72 @@
 
 namespace std {
 
-  template<size_t I, typename T, size_t N>
-  constexpr auto get(ara::core::Array<T, N>& a) noexcept -> T& {
+/*---------------------------------------------------------------------------------------------------------------
+ *  ADL-enabled get() functions for ara::core::Array
+ *-------------------------------------------------------------------------------------------------------------*/
+template<size_t I, typename T, size_t N>
+constexpr auto get(ara::core::Array<T, N>& a) noexcept -> T& {
     return ara::core::get<I>(a);
-  }
-  template<size_t I, typename T, size_t N>
-  constexpr auto get(const ara::core::Array<T, N>& a) noexcept -> const T& {
+}
+
+template<size_t I, typename T, size_t N>
+constexpr auto get(const ara::core::Array<T, N>& a) noexcept -> const T& {
     return ara::core::get<I>(a);
-  }
-  template<size_t I, typename T, size_t N>
-  constexpr auto get(ara::core::Array<T, N>&& a) noexcept -> T&& {
+}
+
+template<size_t I, typename T, size_t N>
+constexpr auto get(ara::core::Array<T, N>&& a) noexcept -> T&& {
     return ara::core::get<I>(std::move(a));
-  }
+}
+
+template<size_t I, typename T, size_t N>
+constexpr auto get(const ara::core::Array<T, N>&& a) noexcept -> const T&& {
+    return ara::core::get<I>(std::move(a));
+} // namespace std
   
-   /*---------------------------------------------------------------------------------------------------------------
-    *  (1) tuple_size – “How many elements?”
-    *-------------------------------------------------------------------------------------------------------------*/
-   /*!
-    * \brief   Primary trait giving the fixed size N of ara::core::Array<T,N>.
-    *
-    * \tparam  T  Element type stored in the Array.
-    * \tparam  N  Number of elements (array extent).
-    *
-    * \note    [SWS_CORE_01280] – must model a C++14 UnaryTypeTrait whose BaseCharacteristic
-    *        is std::integral_constant<std::size_t,N>.
-    */
-    template<typename T, std::size_t N>
-    struct tuple_size< ara::core::Array<T,N> >
-        : std::integral_constant<std::size_t, N>  // UnaryTypeTrait
-    {};
+/*---------------------------------------------------------------------------------------------------------------
+ *  (1) tuple_size – "How many elements?"
+ *-------------------------------------------------------------------------------------------------------------*/
+/*!
+ * \brief   Primary trait giving the fixed size N of ara::core::Array<T,N>.
+ *
+ * \tparam  T  Element type stored in the Array.
+ * \tparam  N  Number of elements (array extent).
+ *
+ * \note    [SWS_CORE_01280] – must model a C++14 UnaryTypeTrait whose BaseCharacteristic
+ *          is std::integral_constant<std::size_t,N>.
+ */
+template<typename T, std::size_t N>
+struct tuple_size<ara::core::Array<T, N>>
+    : std::integral_constant<std::size_t, N>  // UnaryTypeTrait
+{};
 
-   /*---------------------------------------------------------------------------------------------------------------
-    *  (2) tuple_element – “What is the type of element I?”
-    *-------------------------------------------------------------------------------------------------------------*/
-   /*!
-    * \brief   Yields the element **type** of ara::core::Array<T,N> at compile‑time index \c I.
-    *
-    * \details
-    *   • If I ≥ N the implementation triggers a compile‑time error as mandated by the spec
-    *     (“shall flag the condition I >= N as a compile error” – SWS_CORE_01281).\n
-    *   • Because every element of ara::core::Array<T,N> has the same type \c T, the alias
-    *     simply forwards `using type = T;` (SWS_CORE_01285).
-    *
-    * \tparam  I  Zero‑based element index requested at compile time.
-    * \tparam  T  Element type stored in the Array.
-    * \tparam  N  Number of elements in the Array.
-    */
-    template<std::size_t I, typename T, std::size_t N>
-    struct tuple_element<I, ara::core::Array<T,N>>
-    {
-        static_assert(I < N,
-            "\n[ERROR] std::tuple_element<I, ara::core::Array<T,N>> : "
-            "index I is out of range (I >= N).\n");
+/*---------------------------------------------------------------------------------------------------------------
+ *  (2) tuple_element – "What is the type of element I?"
+ *-------------------------------------------------------------------------------------------------------------*/
+/*!
+ * \brief   Yields the element **type** of ara::core::Array<T,N> at compile-time index \c I.
+ *
+ * \details
+ *   • If I ≥ N the implementation triggers a compile-time error as mandated by the spec
+ *     ("shall flag the condition I >= N as a compile error" – SWS_CORE_01281).\n
+ *   • Because every element of ara::core::Array<T,N> has the same type \c T, the alias
+ *     simply forwards `using type = T;` (SWS_CORE_01285).
+ *
+ * \tparam  I  Zero-based element index requested at compile time.
+ * \tparam  T  Element type stored in the Array.
+ * \tparam  N  Number of elements in the Array.
+ */
+template<std::size_t I, typename T, std::size_t N>
+struct tuple_element<I, ara::core::Array<T, N>>
+{
+    static_assert(I < N,
+        "\n[ERROR] std::tuple_element<I, ara::core::Array<T,N>> : "
+        "index I is out of range (I >= N).\n");
 
-        using type = T;                         // every element is T
-    };
+    using type = T;  // every element is T
+};
+
 } // namespace std
 
 
@@ -141,26 +157,76 @@ namespace core {
 /**********************************************************************************************************************
  *  ara::core::apply
  *********************************************************************************************************************/
-/*! 
+/*!
  * \brief  Applies a callable to the elements of a tuple-like object.
  *
  * \details
- * - This function is a constexpr replacement for std::apply that works with ADL.
- * - It forwards the callable and the tuple-like object, expanding the tuple-like object's elements as arguments to the callable.
+ * This is a constexpr, SFINAE-friendly replacement for std::apply that works with
+ * any tuple-like type via ADL. It unpacks the tuple-like object and invokes the
+ * callable with its elements as arguments.
  *
- * \tparam F     The type of the callable (function, lambda, etc.).
+ * Features:
+ * - Works with any tuple-like type (std::tuple, std::pair, ara::core::Array, etc.)
+ * - Preserves value categories when forwarding arguments
+ * - Fully constexpr and noexcept aware
+ * - SFINAE-friendly with proper enable_if constraints
+ *
+ * \tparam F     The type of the callable (function, lambda, functor, etc.).
  * \tparam Tuple The type of the tuple-like object.
- * \param f   The callable to apply.
- * \param tup The tuple-like object containing the elements to pass to the callable.
- * \return    The result of calling f with the unpacked elements of tup.
+ * \param  f     The callable to apply.
+ * \param  tup   The tuple-like object containing the arguments.
+ * \return       The result of calling f with the unpacked elements of tup.
+ *
+ * \pre Tuple must be a tuple-like type (satisfy is_tuple_like_v).
+ * \pre F must be invocable with the unpacked elements of Tuple.
+ *
+ * Example usage:
+ * \code
+ * ara::core::Array<int, 3> arr{10, 20, 30};
+ * auto sum = ara::core::apply([](int a, int b, int c) { return a + b + c; }, arr);
+ * // sum == 60
+ * 
+ * // Works with perfect forwarding
+ * auto concat = ara::core::apply(
+ *     [](auto&&... args) { return (... + args); },
+ *     std::make_tuple(std::string("Hello"), ' ', std::string("World"))
+ * );
+ * // concat == "Hello World"
+ * \endcode
  */
-template<typename F, typename Tuple,
-         typename = std::enable_if_t<
-             detail::is_tuple_like_v<std::remove_reference_t<Tuple>>>>
-constexpr decltype(auto) apply(F&& f, Tuple&& tup)
+template<typename F, typename Tuple>
+[[nodiscard]] constexpr auto apply(F&& f, Tuple&& tup)
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    noexcept(noexcept(detail::apply_impl(
+        std::forward<F>(f),
+        std::forward<Tuple>(tup),
+        std::make_index_sequence<std::tuple_size_v<
+            std::remove_cv_t<std::remove_reference_t<Tuple>>>>{})))
+#else
+    noexcept
+#endif
+    -> std::enable_if_t<
+        detail::is_tuple_like_v<std::remove_reference_t<Tuple>>,
+        decltype(detail::apply_impl(
+            std::forward<F>(f),
+            std::forward<Tuple>(tup),
+            std::make_index_sequence<std::tuple_size_v<
+                std::remove_cv_t<std::remove_reference_t<Tuple>>>>{}))>
 {
-    constexpr std::size_t N =
-        std::tuple_size_v<std::remove_cv_t<std::remove_reference_t<Tuple>>>;
+    static_assert(detail::is_tuple_like_v<std::remove_reference_t<Tuple>>,
+        "\n[ERROR] ara::core::apply: The second argument must be a tuple-like type.\n");
+    
+    constexpr std::size_t N = std::tuple_size_v<
+        std::remove_cv_t<std::remove_reference_t<Tuple>>>;
+    
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    static_assert(noexcept(detail::apply_impl(
+        std::forward<F>(f),
+        std::forward<Tuple>(tup),
+        std::make_index_sequence<N>{})),
+        "\n[ERROR] ara::core::apply: The callable invocation must be noexcept when exceptions are disabled.\n");
+#endif
+    
     return detail::apply_impl(std::forward<F>(f),
                               std::forward<Tuple>(tup),
                               std::make_index_sequence<N>{});
@@ -170,19 +236,63 @@ constexpr decltype(auto) apply(F&& f, Tuple&& tup)
  * \brief  Concatenates any number of tuple-like objects into a single std::tuple.
  *
  * \details
- * - This function concatenates any number of tuple-like objects into a single std::tuple.
- * - It uses detail::to_std_tuple to convert each tuple-like object to a std::tuple before concatenation.
+ * This function concatenates multiple tuple-like objects into a single std::tuple,
+ * following the same semantics as std::tuple_cat. It creates a new tuple containing
+ * values (not references) of all elements from the input objects.
+ *
+ * Behavior:
+ * - For lvalue arguments: elements are copied
+ * - For rvalue arguments: elements are moved
+ * - All types are decayed (cv-qualifiers and references removed)
+ * - Works in constexpr contexts
+ * - Fully noexcept aware
+ *
+ * This implementation correctly handles the C++ standard semantics where tuple_cat
+ * creates a tuple of values, enabling use in constexpr contexts and avoiding
+ * dangling reference issues.
  *
  * \tparam Tuples The types of the tuple-like objects to concatenate.
- * \param tpls   The tuple-like objects to concatenate.
- * \return       A std::tuple containing all elements from the input tuple-like objects.
+ * \param  tpls   The tuple-like objects to concatenate.
+ * \return        A std::tuple containing values of all elements.
+ *
+ * \pre All types in Tuples must be tuple-like (satisfy is_tuple_like_v).
+ *
+ * Example usage:
+ * \code
+ * ara::core::Array<int, 2> arr{1, 2};
+ * std::pair<double, char> pr{3.14, 'x'};
+ * std::tuple<bool> tup{true};
+ * 
+ * auto combined = ara::core::tuple_cat(arr, pr, tup);
+ * // combined is std::tuple<int, int, double, char, bool>{1, 2, 3.14, 'x', true}
+ * 
+ * // Works in constexpr contexts
+ * constexpr ara::core::Array<int, 3> c_arr{10, 20, 30};
+ * constexpr auto c_result = ara::core::tuple_cat(c_arr, std::make_pair(40, 50));
+ * static_assert(std::get<0>(c_result) == 10);
+ * static_assert(std::get<4>(c_result) == 50);
+ * \endcode
  */
-template<typename... Tuples,
-         typename = std::enable_if_t<
-             (detail::is_tuple_like_v<std::remove_reference_t<Tuples>> && ... )>>
-constexpr auto tuple_cat(Tuples&&... tpls)
+template<typename... Tuples>
+[[nodiscard]] constexpr auto tuple_cat(Tuples&&... tpls)
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    noexcept(noexcept(std::tuple_cat(detail::to_std_tuple(std::forward<Tuples>(tpls))...)))
+#else
+    noexcept
+#endif
+    -> std::enable_if_t<
+        (detail::is_tuple_like_v<std::remove_reference_t<Tuples>> && ...),
+        decltype(std::tuple_cat(detail::to_std_tuple(std::forward<Tuples>(tpls))...))>
 {
-    return std::tuple_cat( detail::to_std_tuple(std::forward<Tuples>(tpls))... );
+    static_assert((detail::is_tuple_like_v<std::remove_reference_t<Tuples>> && ...),
+        "\n[ERROR] ara::core::tuple_cat: All arguments must be tuple-like types.\n");
+    
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    static_assert(noexcept(std::tuple_cat(detail::to_std_tuple(std::forward<Tuples>(tpls))...)),
+        "\n[ERROR] ara::core::tuple_cat: The tuple concatenation must be noexcept when exceptions are disabled.\n");
+#endif
+    
+    return std::tuple_cat(detail::to_std_tuple(std::forward<Tuples>(tpls))...);
 }
 
 } // namespace core
@@ -233,20 +343,31 @@ public:
      *
      * \note  [SWS_CORE_00040]
      */
-    static_assert(std::is_nothrow_constructible_v<T> &&
-                  std::is_nothrow_move_constructible_v<T> &&
-                  std::is_nothrow_move_assignable_v<T> &&
-                  std::is_nothrow_copy_constructible_v<T> &&
-                  std::is_nothrow_copy_assignable_v<T>,
-                "\n[ERROR] in ara::core::Array: The type T must be noexcept and move and copy constructible\n"
-                "        and assignable without throwing exceptions. Please ensure that T's constructors and\n"
-                "        assignment operators are marked 'noexcept'.\n");
+    static_assert(std::is_nothrow_destructible_v<T>,
+                "\n[ERROR] in ara::core::Array: The type T must have a noexcept destructor.\n");
+                
+    static_assert(std::is_nothrow_constructible_v<T> || !std::is_default_constructible_v<T>,
+                "\n[ERROR] in ara::core::Array: The type T must be noexcept default constructible or not default constructible.\n");
+                  
+    static_assert(std::is_nothrow_move_constructible_v<T> || !std::is_move_constructible_v<T>,
+                "\n[ERROR] in ara::core::Array: The type T must be noexcept move constructible or not move constructible.\n");
+                  
+    static_assert(std::is_nothrow_move_assignable_v<T> || !std::is_move_assignable_v<T>,
+                "\n[ERROR] in ara::core::Array: The type T must be noexcept move assignable or not move assignable.\n");
+                  
+    static_assert(std::is_nothrow_copy_constructible_v<T> || !std::is_copy_constructible_v<T>,
+                "\n[ERROR] in ara::core::Array: The type T must be noexcept copy constructible or not copy constructible.\n");
+                  
+    static_assert(std::is_nothrow_copy_assignable_v<T> || !std::is_copy_assignable_v<T>,
+                "\n[ERROR] in ara::core::Array: The type T must be noexcept copy assignable or not copy assignable.\n");
 #endif
+
+    using detail::ArrayStorage<T, N>::ArrayStorage; /*!< Inherit constructors from ArrayStorage */
 
     // -----------------------------------------------------------------------------------
     // TYPE ALIASES (public) [SWS_CORE_01210..01220]
     // -----------------------------------------------------------------------------------
-    using value_type             = T;                                                   /*!< [SWS_CORE_01216]: Type of the elements  */
+    using value_type             = T;                                                   /*!< [SWS_CORE_01216]: Type of the elements   */
     using size_type              = std::size_t;                                         /*!< [SWS_CORE_01214]: Used for indexing      */
     using difference_type        = std::ptrdiff_t;                                      /*!< [SWS_CORE_01215]: Used for pointer diffs */
     using reference              = T&;                                                  /*!< [SWS_CORE_01210]: Type of a reference    */
@@ -255,96 +376,18 @@ public:
     using const_pointer          = const T*;                                            /*!< [SWS_CORE_01218]: Const pointer          */
     using iterator               = T*;                                                  /*!< [SWS_CORE_01212]: Iterator type          */
     using const_iterator         = const T*;                                            /*!< [SWS_CORE_01213]: Const iterator type    */
-    using reverse_iterator       = std::reverse_iterator<iterator>;                     /*!< [SWS_CORE_01219]: Reverse iterator      */
-    using const_reverse_iterator = std::reverse_iterator<const_iterator>;               /*!< [SWS_CORE_01220]: Const reverse iterator*/
-
-    // -----------------------------------------------------------------------------------
-    // 1) VARIADIC CONSTRUCTOR (CONSTRAINED) [SWS_CORE_01241], [SWS_CORE_01201]
-    // -----------------------------------------------------------------------------------
-    /*!
-     * \brief Variadic constructor that can take up to N elements of type \c T.
-     *
-     * \tparam Args  Parameter pack of arguments to forward to \c T.
-     * \pre (sizeof...(Args) <= N) AND each \c Arg is convertible to \c T 
-     *      AND brace-initialization with Args... does not cause narrowing conversions.
-     *      AND Args... is not exactly one Array<T, N> (prevents unintended copy/move).
-     * \details
-     * - If user passes more than N arguments => compile-time error.
-     * - Ensures each argument is convertible to T, preventing spurious usage.
-     * - `noexcept` is conditionally specified based on whether initializing T with Args... is noexcept.
-     *
-     * \note  [SWS_CORE_01241], [SWS_CORE_01201]
-     */
-    template <typename... Args,
-              typename = std::enable_if_t<
-                  // Condition #1: Must not exceed N arguments
-                  (sizeof...(Args) <= N) &&
-                  // Condition #2: Each argument must be convertible to T
-                  (std::conjunction_v<std::is_convertible<Args, T>...>) &&
-                  // Condition #3: Brace-initialization does not cause narrowing
-                  (detail::is_brace_initializable_array_v<T, N, Args...>) &&
-                  // Condition #4: Prevent constructor from being selected when Args... is exactly Array<T, N>
-                  (!detail::is_single_same_array_v<Args...>)
-              >>
-    constexpr Array(Args&&... args) 
-#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-        noexcept(std::conjunction_v<std::is_nothrow_constructible<T, Args&&>...>)
-#else
-        noexcept
-#endif
-        : detail::ArrayStorage<T, N>(std::forward<Args>(args)...)
-    {
-        // Base class handles data_ initialization.
-#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-        static_assert(std::conjunction_v<std::is_nothrow_constructible<T, Args&&>...>,
-            "\n[ERROR] in ara::core::Array: The type T and args must be noexcept.\n");
-#endif
-        // No additional initialization needed.
-    }
-
-    // -----------------------------------------------------------------------------------
-    // 2) REJECTING CONSTRUCTOR (TOO MANY OR WRONG TYPES) [SWS_CORE_01241]
-    // -----------------------------------------------------------------------------------
-    /*!
-     * \brief Overload constructor that catches calls violating the above constraints.
-     *
-     * \tparam Args  Parameter pack that either exceeds N or has arguments not convertible to T.
-     * \note         This never actually constructs anything; it only fires `static_assert` errors.
-     *
-     * \note  [SWS_CORE_01241]
-     */
-    template <
-        typename... Args,
-        // Condition: either too many arguments OR not all convertible OR narrowing
-        typename = std::enable_if_t<
-            (!detail::is_single_same_array_v<Args...>) && 
-            ( (sizeof...(Args) > N) || 
-              (!std::conjunction_v<std::is_convertible<Args, T>...>) ||
-              (!detail::is_brace_initializable_array_v<T, N, Args...>) )
-        >,
-        int = 0
-    >
-    constexpr Array(Args&&...) noexcept
-    {
-        static_assert(sizeof...(Args) <= N,
-            "\n[ERROR] Too many arguments passed to Array<T,N> constructor!\n"
-            "        Up to N elements are allowed.\n");
-
-        static_assert(std::conjunction_v<std::is_convertible<Args, T>...>,
-            "\n[ERROR] One or more arguments cannot be converted to T.\n");
-
-        static_assert(detail::is_brace_initializable_array_v<T, N, Args...>,
-            "\n[ERROR] Brace-initialization would cause narrowing conversions.\n");
-    }
+    using reverse_iterator       = std::reverse_iterator<iterator>;                     /*!< [SWS_CORE_01219]: Reverse iterator       */
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;               /*!< [SWS_CORE_01220]: Const reverse iterator */
 
     // -----------------------------------------------------------------------------------
     // 3) DEFAULT AND COPY/MOVE OPERATIONS [SWS_CORE_01201]
     // -----------------------------------------------------------------------------------
-    constexpr Array() noexcept = default;                                       /*!< [SWS_CORE_01201]: Default constructor */
-    constexpr Array(const Array&) noexcept = default;                           /*!< [SWS_CORE_01201]: Copy constructor */
-    constexpr Array(Array&&) noexcept = default;                                /*!< [SWS_CORE_01201]: Move constructor */
-    constexpr auto operator=(const Array&) noexcept -> Array& = default;        /*!< [SWS_CORE_01201]: Copy assignment */ 
-    constexpr auto operator=(Array&&) noexcept -> Array& = default;             /*!< [SWS_CORE_01201]: Move assignment */ 
+    constexpr Array() noexcept = default;                                      /*!< [SWS_CORE_01201]: Default constructor */
+    constexpr Array(const Array&) noexcept = default;                          /*!< [SWS_CORE_01201]: Copy constructor */
+    constexpr Array(Array&&) noexcept = default;                               /*!< [SWS_CORE_01201]: Move constructor */
+    constexpr auto operator=(const Array&) noexcept -> Array& = default;       /*!< [SWS_CORE_01201]: Copy assignment */ 
+    constexpr auto operator=(Array&&) noexcept -> Array& = default;            /*!< [SWS_CORE_01201]: Move assignment */ 
+    ~Array() noexcept = default;                                               /*!< [SWS_CORE_01201]: Destructor */
 
     // -----------------------------------------------------------------------------------
     // 4) OPERATOR[] [SWS_CORE_01265], [SWS_CORE_01266]
@@ -359,8 +402,11 @@ public:
      */
     constexpr auto operator[](size_type idx) noexcept -> reference
     {
-        // Per [SWS_CORE_01266], operator[] does NOT do bound checks. 
-        // Accessing out-of-range is undefined behavior.
+        // Per [SWS_CORE_01266], operator[] does NOT do bound checks.
+        
+        static_assert(N > 0,
+            "\n[ERROR] operator[] called on zero-sized Array!\n");
+        
         return this->at(idx);
     }
 
@@ -373,7 +419,11 @@ public:
      * \note  [SWS_CORE_01265], [SWS_CORE_01266] Accessing a non-existing element through this operation now will trigger a violation
      */
     constexpr auto operator[](size_type idx) const noexcept -> const_reference
-    {
+    {   
+
+        static_assert(N > 0,
+            "\n[ERROR] operator[] called on zero-sized Array!\n");
+
         return this->at(idx);
     }
 
@@ -391,6 +441,10 @@ public:
      */
     constexpr auto at(size_type idx) noexcept -> reference
     {
+
+        static_assert(N > 0,
+            "\n[ERROR] at() called on zero-sized Array!\n");
+
         if (idx >= N) {
             TriggerOutOfRangeViolation(
                 ARA_CORE_INTERNAL_FILELINE,
@@ -412,6 +466,10 @@ public:
      */
     constexpr auto at(size_type idx) const noexcept -> const_reference
     {
+
+        static_assert(N > 0,
+            "\n[ERROR] at() called on zero-sized Array!\n");
+        
         if (idx >= N) {
             TriggerOutOfRangeViolation(
                 ARA_CORE_INTERNAL_FILELINE,
@@ -531,7 +589,7 @@ public:
      *
      * \note   [SWS_CORE_01262]
      */
-    constexpr auto size() const noexcept -> size_type
+    [[nodiscard]] constexpr auto size() const noexcept -> size_type
     {
         return N;
     }
@@ -543,7 +601,7 @@ public:
      *
      * \note   [SWS_CORE_01263]
      */
-    constexpr auto max_size() const noexcept -> size_type
+    [[nodiscard]] constexpr auto max_size() const noexcept -> size_type
     {
         return N;
     }
@@ -555,10 +613,11 @@ public:
      *
      * \note   [SWS_CORE_01264]
      */
-    constexpr auto empty() const noexcept -> bool
+    [[nodiscard]] constexpr auto empty() const noexcept -> bool
     {
         return (N == 0);
     }
+
 
     // -----------------------------------------------------------------------------------
     // 9) ITERATORS [SWS_CORE_01250..01261]
@@ -747,17 +806,19 @@ public:
         
         if (!detail::is_constant_evaluated()) {
             // If not evaluated at compile time, use memset for performance
-            if (val == T{}) {
-                std::memset(this->data_, 0, N * sizeof(T));
-            } else if constexpr (sizeof(T) == 1) {
-                
+            if constexpr (sizeof(T) == 1) {
+                // Byte-sized elements
                 if constexpr (std::is_same_v<T, bool>) {
-                    std::memset(this->data_, val ? 0x01 : 0x00, N); 
+                    std::memset(this->data_, val ? 0x01 : 0x00, N);
                 } else {
-                    std::memset(this->data_, val, N * sizeof(T));
+                    // Safe for char, unsigned char, int8_t, uint8_t
+                    std::memset(this->data_, static_cast<unsigned char>(val), N);
                 }
-
+            } else if (val == T{}) {
+                // Zero-fill optimization
+                std::memset(this->data_, 0, N * sizeof(T));
             } else {
+                // General case
                 for (size_type i = 0; i < N; ++i) {
                     this->data_[i] = val;
                 }
@@ -798,13 +859,13 @@ public:
         
         if (!detail::is_constant_evaluated()) {
             if constexpr (sizeof(T) == 1) {
-                
+                // Byte-sized elements
                 if constexpr (std::is_same_v<T, bool>) {
-                    std::memset(this->data_, val ? 0x01 : 0x00, N); 
+                    std::memset(this->data_, val ? 0x01 : 0x00, N);
                 } else {
-                    std::memset(this->data_, val, N * sizeof(T));
+                    // Safe for char, unsigned char, int8_t, uint8_t
+                    std::memset(this->data_, static_cast<unsigned char>(val), N);
                 }
-
             } else {
 
                 for (size_type i = 0; i < N; ++i) {
@@ -953,11 +1014,26 @@ private:
                                                         size_type arraySize) const noexcept -> void
     {   
         auto& violation_trigger = ara::core::internal::ViolationHandler::Instance();
-        violation_trigger.TriggerArrayAccessOutOfRangeViolation(ara::core::internal::ViolationHandler::ArrayKey{}, 
-                                                                location, invalidIndex, arraySize);
+        violation_trigger.TriggerArrayAccessOutOfRangeViolation(
+            ara::core::internal::ViolationHandler::ArrayKey{}, 
+            location, 
+            invalidIndex, 
+            arraySize
+        );
     }
 
 };
+
+/**********************************************************************************************************************
+ *  DEDUCTION GUIDES (C++17)
+ *********************************************************************************************************************/
+/*!
+ * \brief  Class template argument deduction guide for Array.
+ *
+ * \note   Enhancement beyond AUTOSAR requirements - enables: ara::core::Array arr{1, 2, 3, 4};
+ */
+template<typename T, typename... U>
+Array(T, U...) -> Array<T, 1 + sizeof...(U)>;
 
 /**********************************************************************************************************************
  *  NON-MEMBER FUNCTIONS
@@ -980,7 +1056,7 @@ private:
  * \note  If \c I >= N, compile-time static_assert fails ("out of range").
  */
 template <std::size_t I, typename T, std::size_t N>
-constexpr auto get(Array<T, N>& arr) noexcept -> T&
+[[nodiscard]] constexpr auto get(Array<T, N>& arr) noexcept -> T&
 {
     static_assert(I < N,
         "\n[ERROR] get<I>() out of range!\n"
@@ -999,10 +1075,9 @@ constexpr auto get(Array<T, N>& arr) noexcept -> T&
  * \return      Rvalue reference to the I-th element.
  *
  * \note  [SWS_CORE_01283]
- * \note  If \c I >= N, compile-time static_assert fails ("out of range").
  */
 template <std::size_t I, typename T, std::size_t N>
-constexpr auto get(Array<T, N>&& arr) noexcept -> T&&
+[[nodiscard]] constexpr auto get(Array<T, N>&& arr) noexcept -> T&&
 {
     static_assert(I < N,
         "\n[ERROR] get<I>() out of range!\n"
@@ -1021,15 +1096,35 @@ constexpr auto get(Array<T, N>&& arr) noexcept -> T&&
  * \return      Const reference to the I-th element.
  *
  * \note  [SWS_CORE_01284]
- * \note  If \c I >= N, compile-time static_assert fails ("out of range").
  */
 template <std::size_t I, typename T, std::size_t N>
-constexpr auto get(const Array<T, N>& arr) noexcept -> const T&
+[[nodiscard]] constexpr auto get(const Array<T, N>& arr) noexcept -> const T&
 {
     static_assert(I < N,
         "\n[ERROR] get<I>() out of range!\n"
         "        I must be less than N in ara::core::Array.\n");
     return arr.data()[I];
+}
+
+/*!
+ * \brief   Retrieves the I-th element (const rvalue reference) from a const rvalue \c arr.
+ *
+ * \tparam  I   The compile-time index.
+ * \tparam  T   The element type.
+ * \tparam  N   The array size.
+ *
+ * \param   arr The const rvalue array from which to retrieve the element.
+ * \return      Const rvalue reference to the I-th element.
+ *
+ * \note  Enhancement for completeness.
+ */
+template <std::size_t I, typename T, std::size_t N>
+[[nodiscard]] constexpr auto get(const Array<T, N>&& arr) noexcept -> const T&&
+{
+    static_assert(I < N,
+        "\n[ERROR] get<I>() out of range!\n"
+        "        I must be less than N in ara::core::Array.\n");
+    return std::move(arr.data()[I]);
 }
 
 /********************************************************************************************
@@ -1047,22 +1142,27 @@ constexpr auto get(const Array<T, N>& arr) noexcept -> const T&
  * \note   [SWS_CORE_01290]
  */
 template <typename T, std::size_t N>
-constexpr auto operator==(const Array<T, N>& lhs, const Array<T, N>& rhs)
+[[nodiscard]] constexpr auto operator==(const Array<T, N>& lhs, const Array<T, N>& rhs)
 #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(std::declval<T&>() == std::declval<T&>()))
 #else
     noexcept
 #endif
--> std::enable_if_t<std::is_trivially_copyable_v<T> && std::is_standard_layout_v<T>, bool>
+-> std::enable_if_t<detail::has_bitwise_equality_v<T>, bool>
 {
 #ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     static_assert(noexcept(std::declval<T&>() == std::declval<T&>()),
         "\n[ERROR] in ara::core::Array: The type T's operator== must be marked 'noexcept' when exceptions are disabled.\n");
 #endif
 
+    if constexpr (N == 0) {
+        return true;  // Empty arrays are always equal
+    }
+    
     if (!detail::is_constant_evaluated()) { 
 
-        return std::memcmp(lhs.data(), rhs.data(), N * sizeof(T)) == 0;
+       return std::memcmp(lhs.data(), rhs.data(), N * sizeof(T)) == 0;
+
     } else {
         for (std::size_t i = 0; i < N; ++i) {
             if (!(lhs[i] == rhs[i])) {
@@ -1085,18 +1185,22 @@ constexpr auto operator==(const Array<T, N>& lhs, const Array<T, N>& rhs)
  * \note   [SWS_CORE_01290]
  */
 template <typename T, std::size_t N>
-constexpr auto operator==(const Array<T, N>& lhs, const Array<T, N>& rhs)
+[[nodiscard]] constexpr auto operator==(const Array<T, N>& lhs, const Array<T, N>& rhs)
 #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(std::declval<T&>() == std::declval<T&>()))
 #else
     noexcept
 #endif
--> std::enable_if_t<!std::is_trivially_copyable_v<T> || !std::is_standard_layout_v<T>, bool>
+-> std::enable_if_t<!detail::has_bitwise_equality_v<T>, bool>
 {
 #ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     static_assert(noexcept(std::declval<T&>() == std::declval<T&>()),
         "\n[ERROR] in ara::core::Array: The type T's operator== must be marked 'noexcept' when exceptions are disabled.\n");
 #endif
+
+    if constexpr (N == 0) {
+        return true;  // Empty arrays are always equal
+    }
 
     for (std::size_t i = 0; i < N; ++i) {
         if (!(lhs[i] == rhs[i])) {
@@ -1119,7 +1223,7 @@ constexpr auto operator==(const Array<T, N>& lhs, const Array<T, N>& rhs)
  * \note   [SWS_CORE_01291]
  */
 template <typename T, std::size_t N>
-constexpr auto operator!=(const Array<T, N>& lhs, const Array<T, N>& rhs)
+[[nodiscard]] constexpr auto operator!=(const Array<T, N>& lhs, const Array<T, N>& rhs)
 #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(!(lhs == rhs)))
 #else
@@ -1147,14 +1251,13 @@ constexpr auto operator!=(const Array<T, N>& lhs, const Array<T, N>& rhs)
  * \note   [SWS_CORE_01292]
  */
 template <typename T, std::size_t N>
-constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
+[[nodiscard]] constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
 #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(std::declval<T&>() < std::declval<T&>()))
 #else
     noexcept
 #endif
--> std::enable_if_t<std::is_trivially_copyable_v<T> && std::is_standard_layout_v<T> &&
-                    (sizeof(T) == 1), bool>
+-> std::enable_if_t<detail::byte_comparable_v<T>, bool>
 {
 #ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     static_assert(noexcept(std::declval<T&>() < std::declval<T&>()),
@@ -1167,7 +1270,7 @@ constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
     }
 
     return detail::constexpr_lexicographical_compare(lhs.begin(), lhs.end(),
-                               rhs.begin(), rhs.end());
+                                                     rhs.begin(), rhs.end());
 }
 
 /*!
@@ -1182,14 +1285,13 @@ constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
  * \note   [SWS_CORE_01292]
  */
 template <typename T, std::size_t N>
-constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
+[[nodiscard]] constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
 #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(std::declval<T&>() < std::declval<T&>()))
 #else
     noexcept
 #endif
--> std::enable_if_t<!std::is_trivially_copyable_v<T> || !std::is_standard_layout_v<T> ||
-                    (sizeof(T) != 1), bool>
+-> std::enable_if_t<!detail::byte_comparable_v<T>, bool>
 {
 #ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     static_assert(noexcept(std::declval<T&>() < std::declval<T&>()),
@@ -1197,7 +1299,7 @@ constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
 #endif
 
     return detail::constexpr_lexicographical_compare(lhs.begin(), lhs.end(),
-                               rhs.begin(), rhs.end());
+                                                     rhs.begin(), rhs.end());
 }
 
 /*!
@@ -1212,7 +1314,7 @@ constexpr auto operator<(const Array<T, N>& lhs, const Array<T, N>& rhs)
  * \note   [SWS_CORE_01294]
  */
 template <typename T, std::size_t N>
-constexpr auto operator<=(const Array<T, N>& lhs, const Array<T, N>& rhs)
+[[nodiscard]] constexpr auto operator<=(const Array<T, N>& lhs, const Array<T, N>& rhs)
 #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(!(rhs < lhs)))
 #else
@@ -1240,7 +1342,7 @@ constexpr auto operator<=(const Array<T, N>& lhs, const Array<T, N>& rhs)
  * \note   [SWS_CORE_01293]
  */
 template <typename T, std::size_t N>
-constexpr auto operator>(const Array<T, N>& lhs, const Array<T, N>& rhs)
+[[nodiscard]] constexpr auto operator>(const Array<T, N>& lhs, const Array<T, N>& rhs)
 #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(rhs < lhs))
 #else
@@ -1268,7 +1370,7 @@ constexpr auto operator>(const Array<T, N>& lhs, const Array<T, N>& rhs)
  * \note   [SWS_CORE_01295]
  */
 template <typename T, std::size_t N>
-constexpr auto operator>=(const Array<T, N>& lhs, const Array<T, N>& rhs)
+[[nodiscard]] constexpr auto operator>=(const Array<T, N>& lhs, const Array<T, N>& rhs)
 #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(!(lhs < rhs)))
 #else
@@ -1335,8 +1437,19 @@ constexpr auto swap(Array<T, N>& lhs, Array<T, N>& rhs)
  * \note   This is an enhancement beyond base AUTOSAR requirements for modern C++ compatibility.
  */
 template <typename T, std::size_t N>
-constexpr auto to_array(T (&a)[N]) noexcept(std::is_nothrow_copy_constructible_v<T>) -> Array<T, N>
+[[nodiscard]] constexpr auto to_array(T (&a)[N]) 
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    noexcept(std::is_nothrow_copy_constructible_v<T>) 
+#else
+    noexcept
+#endif
+    -> Array<std::remove_cv_t<T>, N>
 {
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    static_assert(std::is_nothrow_copy_constructible_v<T>,
+        "\n[ERROR] ara::core::to_array: The type T must be nothrow copy constructible when exceptions are disabled.\n");
+#endif
+    
     return detail::to_array_impl(a, std::make_index_sequence<N>{});
 }
 
@@ -1354,8 +1467,19 @@ constexpr auto to_array(T (&a)[N]) noexcept(std::is_nothrow_copy_constructible_v
  * \note   This is an enhancement beyond base AUTOSAR requirements for modern C++ compatibility.
  */
 template <typename T, std::size_t N>
-constexpr auto to_array(T (&&a)[N]) noexcept(std::is_nothrow_move_constructible_v<T>) -> Array<T, N>
+[[nodiscard]] constexpr auto to_array(T (&&a)[N]) 
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    noexcept(std::is_nothrow_move_constructible_v<T>) 
+#else
+    noexcept
+#endif
+    -> Array<std::remove_cv_t<T>, N>
 {
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    static_assert(std::is_nothrow_move_constructible_v<T>,
+        "\n[ERROR] ara::core::to_array: The type T must be nothrow move constructible when exceptions are disabled.\n");
+#endif
+    
     return detail::to_array_impl(std::move(a), std::make_index_sequence<N>{});
 }
 
@@ -1591,6 +1715,89 @@ constexpr auto swap(Array<T, N>& /*lhs*/, Array<U, M>& /*rhs*/) noexcept
         "        (swap(Array<T,N>&, Array<U,M>&)) in ara::core::Array.\n");
 }
  
+/**********************************************************************************************************************
+ *  COMPILE-TIME VERIFICATION – ara::core::Array
+ *********************************************************************************************************************/
+
+/*
+ *  These `static_assert`s guarantee that the container preserves all low-level
+ *  properties you normally expect from a plain “T[N]” whenever the element type
+ *  itself has them.
+ *
+ *  ───────────────  WHAT WE CHECK  ───────────────
+ *  • Size/layout ——  sizeof(Array<T,N>)   == N * sizeof(T)
+ *                    is_standard_layout   ⇐⇒  same for T
+ *  • Triviality  ——  is_trivial           ⇐⇒  same for T
+ *                    is_trivially_(copy|move)_(constructible|assignable)
+ *  • No hidden conversion surprises.
+ *
+ *  The assertions are instantiated for:
+ *       A trivial POD (`int`)              → everything should remain trivial.
+ *       A non-trivial type (`std::string`) → container must *not* pretend to be trivial.
+ */
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Case 1 : trivial element type
+// ─────────────────────────────────────────────────────────────────────────────
+static_assert(sizeof(Array<int, 4>) == 4 * sizeof(int),
+    "Array<int,4> size must equal 4 * sizeof(int)");
+
+static_assert(std::is_standard_layout_v<Array<int, 4>>,
+    "Array<int,4> should have standard layout");
+
+static_assert(std::is_trivial_v<Array<int, 4>>,
+    "Array<int,4> should be trivial because int is trivial");
+
+static_assert(std::is_trivially_copy_constructible_v<Array<int, 4>>,
+    "Array<int,4> should be trivially copy-constructible");
+
+static_assert(std::is_trivially_move_assignable_v<Array<int, 4>>,
+    "Array<int,4> should be trivially move-assignable");
+
+// No implicit element-wise conversions
+static_assert(!std::is_convertible_v<Array<int,4>, int*>,
+    "Array should not implicitly decay to pointer");
+static_assert(!std::is_convertible_v<int*, Array<int,4>>,
+    "Pointer should not implicitly convert to Array");
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Case 2 : non-trivial element type
+// ─────────────────────────────────────────────────────────────────────────────
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+static_assert(!std::is_trivial_v<Array<std::string, 2>>,
+    "Array<std::string,2> must NOT be trivial because std::string is not");
+
+static_assert(!std::is_trivially_copy_constructible_v<Array<std::string, 2>>,
+    "Array<std::string,2> must NOT be trivially copy-constructible");
+
+static_assert(sizeof(Array<std::string,2>) == 2 * sizeof(std::string),
+    "Size check for non-trivial element type");
+
+#endif // ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Sanity: triviality tracks the element type
+// ─────────────────────────────────────────────────────────────────────────────
+template<typename T>
+constexpr bool array_triviality_matches_element =
+    std::is_trivial_v<Array<T,1>> == std::is_trivial_v<T>;
+
+static_assert(array_triviality_matches_element<int>,
+    "Triviality tracking failed for int");
+
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+static_assert(array_triviality_matches_element<std::string>,
+    "Triviality tracking failed for std::string");
+#endif // ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Case 3 : empty array (N=0)
+// ─────────────────────────────────────────────────────────────────────────────
+static_assert(sizeof(Array<int, 0>) == 1,
+    "Array<int,0> should occupy exactly one byte (empty-class rule)");
+
 
 } // namespace core
 } // namespace ara
