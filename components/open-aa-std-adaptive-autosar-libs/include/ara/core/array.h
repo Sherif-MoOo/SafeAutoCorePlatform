@@ -49,7 +49,6 @@
 #include <cstring>                                  // For std::memcpy, std::memset
 #include <iterator>                                 // For std::reverse_iterator
 
-#include "ara/core/byte.h"                          // For ara::core::Byte type
 #include "ara/core/internal/utility.h"              // For utility functions and traits
 #include "ara/core/internal/location_utils.h"       // For capturing file/line details
 #include "ara/core/internal/violation_handler.h"    // To Trigger the violation
@@ -400,14 +399,27 @@ public:
      *
      * \note  [SWS_CORE_01265], [SWS_CORE_01266] Accessing a non-existing element through this operation now will trigger a violation
      */
-    constexpr auto operator[](size_type idx) noexcept -> reference
-    {
-        // Per [SWS_CORE_01266], operator[] does NOT do bound checks.
-        
+    constexpr auto operator[](const ara::core::internal::InputWithLocation<size_type>& idx) noexcept -> reference
+    {        
         static_assert(N > 0,
             "\n[ERROR] operator[] called on zero-sized Array!\n");
         
-        return this->at(idx);
+        const size_type& I = idx.input();
+
+        if (I >= N) {
+
+            if (!detail::is_constant_evaluated()) {
+                TriggerOutOfRangeViolation(
+                    idx.info(),
+                    I,
+                    N
+                );
+            }
+
+        }
+
+        /*! \note compiler smart enough to bound check in consteval scope */
+        return this->data_[I];
     }
 
     /*!
@@ -418,13 +430,28 @@ public:
      *
      * \note  [SWS_CORE_01265], [SWS_CORE_01266] Accessing a non-existing element through this operation now will trigger a violation
      */
-    constexpr auto operator[](size_type idx) const noexcept -> const_reference
-    {   
+    constexpr auto operator[](const ara::core::internal::InputWithLocation<size_type>& idx) const noexcept -> const_reference
+    {
 
         static_assert(N > 0,
             "\n[ERROR] operator[] called on zero-sized Array!\n");
+        
+        const size_type& I = idx.input();
 
-        return this->at(idx);
+        if (I >= N) {
+
+            if (!detail::is_constant_evaluated()) {
+                TriggerOutOfRangeViolation(
+                    idx.info(),
+                    I,
+                    N
+                );
+            }
+
+        }
+
+        /*! \note compiler smart enough to bound check in consteval scope */
+        return this->data_[I];
     }
 
     // -----------------------------------------------------------------------------------
@@ -439,20 +466,27 @@ public:
      * \note   [SWS_CORE_01273], [SWS_CORE_01274]
      * \note   If idx >= N => logs & terminates. No exceptions.
      */
-    constexpr auto at(size_type idx) noexcept -> reference
+    constexpr auto at(const ara::core::internal::InputWithLocation<size_type>& idx) noexcept -> reference
     {
-
         static_assert(N > 0,
             "\n[ERROR] at() called on zero-sized Array!\n");
 
-        if (idx >= N) {
-            TriggerOutOfRangeViolation(
-                ARA_CORE_INTERNAL_FILELINE,
-                idx,
-                N
-            );
+        const size_type& I = idx.input();
+
+        if (I >= N) {
+
+            if (!detail::is_constant_evaluated()) {
+                TriggerOutOfRangeViolation(
+                    idx.info(),
+                    I,
+                    N
+                );
+            }
+
         }
-        return this->data_[idx];
+
+        /*! \note compiler smart enough to bound check in consteval scope */
+        return this->data_[I];
     }
 
     /*!
@@ -464,21 +498,28 @@ public:
      * \note   [SWS_CORE_01273], [SWS_CORE_01274]
      * \note   If idx >= N => logs & terminates. No exceptions.
      */
-    constexpr auto at(size_type idx) const noexcept -> const_reference
+    constexpr auto at(const ara::core::internal::InputWithLocation<size_type>& idx) const noexcept -> const_reference
     {
 
         static_assert(N > 0,
             "\n[ERROR] at() called on zero-sized Array!\n");
-        
-        if (idx >= N) {
-            TriggerOutOfRangeViolation(
-                ARA_CORE_INTERNAL_FILELINE,
-                idx,
-                N
-            );
+
+        const size_type& I = idx.input();
+
+        if (I >= N) {
+
+            if (!detail::is_constant_evaluated()) {
+                TriggerOutOfRangeViolation(
+                    idx.info(),
+                    I,
+                    N
+                );
+            }
+
         }
 
-        return this->data_[idx];
+        /*! \note compiler smart enough to bound check in consteval scope */
+        return this->data_[I];
     }
 
     // -----------------------------------------------------------------------------------
@@ -997,6 +1038,13 @@ public:
 
 private:
 
+    template<std::size_t I>
+    constexpr void constexpr_index_check()
+    {
+        static_assert(false,
+            "[ERROR] ara::core::Array::operator[] — index out of range "
+            "during constant evaluation");
+    }
     /*!
      * \brief Logs + terminates upon array-access-out-of-range for ara::core::Array.
      * \param location     The stripped file/line location (e.g., "file.cpp:123").
