@@ -165,6 +165,86 @@ auto ViolationHandler::Instance() noexcept -> ViolationHandler&
 }
 
 /*!
+ * \brief  Triggers a ShiftRangeViolation.
+ *
+ * \param  location   An implementation-defined identifier of the location where the violation was detected
+ *                    (e.g., "file.cpp:123").
+ * \param  shift      The invalid shift amount that caused the violation.
+ *
+ * \details
+ * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+ * and does not throw exceptions.
+ *
+ * \note   [SWS_CORE_00090]
+ */
+[[noreturn]] auto ViolationHandler::TriggerShiftRangeViolation(ByteKey&& /*unused*/,
+                                                    std::string_view location,
+                                                    long long shift) noexcept -> void
+{
+    // Allocate a buffer for the numeric value.
+    char shiftBuffer[32]{0};
+
+    // Convert the shift value to characters using std::to_chars.
+    auto [shiftPtr, ec] = std::to_chars(shiftBuffer, shiftBuffer + sizeof(shiftBuffer), shift);
+
+    // Create a string_view from the conversion result.
+    std::string_view shiftStr = (ec == std::errc{}) 
+                                ? std::string_view(shiftBuffer, static_cast<std::size_t>(shiftPtr - shiftBuffer)) 
+                                : "";
+
+    // Terminate the process by calling the Abort API.
+    ara::core::Abort(
+        "[App vlt][FATAL]: Violation detected in ",
+        GetProcessIdentifier(),
+        " at ",
+        location,
+        ": Shift range violation: Invalid shift amount ",
+        shiftStr,
+        "."
+    );
+}
+
+/*!
+ * \brief  Triggers a BitPositionViolation.
+ *
+ * \param  location   An implementation-defined identifier of the location where the violation was detected
+ *                    (e.g., "file.cpp:123").
+ * \param  pos        The invalid bit position that caused the violation.
+ *
+ * \details
+ * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+ * and does not throw exceptions.
+ *
+ * \note   [SWS_CORE_00090]
+ */
+[[noreturn]] auto ViolationHandler::TriggerBitPositionViolation(ByteKey&& /*unused*/,
+                                                    std::string_view location,
+                                                    std::size_t pos) noexcept -> void
+{
+    // Allocate a buffer for the numeric value.
+    char posBuffer[32]{0};
+
+    // Convert the position to characters using std::to_chars.
+    auto [posPtr, ec] = std::to_chars(posBuffer, posBuffer + sizeof(posBuffer), pos);
+
+    // Create a string_view from the conversion result.
+    std::string_view posStr = (ec == std::errc{}) 
+                              ? std::string_view(posBuffer, static_cast<std::size_t>(posPtr - posBuffer)) 
+                              : "";
+
+    // Terminate the process by calling the Abort API.
+    ara::core::Abort(
+        "[App vlt][FATAL]: Violation detected in ",
+        GetProcessIdentifier(),
+        " at ",
+        location,
+        ": Bit position violation: Invalid bit position ",
+        posStr,
+        "."
+    );
+}
+
+/*!
  * \brief  Triggers a SpanSizeViolation.
  *
  * \param  location   An implementation-defined identifier of the location where the violation was detected
@@ -209,6 +289,30 @@ auto ViolationHandler::Instance() noexcept -> ViolationHandler&
         " does not match expected size ",
         expectedStr,
         "."
+    );
+}
+
+/*! 
+ * \brief  Triggers a SpanNullPointerViolation.
+ *
+ * \param  location   An implementation-defined identifier of the location where the violation was detected
+ *                    (e.g., "file.cpp:123").
+ *
+ * \details
+ * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+ * and does not throw exceptions.
+ *
+ */
+[[noreturn]] auto ViolationHandler::TriggerSpanNullPointerViolation(SpanKey&& /*unused*/,
+                                                    std::string_view location) noexcept -> void
+{
+    // Terminate the process by calling the Abort API.
+    ara::core::Abort(
+        "[App vlt][FATAL]: Violation detected in ",
+        GetProcessIdentifier(),
+        " at ",
+        location,
+        ": Span Size shall be zero if the pointer is null."
     );
 }
 
