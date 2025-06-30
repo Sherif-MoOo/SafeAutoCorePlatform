@@ -54,6 +54,7 @@
 #include <array>                                    // For std::array support
 
 #include "ara/core/ranges.h"                        // For ranges support in span
+#include "ara/core/ranges.h"                        // For ranges support in span
 #include "ara/core/byte.h"                          // For ara::core::Byte type
 #include "ara/core/internal/utility.h"              // For utility functions and traits
 #include "ara/core/internal/location_utils.h"       // For capturing file/line details
@@ -1698,12 +1699,15 @@ public:
 template<typename T, std::size_t E, typename F>
 [[nodiscard]] constexpr auto transform(Span<T, E> s, F&& f) noexcept {
     return span_transform_view<T, E, std::decay_t<F>>(s, std::forward<F>(f));
+[[nodiscard]] constexpr auto transform(Span<T, E> s, F&& f) noexcept {
+    return span_transform_view<T, E, std::decay_t<F>>(s, std::forward<F>(f));
 }
 
 /*!
  * \brief Filter view for spans
  */
 template<typename T, std::size_t E, typename Pred>
+class span_filter_view {
 class span_filter_view {
 public:
     using span_type = Span<T, E>;
@@ -1735,9 +1739,15 @@ public:
         constexpr iterator(typename span_type::iterator curr,
                           typename span_type::iterator end,
                           const Pred* p) noexcept
+                          const Pred* p) noexcept
             : current_(curr), end_(end), pred_(p) {
             advance_to_next();
         }
+
+        [[nodiscard]] constexpr reference operator*() const noexcept { return *current_; }
+        [[nodiscard]] constexpr pointer operator->() const noexcept { return current_.base(); }
+
+        constexpr iterator& operator++() noexcept {
 
         [[nodiscard]] constexpr reference operator*() const noexcept { return *current_; }
         [[nodiscard]] constexpr pointer operator->() const noexcept { return current_.base(); }
@@ -1747,6 +1757,8 @@ public:
             advance_to_next();
             return *this;
         }
+
+        constexpr iterator operator++(int) noexcept {
 
         constexpr iterator operator++(int) noexcept {
             iterator tmp = *this;
@@ -1772,6 +1784,9 @@ public:
 
     [[nodiscard]] constexpr iterator end() const noexcept {
         return iterator(span_.end(), span_.end(), &pred_);
+
+    [[nodiscard]] constexpr iterator end() const noexcept {
+        return iterator(span_.end(), span_.end(), &pred_);
     }
 };
 
@@ -1779,6 +1794,8 @@ public:
  * \brief Create filter view
  */
 template<typename T, std::size_t E, typename Pred>
+[[nodiscard]] constexpr auto filter(Span<T, E> s, Pred&& p) noexcept {
+    return span_filter_view<T, E, std::decay_t<Pred>>(s, std::forward<Pred>(p));
 [[nodiscard]] constexpr auto filter(Span<T, E> s, Pred&& p) noexcept {
     return span_filter_view<T, E, std::decay_t<Pred>>(s, std::forward<Pred>(p));
 }
@@ -1849,6 +1866,7 @@ namespace ara {
 namespace core {
 
 namespace span_test {
+namespace span_test {
 
 // Test types
 using TestSpan = Span<int, 5>;
@@ -1908,6 +1926,7 @@ static_assert(range_span.size() == 5, "Range construction must work");
 // C++26 enhanced features verification
 static_assert(test_span.contains(3), "Contains must work in constexpr");
 
+} // span_test namespace
 } // span_test namespace
 
 } // namespace core
