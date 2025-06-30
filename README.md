@@ -2,6 +2,7 @@
 
 This is a **modular** and **scalable** open‑source safe deterministic automotive middleware using **CXX_STANDARD 17**.
 The project leverages **CMake** for build configuration, enabling straightforward integration, testing, and future expansion.
+Designed for Eclipse SDV compatibility, Adaptive AUTOSAR‑style runtimes, and future‑proof automotive architectures.
  
  ---
  
