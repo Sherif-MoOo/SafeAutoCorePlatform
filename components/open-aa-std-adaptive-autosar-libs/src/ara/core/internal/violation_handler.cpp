@@ -317,6 +317,108 @@ auto ViolationHandler::Instance() noexcept -> ViolationHandler&
 }
 
 /*! 
+ * \brief  Triggers a SpanRangeViolation.
+ *
+ * \param  location   An implementation-defined identifier of the location where the violation was detected
+ *                    (e.g., "file.cpp:123").
+ *
+ * \details
+ * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+ * and does not throw exceptions.
+ *
+ */
+[[noreturn]] auto ViolationHandler::TriggerSpanRangeViolation(SpanKey&& /*unused*/,
+                                                    std::string_view location) noexcept -> void
+{
+    // Terminate the process by calling the Abort API.
+    ara::core::Abort(
+        "[App vlt][FATAL]: Violation detected in ",
+        GetProcessIdentifier(),
+        " at ",
+        location,
+        ": Span range violation: the end pointer is less than the start pointer."
+    );
+}
+
+/*! 
+ * \brief  Triggers a TriggerSpanEmptyAccessViolation.
+ * \param  location   An implementation-defined identifier of the location where the violation was detected
+ * \param  operation  The operation that caused the violation (e.g., "front", "back").
+ * \details
+ * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+ * and does not throw exceptions.
+ * \note   [SWS_CORE_00090]
+ */
+[[noreturn]] auto ViolationHandler::TriggerSpanEmptyAccessViolation(SpanKey&& /*unused*/,
+                                                    std::string_view location,
+                                                    std::string_view operation) noexcept -> void
+{
+    // Terminate the process by calling the Abort API.
+    ara::core::Abort(
+        "[App vlt][FATAL]: Violation detected in ",
+        GetProcessIdentifier(),
+        " at ",
+        location,
+        ": Span empty access violation: Attempted to access ",
+        operation,
+        " on an empty span."
+    );
+}
+
+/*! 
+ * \brief  Triggers a TriggerSpanSubspanViolation.
+ * \param  location   An implementation-defined identifier of the location where the violation was detected
+ *                    (e.g., "file.cpp:123").
+ * \param  operation  The operation that caused the violation (e.g., "subspan").
+ * \param  requested  The requested size or offset that caused the violation.
+ * \param  available  The available size of the span.
+ * \param  is_offset  Indicates whether the requested value is an offset (default is true).
+ * \details
+ * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+ * and does not throw exceptions.
+ *
+ */
+[[noreturn]] auto ViolationHandler::TriggerSpanSubspanViolation(SpanKey&& /*unused*/,
+                                                    std::string_view location,
+                                                    std::string_view operation,
+                                                    std::size_t requested,
+                                                    std::size_t available,
+                                                    bool is_offset) noexcept -> void
+{
+    // Allocate buffers for the numeric values.
+    char requestedBuffer[32]{0};
+    char availableBuffer[32]{0};
+
+    // Convert 'requested' and 'available' to characters using std::to_chars.
+    auto [requestedPtr, requestedEc] = std::to_chars(requestedBuffer, requestedBuffer + sizeof(requestedBuffer), requested);
+    auto [availablePtr, availableEc] = std::to_chars(availableBuffer, availableBuffer + sizeof(availableBuffer), available);
+
+    // Create string_view objects from the conversion results.
+    std::string_view requestedStr = (requestedEc == std::errc{}) 
+                                     ? std::string_view(requestedBuffer, static_cast<std::size_t>(requestedPtr - requestedBuffer)) 
+                                     : "";
+    std::string_view availableStr = (availableEc == std::errc{}) 
+                                     ? std::string_view(availableBuffer, static_cast<std::size_t>(availablePtr - availableBuffer)) 
+                                     : "";
+
+    // Terminate the process by calling the Abort API.
+    ara::core::Abort(
+        "[App vlt][FATAL]: Violation detected in ",
+        GetProcessIdentifier(),
+        " at ",
+        location,
+        ": Span subspan violation: Requested ",
+        requestedStr,
+        " for operation ",
+        operation,
+        ", but only ",
+        availableStr,
+        " is available.",
+        is_offset ? " (offset)" : " (size)"
+    );
+}
+
+/*! 
  * \brief  Triggers a SpanBoundsViolation.
  *
  * \param  location   An implementation-defined identifier of the location where the violation was detected

@@ -292,7 +292,8 @@ public:
                                                std::size_t actual,
                                                std::size_t expected) noexcept -> void;
     
-    /*!     * \brief  Triggers a SpanNullPointerViolation.
+    /*! 
+    * \brief  Triggers a SpanNullPointerViolation.
      * \param  location   An implementation-defined identifier of the location where the violation was detected
      *                    (e.g., "file.cpp:123").
      * \details
@@ -301,8 +302,57 @@ public:
      * \note   [SWS_CORE_00090]
      */
     [[noreturn]] auto TriggerSpanNullPointerViolation(SpanKey&& /*unused*/,
-                                                      std::string_view location) noexcept -> void;  
-                                                      
+                                                      std::string_view location) noexcept -> void;
+
+    /*!
+     * \brief  Triggers a SpanRangeViolation.
+     *
+     * \param  location   An implementation-defined identifier of the location where the violation was detected
+     *                    (e.g., "file.cpp:123").
+     * \details
+     * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+     * and does not throw exceptions.
+     * \note   [SWS_CORE_00090]
+     */
+    [[noreturn]] auto TriggerSpanRangeViolation(SpanKey&& /*unused*/,
+                                                std::string_view location) noexcept -> void;
+
+    /*!
+     * \brief  Triggers a SpanEmptyAccessViolation.
+     *
+     * \param  location   An implementation-defined identifier of the location where the violation was detected
+     *                    (e.g., "file.cpp:123").
+     * \param  operation  The operation that caused the violation (e.g., "front", "back").
+     *
+     * \details
+     * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+     * and does not throw exceptions.
+     *
+     */
+    [[noreturn]] auto TriggerSpanEmptyAccessViolation(SpanKey&& /*unused*/,
+                                                      std::string_view location,
+                                                      std::string_view operation) noexcept -> void;
+
+    /*!
+     * \brief  Triggers a SpanSubspanViolation.
+     * \param  location   An implementation-defined identifier of the location where the violation was detected
+     *                    (e.g., "file.cpp:123").
+     * \param  operation  The operation that caused the violation (e.g., "first", "last", "subspan").
+     * \param  requested  The requested size or offset that caused the violation.
+     * \param  available  The available size of the span.
+     * \param  is_offset  Indicates whether the requested value is an offset (true) or a size (false).
+     * \details
+     * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+     * and does not throw exceptions.
+     * \note   [SWS_CORE_00090]
+     */
+    [[noreturn]] auto TriggerSpanSubspanViolation(SpanKey&& /*unused*/,
+                                                  std::string_view location,
+                                                  std::string_view operation,
+                                                  std::size_t requested,
+                                                  std::size_t available,
+                                                  bool is_offset = true) noexcept -> void;
+
     /*!
      * \brief  Triggers a SpanBoundsViolation.
      *

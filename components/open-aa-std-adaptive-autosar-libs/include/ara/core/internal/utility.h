@@ -57,19 +57,19 @@ class BasicStringView;
  * \brief  Forward declaration of the get function template.
  */
 template <std::size_t I, typename T, std::size_t N>
-constexpr auto get(ara::core::Array<T,N>&) noexcept -> T&;
+[[nodiscard]] constexpr auto get(ara::core::Array<T,N>&) noexcept -> T&;
 
 /*!
  * \brief  Forward declaration of the get function template.
  */
 template <std::size_t I, typename T, std::size_t N>
-constexpr auto get(const ara::core::Array<T,N>&) noexcept -> const T&;
+[[nodiscard]] constexpr auto get(const ara::core::Array<T,N>&) noexcept -> const T&;
 
 /*!
  * \brief  Forward declaration of the get function template.
  */
 template <std::size_t I, typename T, std::size_t N>
-constexpr auto get(ara::core::Array<T,N>&&) noexcept -> T&&;
+[[nodiscard]] constexpr auto get(ara::core::Array<T,N>&&) noexcept -> T&&;
 
 } // namespace ara::core
 
@@ -301,9 +301,12 @@ template<typename Src>
  * \param  f     The callable to invoke.
  * \param  tup   The tuple-like object containing arguments.
  * \return       The result of invoking f with the tuple elements.
+ *
+ * \warning The result of this function should not be discarded if the callable
+ *          returns a value that needs to be handled.
  */
 template<typename F, typename Tuple, std::size_t... I>
-constexpr auto apply_impl(F&& f, Tuple&& tup, std::index_sequence<I...>)
+[[nodiscard]] constexpr auto apply_impl(F&& f, Tuple&& tup, std::index_sequence<I...>)
 #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(std::forward<F>(f)(get<I>(std::forward<Tuple>(tup))...)))
 #else
@@ -404,11 +407,11 @@ struct is_brace_initializable_array
 private:
     /* Selected if U[N]{ Args... } is well‑formed */
     template <typename U, typename = decltype(U{ std::declval<Args>()... })>
-    static auto test(int) noexcept -> std::true_type;
+    [[nodiscard]] static auto test(int) noexcept -> std::true_type;
 
     /* Fallback if substitution in the above fails */
     template <typename...>
-    static auto test(...) noexcept -> std::false_type;
+    [[nodiscard]] static auto test(...) noexcept -> std::false_type;
 
 public:
     /* Integral constant type: std::true_type or std::false_type */
@@ -611,8 +614,8 @@ struct default_traits<const CharT, void> : default_traits<CharT> {};
  *       are \c constexpr, the entire operation can be evaluated at compile time.
  */
 template<typename InputIt1, typename InputIt2>
-constexpr bool constexpr_lexicographical_compare(InputIt1 first1, InputIt1 last1,
-                                                  InputIt2 first2, InputIt2 last2)
+[[nodiscard]] constexpr bool constexpr_lexicographical_compare(InputIt1 first1, InputIt1 last1,
+                                                                InputIt2 first2, InputIt2 last2)
 #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
     noexcept(noexcept(*first1 < *first2) && noexcept(*first1 == *first2))
 #else
@@ -635,9 +638,16 @@ constexpr bool constexpr_lexicographical_compare(InputIt1 first1, InputIt1 last1
 
 /*!
  * \brief  Constexpr-compatible find implementation for C++17
+ *
+ * \tparam InputIt Iterator type
+ * \tparam T Value type to find
+ * \param first Beginning of the range to search
+ * \param last End of the range to search
+ * \param value Value to find
+ * \return Iterator to the first element equal to value, or last if not found
  */
 template<typename InputIt, typename T>
-constexpr InputIt constexpr_find(InputIt first, InputIt last, const T& value) {
+[[nodiscard]] constexpr InputIt constexpr_find(InputIt first, InputIt last, const T& value) {
     for (; first != last; ++first) {
         if (*first == value) {
             return first;
@@ -648,9 +658,16 @@ constexpr InputIt constexpr_find(InputIt first, InputIt last, const T& value) {
 
 /*!
  * \brief  Constexpr-compatible equal implementation
+ *
+ * \tparam InputIt1 First range iterator type
+ * \tparam InputIt2 Second range iterator type
+ * \param first1 Beginning of the first range
+ * \param last1 End of the first range
+ * \param first2 Beginning of the second range
+ * \return true if all corresponding elements are equal, false otherwise
  */
 template<typename InputIt1, typename InputIt2>
-constexpr bool constexpr_equal(InputIt1 first1, InputIt1 last1, InputIt2 first2) {
+[[nodiscard]] constexpr bool constexpr_equal(InputIt1 first1, InputIt1 last1, InputIt2 first2) {
     for (; first1 != last1; ++first1, ++first2) {
         if (!(*first1 == *first2)) {
             return false;
@@ -661,27 +678,62 @@ constexpr bool constexpr_equal(InputIt1 first1, InputIt1 last1, InputIt2 first2)
 
 /*!
  * \brief Constexpr strlen implementation for C++17
+ *
+ * \tparam CharT Character type
+ * \param str Null-terminated string
+ * \return Length of the string, excluding the null terminator
  */
-template<typename CharT, typename Traits>
-constexpr auto constexpr_strlen(const CharT* str) noexcept -> std::size_t
+template<typename CharT>
+[[nodiscard]] constexpr std::size_t constexpr_strlen(const CharT* str) noexcept
 {
-    if constexpr (std::is_same_v<CharT, char>) {
-        // Use built-in for char if available
-        return __builtin_strlen(str);
+    if (str == nullptr) return 0;              // or omit for stricter C semantics
+
+    if constexpr (std::is_same_v<CharT, char> &&
+                  __has_builtin(__builtin_strlen)) {
+        return __builtin_strlen(str);          // fast, constexpr-friendly path
     } else {
         std::size_t len = 0;
-        while (str[len] != CharT{}) {
-            ++len;
-        }
+        while (str[len] != CharT{}) ++len;
         return len;
     }
 }
 
+ /*!
+ * \brief Extract basename from a file path at compile time
+ *
+ * \param path Full file path
+ * \return Pointer to the basename portion of the path
+ *
+ * \details Handles both forward and backward slashes as path separators
+ */
+[[nodiscard]] constexpr auto constexpr_basename(const char* path) noexcept -> const char* {
+    if (path == nullptr) return "";
+
+    const char* last_separator = path;
+    const char* current = path;
+
+    while (*current != '\0') {
+        if (*current == '/' || *current == '\\') {
+            last_separator = current + 1;
+        }
+        ++current;
+    }
+
+    return last_separator;
+}
+
 /*!
  * \brief Constexpr char_traits::compare for C++17
+ *
+ * \tparam CharT Character type
+ * \tparam Traits Character traits type
+ * \param s1 First string to compare
+ * \param s2 Second string to compare
+ * \param count Number of characters to compare
+ * \return Negative if s1 < s2, positive if s1 > s2, zero if equal
  */
 template<typename CharT, typename Traits>
-constexpr auto constexpr_compare(const CharT* s1, const CharT* s2, std::size_t count) noexcept -> int
+[[nodiscard]] constexpr auto constexpr_compare(const CharT* s1, const CharT* s2, std::size_t count) noexcept -> int
 {
     for (std::size_t i = 0; i < count; ++i) {
         if (Traits::lt(s1[i], s2[i])) return -1;
@@ -691,10 +743,17 @@ constexpr auto constexpr_compare(const CharT* s1, const CharT* s2, std::size_t c
 }
 
 /*!
- * \brief Constexpr find implementation
+ * \brief Constexpr find implementation for character sequences
+ *
+ * \tparam CharT Character type
+ * \tparam Traits Character traits type
+ * \param str String to search in
+ * \param count Length of the string
+ * \param ch Character to find
+ * \return Pointer to the first occurrence of ch, or nullptr if not found
  */
 template<typename CharT, typename Traits>
-constexpr auto constexpr_find(const CharT* str, std::size_t count, CharT ch) noexcept -> const CharT*
+[[nodiscard]] constexpr auto constexpr_find(const CharT* str, std::size_t count, CharT ch) noexcept -> const CharT*
 {
     for (std::size_t i = 0; i < count; ++i) {
         if (Traits::eq(str[i], ch)) {
@@ -705,11 +764,19 @@ constexpr auto constexpr_find(const CharT* str, std::size_t count, CharT ch) noe
 }
 
 /*!
- * \brief Constexpr search implementation
+ * \brief Constexpr search implementation for substring search
+ *
+ * \tparam CharT Character type
+ * \tparam Traits Character traits type
+ * \param first Beginning of the string to search in
+ * \param last End of the string to search in
+ * \param s_first Beginning of the substring to find
+ * \param s_last End of the substring to find
+ * \return Pointer to the first occurrence of the substring, or last if not found
  */
 template<typename CharT, typename Traits>
-constexpr auto constexpr_search(const CharT* first, const CharT* last,
-                               const CharT* s_first, const CharT* s_last) noexcept -> const CharT*
+[[nodiscard]] constexpr auto constexpr_search(const CharT* first, const CharT* last,
+                                              const CharT* s_first, const CharT* s_last) noexcept -> const CharT*
 {
     const auto len = static_cast<std::size_t>(last - first);
     const auto s_len = static_cast<std::size_t>(s_last - s_first);
@@ -765,6 +832,18 @@ template<typename T>
 inline constexpr bool is_std_array_v = is_std_array<T>::value;
 
 /*!
+ * \brief  Detection helper for ara::core::Array
+ */
+template<typename T>
+struct is_ara_array : std::false_type {};
+
+template<typename T, std::size_t N>
+struct is_ara_array<ara::core::Array<T, N>> : std::true_type {};
+
+template<typename T>
+inline constexpr bool is_ara_array_v = is_ara_array<T>::value;
+
+/*!
  * \brief  Detection helper for Span specializations
  */
 template<typename T>
@@ -807,17 +886,57 @@ struct is_range<T, void_t<
 template<typename T>
 inline constexpr bool is_range_v = is_range<T>::value;
 
-/*!
- * \brief  Check if range has contiguous iterators
- */
-template<typename T, typename = void>
-struct is_contiguous_range : std::false_type {};
+template<typename, typename = void>
+struct has_member_pointer : std::false_type { };
 
 template<typename T>
-struct is_contiguous_range<T, void_t<
-    std::enable_if_t<is_range_v<T>>,
-    std::enable_if_t<has_data_and_size_v<T>>
->> : std::true_type {};
+struct has_member_pointer<T, std::void_t<typename std::decay_t<T>::pointer>>
+    : std::true_type { };
+
+template<typename T>
+inline constexpr bool has_member_pointer_v = has_member_pointer<T>::value;
+
+/**********************************************************************************************************************
+ *  detail::is_contiguous_container_v   (owning, STL-style container)
+ *      – requires  data() / size() *and* a  “pointer”  typedef
+ *********************************************************************************************************************/
+template<typename T, typename = void>
+struct is_contiguous_container : std::false_type { };
+
+template<typename T>
+struct is_contiguous_container<T, std::void_t<
+    decltype(std::declval<T&>().data()),            /* member .data()      */
+    decltype(std::declval<T&>().size()),            /* member .size()      */
+    std::enable_if_t<
+        std::is_pointer_v<decltype(std::declval<T&>().data())>>,
+    std::enable_if_t<
+        std::is_integral_v<decltype(std::declval<T&>().size())>>,
+    std::enable_if_t<has_member_pointer_v<T>>       /* <- NEW requirement */
+>> : std::true_type { };
+
+template<typename T>
+inline constexpr bool is_contiguous_container_v =
+    is_contiguous_container<std::remove_cv_t<std::remove_reference_t<T>>>::value;
+
+/**********************************************************************************************************************
+ *  detail::is_contiguous_range_v   (view / subrange / span / string_view …)
+ *      – contiguous range  *without* a “pointer” typedef (so it’s NOT a container)
+ *********************************************************************************************************************/
+template<typename T, typename = void>
+struct is_contiguous_range : std::false_type { };
+
+template<typename T>
+struct is_contiguous_range<T, std::void_t<
+    std::enable_if_t<!is_contiguous_container_v<T>>,/* exclude containers  */
+    decltype(std::begin(std::declval<T&>())),
+    decltype(std::end  (std::declval<T&>())),
+    decltype(std::data (std::declval<T&>())),
+    decltype(std::size (std::declval<T&>())),
+    std::enable_if_t<
+        std::is_pointer_v<decltype(std::data(std::declval<T&>()))>>,
+    std::enable_if_t<
+        std::is_integral_v<decltype(std::size(std::declval<T&>()))>>
+>> : std::true_type { };
 
 template<typename T>
 inline constexpr bool is_contiguous_range_v = is_contiguous_range<T>::value;
@@ -1086,7 +1205,7 @@ protected:
     constexpr span_storage_base() noexcept = default;
     constexpr span_storage_base(ElementType* data, std::size_t) noexcept : data_(data) {}
     
-    constexpr std::size_t size() const noexcept { return Extent; }
+    [[nodiscard]] constexpr std::size_t size() const noexcept { return Extent; }
     constexpr void set_size(std::size_t) noexcept {}
 };
 
@@ -1100,7 +1219,7 @@ protected:
     constexpr span_storage_base(ElementType* data, std::size_t size) noexcept 
         : data_(data), size_(size) {}
     
-    constexpr std::size_t size() const noexcept { return size_; }
+    [[nodiscard]] constexpr std::size_t size() const noexcept { return size_; }
     constexpr void set_size(std::size_t size) noexcept { size_ = size; }
 };
 

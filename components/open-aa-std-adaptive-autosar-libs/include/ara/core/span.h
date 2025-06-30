@@ -141,29 +141,44 @@ public:
      */
     template<bool B = (Extent == 0) || (Extent == dynamic_extent),
              typename = std::enable_if_t<B>>
-    constexpr Span() noexcept : storage_type(nullptr, 0) {}
+    constexpr Span() noexcept : storage_type{nullptr, 0} {}
 
     /*!
      * \brief Construct from pointer and count
      *
      * \param ptr Pointer to first element
-     * \param count Number of elements
+     * \param count Number of elements (wrapped with location info)
      *
      * \details
      * - [SWS_CORE_01942]: Iterator pair constructor
      * - For static extent, count must equal Extent
      * - Triggers violation if count != Extent for static spans
+     * - Triggers violation if ptr is null but count > 0
      *
      * \note Behavior is undefined if [ptr, ptr + count) is not valid range
      */
-    constexpr Span(pointer ptr, size_type count) noexcept
-        : storage_type(ptr, count)
+    constexpr Span(pointer ptr, const ara::core::internal::InputWithLocation<size_type>& count) noexcept
+        : storage_type{ptr, count.input()}
     {
+        // Validate count matches static extent
         if constexpr (Extent != dynamic_extent) {
             if (!detail::is_constant_evaluated()) {
-                if (count != Extent) {
-                    TriggerSizeViolation(ARA_CORE_INTERNAL_FILELINE, count, Extent);
+                if (count.input() != Extent) {
+                    TriggerSizeViolation(count.info(), count.input(), Extent);
                 }
+            } else {
+                constexpr unsigned char _illegal_count[1] = {};
+                [[maybe_unused]] const auto verify{_illegal_count[(count.input() == Extent) ? 0 : 1]};
+            }
+        }
+
+        // Validate null pointer with non-zero count
+        if (ptr == nullptr && count.input() > 0) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerNullPointerViolation(count.info());
+            } else {
+                constexpr unsigned char _null_pointer_violation[1] = {};
+                [[maybe_unused]] const auto verify{_null_pointer_violation[1]};
             }
         }
     }
@@ -172,19 +187,37 @@ public:
      * \brief Construct from iterator pair
      *
      * \param first Iterator to first element
-     * \param last Iterator past last element
+     * \param last Iterator past last element (wrapped with location info)
      *
      * \details
      * - [SWS_CORE_01943]: Range constructor
      * - Distance must equal Extent for static spans
-     * - Iterators must denote valid range
+     * - Iterators must denote valid range (first <= last)
+     * - Triggers violation if range is invalid or size mismatch
      */
-    constexpr Span(pointer first, pointer last) noexcept
-        : Span(first, static_cast<size_type>(last - first))
+    constexpr Span(pointer first, const ara::core::internal::InputWithLocation<pointer>& last) noexcept
+        : Span{first, static_cast<size_type>(std::distance(first, last.input()))}
     {
-        if (!detail::is_constant_evaluated()) {
-            if (last < first) {
-                ara::core::Abort("Invalid span construction: last < first");
+        // Validate range order
+        if (last.input() < first) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerRangeViolation(last.info());
+            } else {
+                constexpr unsigned char _illegal_range[1] = {};
+                [[maybe_unused]] const auto verify{_illegal_range[1]};
+            }
+        }
+
+        // Validate size matches static extent
+        if constexpr (Extent != dynamic_extent) {
+            const auto cnt = static_cast<size_type>(std::distance(first, last.input()));
+            if (!detail::is_constant_evaluated()) {
+                if (cnt != Extent) {
+                    TriggerSizeViolation(last.info(), cnt, Extent);
+                }
+            } else {
+                constexpr unsigned char _illegal_count[1] = {};
+                [[maybe_unused]] const auto verify{_illegal_count[(cnt == Extent) ? 0 : 1]};
             }
         }
     }
@@ -199,13 +232,14 @@ public:
      * - [SWS_CORE_01944]: Array constructor
      * - Automatically deduces size from array
      * - Only participates when N == Extent or dynamic extent
+     * - No runtime checks needed as size is compile-time known
      */
     template<std::size_t N,
              typename = std::enable_if_t<
                  (Extent == dynamic_extent || N == Extent) &&
                  detail::is_element_type_compatible_v<element_type*, element_type>>>
     constexpr Span(element_type (&arr)[N]) noexcept
-        : storage_type(&arr[0], N) {}
+        : storage_type{&arr[0], N} {}
 
     /*!
      * \brief Construct from std::array
@@ -218,20 +252,48 @@ public:
      * - Standard array constructor
      * - Supports const-qualification conversions
      * - Only participates when types and sizes are compatible
+     * - No runtime checks needed as size is compile-time known
      */
     template<typename U, std::size_t N,
              typename = std::enable_if_t<
                  (Extent == dynamic_extent || N == Extent) &&
                  detail::is_element_type_compatible_v<U*, element_type>>>
     constexpr Span(std::array<U, N>& arr) noexcept
-        : storage_type(arr.data(), N) {}
+        : storage_type{arr.data(), N} {}
 
     template<typename U, std::size_t N,
              typename = std::enable_if_t<
                  (Extent == dynamic_extent || N == Extent) &&
                  detail::is_element_type_compatible_v<const U*, element_type>>>
     constexpr Span(const std::array<U, N>& arr) noexcept
-        : storage_type(arr.data(), N) {}
+        : storage_type{arr.data(), N} {}
+
+    /*!
+     * \brief Construct from ara::core::Array
+     *
+     * \tparam U Element type of array
+     * \tparam N Size of array
+     * \param arr Array to view
+     *
+     * \details
+     * - Supports ara::core::Array types
+     * - Enables seamless integration with Adaptive AUTOSAR containers
+     * - Only participates when types and sizes are compatible
+     * - No runtime checks needed as size is compile-time known
+     */
+    template<typename U, std::size_t N,
+             typename = std::enable_if_t<
+                 (Extent == dynamic_extent || N == Extent) &&
+                 detail::is_element_type_compatible_v<U*, element_type>>>
+    constexpr Span(ara::core::Array<U, N>& arr) noexcept
+        : storage_type{arr.data(), N} {}
+
+    template<typename U, std::size_t N,
+             typename = std::enable_if_t<
+                 (Extent == dynamic_extent || N == Extent) &&
+                 detail::is_element_type_compatible_v<const U*, element_type>>>
+    constexpr Span(const ara::core::Array<U, N>& arr) noexcept
+        : storage_type{arr.data(), N} {}
 
     /*!
      * \brief Construct from range (iterator pair)
@@ -240,26 +302,133 @@ public:
      * \tparam End Sentinel type
      * \param first Beginning of range
      * \param last End of range
+     * \param loc Source location for error reporting (default captured)
      *
      * \details
      * - Range-based constructor for any iterator pair
      * - Enables construction from ranges namespace views
-     * - Only for contiguous iterators
+     * - Validates range order and size compatibility
      */
     template<typename It, typename End,
              typename = std::enable_if_t<
                  !std::is_convertible_v<End, size_type> &&
                  std::is_convertible_v<typename std::iterator_traits<It>::pointer, pointer>>>
-    constexpr Span(It first, End last) noexcept
-        : storage_type(std::addressof(*first), std::distance(first, last))
+    constexpr Span(
+            It  first,
+            End last,
+            const ara::core::internal::InputWithLocation<std::uint8_t> loc =
+                  ara::core::internal::make_input_with_location<std::uint8_t>(0)) noexcept
+        : storage_type{std::to_address(first),
+                      static_cast<size_type>(std::distance(first, last))}
     {
-        if constexpr (Extent != dynamic_extent) {
-            auto dist = std::distance(first, last);
-            if (!detail::is_constant_evaluated()) {
-                if (static_cast<size_type>(dist) != Extent) {
-                    TriggerSizeViolation(ARA_CORE_INTERNAL_FILELINE, 
-                                       static_cast<size_type>(dist), Extent);
+        // Range order check for random-access iterators
+        if constexpr (std::is_same_v<typename std::iterator_traits<It>::iterator_category,
+                                    std::random_access_iterator_tag>) {
+            if (last < first) {
+                if (!detail::is_constant_evaluated()) {
+                    TriggerRangeViolation(loc.info());
+                } else {
+                    constexpr unsigned char _illegal_range[1] = {};
+                    [[maybe_unused]] const auto verify{_illegal_range[1]};
                 }
+            }
+        }
+
+        const auto cnt = static_cast<size_type>(std::distance(first, last));
+
+        // Extent check for static spans
+        if constexpr (Extent != dynamic_extent) {
+            if (!detail::is_constant_evaluated()) {
+                if (cnt != Extent) {
+                    TriggerSizeViolation(loc.info(), cnt, Extent);
+                }
+            } else {
+                constexpr unsigned char _illegal_count[1] = {};
+                [[maybe_unused]] const auto verify{_illegal_count[(cnt == Extent) ? 0 : 1]};
+            }
+        }
+    }
+
+    /*!
+     * \brief Construct from contiguous container (non-const)
+     *
+     * \tparam Container Contiguous container type
+     * \param cont Container to view
+     * \param loc Source location for error reporting (default captured)
+     *
+     * \details
+     * - Constructs span from any contiguous container with data() and size()
+     * - Excludes spans, arrays, and ranges (handled by other constructors)
+     * - Validates size compatibility for static spans
+     */
+    template <typename Container,
+              typename = std::enable_if_t<
+                  !detail::is_span_v<std::decay_t<Container>> &&
+                  !detail::is_std_array_v<std::decay_t<Container>> &&
+                  !detail::is_ara_array_v<std::decay_t<Container>> &&
+                  !detail::is_c_array_v<std::decay_t<Container>> &&
+                  !detail::is_contiguous_range_v<Container> &&
+                  !std::is_const_v<std::remove_reference_t<Container>> &&
+                  detail::is_contiguous_container_v<Container> &&
+                  detail::is_element_type_compatible_v<
+                      std::remove_pointer_t<decltype(std::data(std::declval<Container&>()))>*,
+                      element_type>>>
+    constexpr Span(Container& cont,
+                   const ara::core::internal::InputWithLocation<std::uint8_t> loc =
+                         ara::core::internal::make_input_with_location<std::uint8_t>(0)) noexcept
+        : storage_type{std::data(cont), std::size(cont)}
+    {   
+        // Validate size matches static extent
+        if constexpr (Extent != dynamic_extent) {
+            if (!detail::is_constant_evaluated()) {
+                if (std::size(cont) != Extent) {
+                    TriggerSizeViolation(loc.info(), std::size(cont), Extent);
+                }
+            } else {
+                constexpr unsigned char _illegal_count[1] = {};
+                [[maybe_unused]] const auto verify{_illegal_count[(std::size(cont) == Extent) ? 0 : 1]};
+            }
+        }   
+    }
+
+    /*!
+     * \brief Construct from contiguous container (const)
+     *
+     * \tparam Container Contiguous container type
+     * \param cont Constant container to view
+     * \param loc Source location for error reporting (default captured)
+     *
+     * \details
+     * - Mirrors the non-const container overload
+     * - Allows Span<const T> from const std::vector<T>, const std::string, etc.
+     * - Excluded when element-type conversion would discard cv-qualification
+     */
+    template<typename Container,
+             typename = std::enable_if_t<
+                 !detail::is_span_v<std::decay_t<Container>> &&
+                 !detail::is_std_array_v<std::decay_t<Container>> &&
+                 !detail::is_ara_array_v<std::decay_t<Container>> &&
+                 !detail::is_c_array_v<std::decay_t<Container>> &&
+                 !detail::is_contiguous_range_v<Container> &&
+                 detail::is_contiguous_container_v<const Container> &&
+                 detail::is_element_type_compatible_v<
+                     std::remove_pointer_t<
+                         decltype(std::data(std::declval<const Container&>()))>*,
+                     element_type>>>
+    constexpr Span(const Container& cont,
+                   const ara::core::internal::InputWithLocation<std::uint8_t> loc =
+                         ara::core::internal::make_input_with_location<std::uint8_t>(0)) noexcept
+        : storage_type{std::data(cont), std::size(cont)}
+    {
+        // Validate size matches static extent
+        if constexpr (Extent != dynamic_extent) {
+            if (!detail::is_constant_evaluated()) {
+                if (std::size(cont) != Extent) {
+                    TriggerSizeViolation(loc.info(), std::size(cont), Extent);
+                }
+            } else {
+                constexpr unsigned char _illegal_count[1] = {};
+                [[maybe_unused]] const auto verify{_illegal_count[(std::size(cont) == Extent) ? 0 : 1]};
             }
         }
     }
@@ -269,30 +438,40 @@ public:
      *
      * \tparam Range Range type
      * \param r Range to view
+     * \param loc Source location for error reporting (default captured)
      *
      * \details
      * - Constructs span from any contiguous range
      * - Works with ranges namespace views
      * - Enables natural range integration
+     * - Validates size compatibility for static spans
      */
     template<typename Range,
              typename = void,
              typename = std::enable_if_t<
                  !detail::is_span_v<std::decay_t<Range>> &&
                  !detail::is_std_array_v<std::decay_t<Range>> &&
+                 !detail::is_ara_array_v<std::decay_t<Range>> &&
                  !detail::is_c_array_v<std::decay_t<Range>> &&
-                 detail::is_contiguous_range_v<Range> &&
+                 !detail::is_contiguous_container_v<std::decay_t<Range>> &&
+                 detail::is_contiguous_range_v<std::decay_t<Range>> &&
                  detail::is_element_type_compatible_v<
                      std::remove_pointer_t<decltype(std::data(std::declval<Range&>()))>*,
                      element_type>>>
-    constexpr Span(Range&& r) noexcept
-        : storage_type(std::data(r), std::size(r))
+    constexpr Span(Range&& r,
+                   const ara::core::internal::InputWithLocation<std::uint8_t> loc =
+                         ara::core::internal::make_input_with_location<std::uint8_t>(0)) noexcept
+        : storage_type{std::data(r), std::size(r)}
     {
+        // Validate size matches static extent
         if constexpr (Extent != dynamic_extent) {
             if (!detail::is_constant_evaluated()) {
                 if (std::size(r) != Extent) {
-                    TriggerSizeViolation(ARA_CORE_INTERNAL_FILELINE, std::size(r), Extent);
+                    TriggerSizeViolation(loc.info(), std::size(r), Extent);
                 }
+            } else {
+                constexpr unsigned char _illegal_count[1] = {};
+                [[maybe_unused]] const auto verify{_illegal_count[(std::size(r) == Extent) ? 0 : 1]};
             }
         }
     }
@@ -303,6 +482,7 @@ public:
      * \tparam U Element type of source span
      * \tparam N Extent of source span
      * \param source Source span to convert from
+     * \param loc Source location for error reporting (default captured)
      *
      * \details
      * - [SWS_CORE_01950]: Converting constructor
@@ -310,28 +490,79 @@ public:
      * - Static to dynamic extent conversions
      * - Size compatibility checked at compile/runtime
      */
-    template<typename U, std::size_t N,
-             typename = std::enable_if_t<
-                 (Extent == dynamic_extent || N == Extent || N == dynamic_extent) &&
-                 detail::is_element_type_compatible_v<U*, element_type>>>
-    constexpr Span(const Span<U, N>& source) noexcept
-        : storage_type(source.data(), source.size())
+    template <typename U, std::size_t N,
+              typename = std::enable_if_t<
+                  (Extent == dynamic_extent || N == Extent || N == dynamic_extent) &&
+                  detail::is_element_type_compatible_v<U*, element_type>>>
+    constexpr Span(const Span<U, N>& source,
+                   const ara::core::internal::InputWithLocation<std::uint8_t> loc =
+                         ara::core::internal::make_input_with_location<std::uint8_t>(0)) noexcept
+        : storage_type{source.data(), source.size()}
     {
+        // Validate size when converting dynamic to static extent
         if constexpr (Extent != dynamic_extent && N == dynamic_extent) {
             if (!detail::is_constant_evaluated()) {
                 if (source.size() != Extent) {
-                    TriggerSizeViolation(ARA_CORE_INTERNAL_FILELINE, source.size(), Extent);
+                    TriggerSizeViolation(loc.info(), source.size(), Extent);
                 }
+            } else {
+                constexpr unsigned char _illegal_count[1] = {};
+                [[maybe_unused]] const auto verify{
+                    _illegal_count[(source.size() == Extent) ? 0 : 1]};
             }
         }
     }
 
+    // -----------------------------------------------------------------------------------
+    // C++26 FEATURES - INITIALIZER LIST SUPPORT
+    // -----------------------------------------------------------------------------------
+    /*!
+     * \brief Construct from initializer list (C++26 feature, P2447R6)
+     *
+     * \param il Initializer list to view
+     * \param loc Source location for error reporting (default captured)
+     *
+     * \details
+     * - C++26 enhancement for natural syntax
+     * - Allows span<const T> construction from {1, 2, 3}
+     * - Static extent must match initializer list size
+     * - Validates size compatibility
+     *
+     * \note Only available for const element types as initializer_list is immutable
+     */
+    template<
+        typename U = element_type,
+        std::size_t E = Extent,
+        typename = std::enable_if_t<
+            std::is_const_v<U> &&
+            std::is_same_v<value_type, std::remove_cv_t<U>>>>
+    constexpr Span(std::initializer_list<value_type> il,
+                   const ara::core::internal::InputWithLocation<std::uint8_t> loc =
+                         ara::core::internal::make_input_with_location<std::uint8_t>(0)) noexcept
+      : storage_type{il.begin(), il.size()}
+    {
+        // Validate size matches static extent
+        if constexpr (E != dynamic_extent) {
+            if (!detail::is_constant_evaluated()) {
+                if (il.size() != E) {
+                    TriggerSizeViolation(loc.info(), il.size(), E);
+                }
+            } else {
+                constexpr unsigned char _illegal_count[1] = {};
+                [[maybe_unused]] const auto verify{
+                    _illegal_count[(il.size() == E) ? 0 : 1]
+                };
+            }
+        }
+    }
+    
     /*!
      * \brief Copy constructor
      *
      * \details
      * - [SWS_CORE_01940]: Defaulted copy constructor
      * - Trivially copyable for performance
+     * - No validation needed as source is already valid
      */
     constexpr Span(const Span&) noexcept = default;
 
@@ -341,8 +572,9 @@ public:
      * \details
      * - [SWS_CORE_01952]: Defaulted copy assignment
      * - Trivially copy assignable
+     * - No validation needed as source is already valid
      */
-    constexpr Span& operator=(const Span&) noexcept = default;
+    constexpr auto operator=(const Span&) noexcept -> Span& = default;
 
     /*!
      * \brief Destructor
@@ -350,40 +582,9 @@ public:
      * \details
      * - [SWS_CORE_01951]: Defaulted destructor
      * - Trivially destructible
+     * - No cleanup needed for non-owning view
      */
     ~Span() noexcept = default;
-
-    // -----------------------------------------------------------------------------------
-    // C++26 FEATURES - INITIALIZER LIST SUPPORT
-    // -----------------------------------------------------------------------------------
-    
-    /*!
-     * \brief Construct from initializer list (C++26 feature, P2447R6)
-     *
-     * \param il Initializer list to view
-     *
-     * \details
-     * - C++26 enhancement for natural syntax
-     * - Allows span<const T> construction from {1, 2, 3}
-     * - Static extent must match initializer list size
-     *
-     * \note Only available for const element types as initializer_list is immutable
-     */
-    template<typename U = element_type,
-             typename = std::enable_if_t<
-                 std::is_const_v<U> &&
-                 std::is_same_v<value_type, std::remove_cv_t<U>>>>
-    constexpr Span(std::initializer_list<value_type> il) noexcept
-        : storage_type(il.begin(), il.size())
-    {
-        if constexpr (Extent != dynamic_extent) {
-            if (!detail::is_constant_evaluated()) {
-                if (il.size() != Extent) {
-                    TriggerSizeViolation(ARA_CORE_INTERNAL_FILELINE, il.size(), Extent);
-                }
-            }
-        }
-    }
 
     // -----------------------------------------------------------------------------------
     // SUBVIEWS [SWS_CORE_01970-01972]
@@ -393,23 +594,30 @@ public:
      * \brief Obtain subspan of first Count elements
      *
      * \tparam Count Number of elements in subspan
+     * \param loc Source location for error reporting (default captured)
      * \return Span of first Count elements
      *
      * \details
      * - [SWS_CORE_01970]: Static first subspan
-     * - Compile-time bounds checking
-     * - Zero-cost abstraction
+     * - Compile-time bounds checking when possible
+     * - Runtime validation that Count doesn't exceed size
+     * - Zero-cost abstraction in release builds
      */
     template<std::size_t Count>
-    [[nodiscard]] constexpr auto first() const noexcept
+    [[nodiscard]] constexpr auto first(
+        const ara::core::internal::InputWithLocation<std::uint8_t> loc =
+              ara::core::internal::make_input_with_location<std::uint8_t>(0)) const noexcept
         -> Span<element_type, Count>
     {
         static_assert(Count <= Extent || Extent == dynamic_extent,
                       "Count exceeds static extent");
         if (!detail::is_constant_evaluated()) {
             if (Count > size()) {
-                ara::core::Abort("first<Count>(): Count exceeds span size");
+                TriggerSubspanViolation(loc.info(), "first", Count, size());
             }
+        } else {
+            constexpr unsigned char _count_check[1] = {};
+            [[maybe_unused]] const auto verify{_count_check[(Count <= size()) ? 0 : 1]};
         }
         return Span<element_type, Count>(data_, Count);
     }
@@ -417,44 +625,56 @@ public:
     /*!
      * \brief Obtain subspan of first count elements (dynamic)
      *
-     * \param count Number of elements in subspan
+     * \param count Number of elements in subspan (wrapped with location info)
      * \return Dynamic extent span of first count elements
      *
      * \details
      * - [SWS_CORE_01970]: Dynamic first subspan
      * - Runtime bounds checking
+     * - Validates count doesn't exceed current size
      */
-    [[nodiscard]] constexpr auto first(size_type count) const noexcept
+    [[nodiscard]] constexpr auto first(
+        const ara::core::internal::InputWithLocation<size_type>& count) const noexcept
         -> Span<element_type, dynamic_extent>
     {
         if (!detail::is_constant_evaluated()) {
-            if (count > size()) {
-                ara::core::Abort("first(count): count exceeds span size");
+            if (count.input() > size()) {
+                TriggerSubspanViolation(count.info(), "first", count.input(), size());
             }
+        } else {
+            constexpr unsigned char _count_check[1] = {};
+            [[maybe_unused]] const auto verify{_count_check[(count.input() <= size()) ? 0 : 1]};
         }
-        return Span<element_type, dynamic_extent>(data_, count);
+        return Span<element_type, dynamic_extent>(data_, count.input());
     }
 
     /*!
      * \brief Obtain subspan of last Count elements
      *
      * \tparam Count Number of elements in subspan
+     * \param loc Source location for error reporting (default captured)
      * \return Span of last Count elements
      *
      * \details
      * - [SWS_CORE_01971]: Static last subspan
-     * - Compile-time bounds checking
+     * - Compile-time bounds checking when possible
+     * - Runtime validation that Count doesn't exceed size
      */
     template<std::size_t Count>
-    [[nodiscard]] constexpr auto last() const noexcept
+    [[nodiscard]] constexpr auto last(
+        const ara::core::internal::InputWithLocation<std::uint8_t> loc =
+              ara::core::internal::make_input_with_location<std::uint8_t>(0)) const noexcept
         -> Span<element_type, Count>
     {
         static_assert(Count <= Extent || Extent == dynamic_extent,
                       "Count exceeds static extent");
         if (!detail::is_constant_evaluated()) {
             if (Count > size()) {
-                ara::core::Abort("last<Count>(): Count exceeds span size");
+                TriggerSubspanViolation(loc.info(), "last", Count, size());
             }
+        } else {
+            constexpr unsigned char _count_check[1] = {};
+            [[maybe_unused]] const auto verify{_count_check[(Count <= size()) ? 0 : 1]};
         }
         return Span<element_type, Count>(data_ + size() - Count, Count);
     }
@@ -462,18 +682,27 @@ public:
     /*!
      * \brief Obtain subspan of last count elements (dynamic)
      *
-     * \param count Number of elements in subspan
+     * \param count Number of elements in subspan (wrapped with location info)
      * \return Dynamic extent span of last count elements
+     *
+     * \details
+     * - Dynamic version of last()
+     * - Runtime bounds checking
+     * - Validates count doesn't exceed current size
      */
-    [[nodiscard]] constexpr auto last(size_type count) const noexcept
+    [[nodiscard]] constexpr auto last(
+        const ara::core::internal::InputWithLocation<size_type>& count) const noexcept
         -> Span<element_type, dynamic_extent>
     {
         if (!detail::is_constant_evaluated()) {
-            if (count > size()) {
-                ara::core::Abort("last(count): count exceeds span size");
+            if (count.input() > size()) {
+                TriggerSubspanViolation(count.info(), "last", count.input(), size());
             }
+        } else {
+            constexpr unsigned char _count_check[1] = {};
+            [[maybe_unused]] const auto verify{_count_check[(count.input() <= size()) ? 0 : 1]};
         }
-        return Span<element_type, dynamic_extent>(data_ + size() - count, count);
+        return Span<element_type, dynamic_extent>(data_ + size() - count.input(), count.input());
     }
 
     /*!
@@ -481,28 +710,43 @@ public:
      *
      * \tparam Offset Starting position
      * \tparam Count Number of elements (default: all remaining)
+     * \param loc Source location for error reporting (default captured)
      * \return Subspan with calculated extent
      *
      * \details
      * - [SWS_CORE_01972]: Static subspan
      * - Extent calculated at compile time
+     * - Validates offset and count at compile/runtime
      * - Optimized for static bounds checking
      */
     template<std::size_t Offset, std::size_t Count = dynamic_extent>
-    [[nodiscard]] constexpr auto subspan() const noexcept
+    [[nodiscard]] constexpr auto subspan(
+        const ara::core::internal::InputWithLocation<std::uint8_t> loc =
+              ara::core::internal::make_input_with_location<std::uint8_t>(0)) const noexcept
         -> Span<element_type, detail::subspan_extent<Extent, Offset, Count>::value>
     {
         static_assert(Offset <= Extent || Extent == dynamic_extent,
                       "Offset exceeds static extent");
-        static_assert(Count == dynamic_extent || (Extent != dynamic_extent && Count <= Extent - Offset) || Extent == dynamic_extent,
+        static_assert(Count == dynamic_extent || 
+                      (Extent != dynamic_extent && Count <= Extent - Offset) || 
+                      Extent == dynamic_extent,
                       "Count exceeds remaining elements");
         
+        // Runtime validation for offset
         if (!detail::is_constant_evaluated()) {
             if (Offset > size()) {
-                ara::core::Abort("subspan<Offset, Count>(): Offset exceeds span size");
+                TriggerSubspanViolation(loc.info(), "subspan", Offset, size(), true);
             }
             if (Count != dynamic_extent && Count > size() - Offset) {
-                ara::core::Abort("subspan<Offset, Count>(): Count exceeds remaining elements");
+                TriggerSubspanViolation(loc.info(), "subspan", Count, size() - Offset);
+            }
+        } else {
+            constexpr unsigned char _offset_check[1] = {};
+            [[maybe_unused]] const auto verify1{_offset_check[(Offset <= size()) ? 0 : 1]};
+            
+            if constexpr (Count != dynamic_extent) {
+                constexpr unsigned char _count_check[1] = {};
+                [[maybe_unused]] const auto verify2{_count_check[(Count <= size() - Offset) ? 0 : 1]};
             }
         }
         
@@ -515,26 +759,41 @@ public:
     /*!
      * \brief Obtain subspan starting at offset (dynamic)
      *
-     * \param offset Starting position
-     * \param count Number of elements (default: all remaining)
+     * \param offset Starting position (wrapped with location info)
+     * \param count Number of elements (wrapped with location info, default: all remaining)
      * \return Dynamic extent subspan
+     *
+     * \details
+     * - Dynamic version of subspan()
+     * - Runtime bounds checking for both offset and count
+     * - Default count means "all remaining elements"
      */
-    [[nodiscard]] constexpr auto subspan(size_type offset, 
+    [[nodiscard]] constexpr auto subspan(
+        const ara::core::internal::InputWithLocation<size_type>& offset, 
                                         size_type count = dynamic_extent) const noexcept
         -> Span<element_type, dynamic_extent>
     {
+        // Validate offset
         if (!detail::is_constant_evaluated()) {
-            if (offset > size()) {
-                ara::core::Abort("subspan(offset, count): offset exceeds span size");
+            if (offset.input() > size()) {
+                TriggerSubspanViolation(offset.info(), "subspan", offset.input(), size(), true);
             }
-            if (count != dynamic_extent && count > size() - offset) {
-                ara::core::Abort("subspan(offset, count): count exceeds remaining elements");
+            if (count != dynamic_extent && count > size() - offset.input()) {
+                TriggerSubspanViolation(offset.info(), "subspan", count, size() - offset.input());
+            }
+        } else {
+            constexpr unsigned char _offset_check[1] = {};
+            [[maybe_unused]] const auto verify1{_offset_check[(offset.input() <= size()) ? 0 : 1]};
+
+            if (count != dynamic_extent) {
+                constexpr unsigned char _count_check[1] = {};
+                [[maybe_unused]] const auto verify2{_count_check[(count <= size() - offset.input()) ? 0 : 1]};
             }
         }
         
         return Span<element_type, dynamic_extent>(
-            data_ + offset,
-            count == dynamic_extent ? size() - offset : count
+            data_ + offset.input(),
+            count == dynamic_extent ? size() - offset.input() : count
         );
     }
 
@@ -551,6 +810,7 @@ public:
      * - [SWS_CORE_01960]: Size observer
      * - Compile-time constant for static extent
      * - Zero-cost abstraction
+     * - No validation needed (always valid)
      */
     [[nodiscard]] constexpr size_type size() const noexcept
     {
@@ -565,6 +825,7 @@ public:
      * \details
      * - [SWS_CORE_01961]: Size in bytes observer
      * - Equivalent to size() * sizeof(element_type)
+     * - May overflow for very large spans (user responsibility)
      */
     [[nodiscard]] constexpr size_type size_bytes() const noexcept
     {
@@ -579,6 +840,7 @@ public:
      * \details
      * - [SWS_CORE_01962]: Empty check
      * - Compile-time constant for static extent
+     * - More efficient than size() == 0
      */
     [[nodiscard]] constexpr bool empty() const noexcept
     {
@@ -590,67 +852,109 @@ public:
     // -----------------------------------------------------------------------------------
     
     /*!
-     * \brief Access element at index (unchecked)
+     * \brief Access element at index with bounds checking
      *
-     * \param idx Index of element
+     * \param idx Index of element (wrapped with location info)
      * \return Reference to element
      *
      * \details
-     * - [SWS_CORE_01964]: Unchecked element access
-     * - Zero-cost in release builds
+     * - [SWS_CORE_01964]: Element access operator
+     * - Always performs bounds checking
+     * - Calls violation handler on out-of-bounds
+     * - Consistent with at() for safety
      *
-     * \note Use at() for bounds-checked access
+     * \note Standard span::operator[] is unchecked, but we prioritize safety
      */
-    [[nodiscard]] constexpr reference operator[](size_type idx) const noexcept
+    [[nodiscard]] constexpr reference operator[](
+        const ara::core::internal::InputWithLocation<size_type>& idx) const noexcept
     {
-        return at(idx);
+        if (idx.input() >= size()) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerBoundsViolation(idx.info(), idx.input(), size());
+            } else {
+                constexpr unsigned char _bounds_check[1] = {};
+                [[maybe_unused]] const auto verify{_bounds_check[1]};
+            }
+        }
+        return data_[idx.input()];
     }
 
     /*!
-     * \brief Access element with bounds checking (C++26 feature)
+     * \brief Access element with explicit bounds checking
      *
-     * \param idx Index of element
+     * \param idx Index of element (wrapped with location info)
      * \return Reference to element
      *
      * \details
      * - C++26 enhancement for safety
      * - Always performs bounds checking
      * - Calls violation handler on out-of-bounds
-     *
-     * \note Provides consistent interface with Array and Vector
+     * - Provides consistent interface with Array and Vector
      */
-    [[nodiscard]] constexpr reference at(size_type idx) const
+    [[nodiscard]] constexpr reference at(
+        const ara::core::internal::InputWithLocation<size_type>& idx) const
     {
-        if (idx >= size()) {
-            TriggerBoundsViolation(ARA_CORE_INTERNAL_FILELINE, idx, size());
+        if (idx.input() >= size()) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerBoundsViolation(idx.info(), idx.input(), size());
+            } else {
+                constexpr unsigned char _bounds_check[1] = {};
+                [[maybe_unused]] const auto verify{_bounds_check[1]};
+            }
         }
-        return data_[idx];
+        return data_[idx.input()];
     }
 
     /*!
      * \brief Access first element
      *
+     * \param loc Source location for error reporting (default captured)
      * \return Reference to first element
      *
      * \details
      * - [SWS_CORE_01966]: Front element access
+     * - Validates span is not empty
+     * - More descriptive error than at(0)
      */
-    [[nodiscard]] constexpr reference front() const noexcept
+    [[nodiscard]] constexpr reference front(
+        const ara::core::internal::InputWithLocation<std::uint8_t> loc =
+              ara::core::internal::make_input_with_location<std::uint8_t>(0)) const noexcept
     {
-        return at(0);
+        if (empty()) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerEmptyAccessViolation(loc.info(), "front");
+            } else {
+                constexpr unsigned char _empty_check[1] = {};
+                [[maybe_unused]] const auto verify{_empty_check[1]};
+            }
+        }
+        return data_[0];
     }
 
     /*!
      * \brief Access last element
      *
+     * \param loc Source location for error reporting (default captured)
      * \return Reference to last element
      *
      * \details
      * - [SWS_CORE_01967]: Back element access
+     * - Validates span is not empty
+     * - More descriptive error than at(size()-1)
      */
-    [[nodiscard]] constexpr reference back() const noexcept
+    [[nodiscard]] constexpr reference back(
+        const ara::core::internal::InputWithLocation<std::uint8_t> loc =
+              ara::core::internal::make_input_with_location<std::uint8_t>(0)) const noexcept
     {
-        return at(size() - 1);
+        if (empty()) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerEmptyAccessViolation(loc.info(), "back");
+            } else {
+                constexpr unsigned char _empty_check[1] = {};
+                [[maybe_unused]] const auto verify{_empty_check[1]};
+            }
+        }
+        return data_[size() - 1];
     }
 
     /*!
@@ -660,8 +964,9 @@ public:
      *
      * \details
      * - [SWS_CORE_01965]: Data pointer access
-     * - Returns nullptr for empty spans
+     * - Returns nullptr for empty spans (even if constructed with non-null pointer)
      * - Contiguous memory guarantee
+     * - No validation needed (always safe)
      */
     [[nodiscard]] constexpr pointer data() const noexcept
     {
@@ -679,6 +984,7 @@ public:
      * - [SWS_CORE_01917]: Iterator type definition
      * - Satisfies contiguous iterator requirements
      * - Enables vectorization and optimization
+     * - No bounds checking in iterators (performance critical)
      */
     class iterator {
     public:
@@ -688,8 +994,7 @@ public:
         using pointer          = element_type*;
         using reference        = element_type&;
         #if __cplusplus >= 202002L
-                /*  C++20: advertise contiguity to the ranges library           */
-                using iterator_concept = std::contiguous_iterator_tag;         
+        using iterator_concept = std::contiguous_iterator_tag;         
         #endif
 
     private:
@@ -733,17 +1038,8 @@ public:
 
         [[nodiscard]] constexpr pointer base() const noexcept { return ptr_; }
 
-        /**********************************************************************************************************************
-         *  --- iterator helpers for C++20 ranges -------------------------------------------------
-         *********************************************************************************************************************/
-
-        // ADL-findable friend allowing     n + it
+        // ADL-findable friend for n + it
         friend constexpr iterator operator+(difference_type n, iterator it) noexcept
-        { return it + n; }
-        
-        // idem for const_iterator
-        friend constexpr const_iterator operator+(difference_type n,
-                                                  const const_iterator& it) noexcept
         { return it + n; }
     };
 
@@ -753,6 +1049,7 @@ public:
      * \details
      * - [SWS_CORE_01918]: Const iterator type definition
      * - Prevents modification through iterator
+     * - Convertible from non-const iterator
      */
     class const_iterator {
     public:
@@ -762,8 +1059,7 @@ public:
         using pointer          = const element_type*;
         using reference        = const element_type&;
         #if __cplusplus >= 202002L
-                /*  C++20: advertise contiguity to the ranges library           */
-                using iterator_concept = std::contiguous_iterator_tag;         
+        using iterator_concept = std::contiguous_iterator_tag;         
         #endif
         
     private:
@@ -807,6 +1103,10 @@ public:
         { return ptr_ >= other.ptr_; }
 
         [[nodiscard]] constexpr pointer base() const noexcept { return ptr_; }
+        
+        // ADL-findable friend for n + it
+        friend constexpr const_iterator operator+(difference_type n, const const_iterator& it) noexcept
+        { return it + n; }
     };
 
     /*!
@@ -816,6 +1116,8 @@ public:
      *
      * \details
      * - [SWS_CORE_01968]: Begin iterator
+     * - Points to first element or equals end() if empty
+     * - No validation needed
      */
     [[nodiscard]] constexpr iterator begin() const noexcept { return iterator(data_); }
 
@@ -826,6 +1128,8 @@ public:
      *
      * \details
      * - [SWS_CORE_01969]: End iterator
+     * - Points one past last element
+     * - Valid for comparison but not dereference
      */
     [[nodiscard]] constexpr iterator end() const noexcept { return iterator(data_ + size()); }
 
@@ -849,8 +1153,9 @@ public:
      *
      * \details
      * - C++26 enhancement for convenience
-     * - Linear search complexity
+     * - Linear search complexity O(n)
      * - Constexpr-compatible for C++17
+     * - No validation needed (safe operation)
      */
     [[nodiscard]] constexpr bool contains(const element_type& value) const noexcept
     {
@@ -867,8 +1172,9 @@ public:
      *
      * \details
      * - C++26 enhancement
-     * - Efficient prefix checking
+     * - Efficient prefix checking O(min(n, m))
      * - Fully constexpr in C++17
+     * - Returns false if prefix is larger
      */
     template<typename U, std::size_t N>
     [[nodiscard]] constexpr bool starts_with(Span<U, N> prefix) const noexcept
@@ -889,8 +1195,9 @@ public:
      *
      * \details
      * - C++26 enhancement
-     * - Efficient suffix checking
+     * - Efficient suffix checking O(min(n, m))
      * - Fully constexpr in C++17
+     * - Returns false if suffix is larger
      */
     template<typename U, std::size_t N>
     [[nodiscard]] constexpr bool ends_with(Span<U, N> suffix) const noexcept
@@ -899,7 +1206,7 @@ public:
             return false;
         }
         return detail::constexpr_equal(suffix.begin(), suffix.end(),
-                               end() - static_cast<difference_type>(suffix.size()));
+                                       end() - static_cast<difference_type>(suffix.size()));
     }
 
     /*!
@@ -911,6 +1218,7 @@ public:
      * \details
      * - C++26 enhancement
      * - Returns empty second span if delimiter not found
+     * - Delimiter itself is excluded from both spans
      * - Fully constexpr in C++17
      */
     [[nodiscard]] constexpr auto split(const element_type& delimiter) const noexcept
@@ -929,8 +1237,16 @@ public:
     }
 
 private:
+    // -----------------------------------------------------------------------------------
+    // VIOLATION HANDLERS
+    // -----------------------------------------------------------------------------------
+    
     /*!
      * \brief Trigger size mismatch violation
+     *
+     * \param location Source location info
+     * \param actual Actual size provided
+     * \param expected Expected size (from static extent)
      */
     [[noreturn]] static void TriggerSizeViolation(
         std::string_view location,
@@ -946,7 +1262,37 @@ private:
     }
 
     /*!
-     * \brief Trigger bounds violation
+     * \brief Trigger null pointer violation
+     *
+     * \param location Source location info
+     */
+    [[noreturn]] static void TriggerNullPointerViolation(std::string_view location) noexcept
+    {
+        auto& handler = ara::core::internal::ViolationHandler::Instance();
+        handler.TriggerSpanNullPointerViolation(
+            ara::core::internal::ViolationHandler::SpanKey{},
+            location);
+    }
+
+    /*!
+     * \brief Trigger range violation (invalid iterator order)
+     *
+     * \param location Source location info
+     */
+    [[noreturn]] static void TriggerRangeViolation(std::string_view location) noexcept
+    {
+        auto& handler = ara::core::internal::ViolationHandler::Instance();
+        handler.TriggerSpanRangeViolation(
+            ara::core::internal::ViolationHandler::SpanKey{},
+            location);
+    }
+
+    /*!
+     * \brief Trigger bounds violation (out-of-bounds access)
+     *
+     * \param location Source location info
+     * \param index Requested index
+     * \param size Current span size
      */
     [[noreturn]] static void TriggerBoundsViolation(
         std::string_view location,
@@ -960,47 +1306,96 @@ private:
             index,
             size);
     }
+
+    /*!
+     * \brief Trigger empty access violation
+     *
+     * \param location Source location info
+     * \param operation Operation attempted (e.g., "front", "back")
+     */
+    [[noreturn]] static void TriggerEmptyAccessViolation(
+        std::string_view location,
+        std::string_view operation) noexcept
+    {
+        auto& handler = ara::core::internal::ViolationHandler::Instance();
+        handler.TriggerSpanEmptyAccessViolation(
+            ara::core::internal::ViolationHandler::SpanKey{},
+            location,
+            operation);
+    }
+
+    /*!
+     * \brief Trigger subspan violation
+     *
+     * \param location Source location info
+     * \param operation Subspan operation (e.g., "first", "last", "subspan")
+     * \param requested Requested size/offset
+     * \param available Available size
+     * \param is_offset true if the value is an offset, false if it's a count
+     */
+    [[noreturn]] static void TriggerSubspanViolation(
+        std::string_view location,
+        std::string_view operation,
+        std::size_t requested,
+        std::size_t available,
+        bool is_offset = false) noexcept
+    {
+        auto& handler = ara::core::internal::ViolationHandler::Instance();
+        handler.TriggerSpanSubspanViolation(
+            ara::core::internal::ViolationHandler::SpanKey{},
+            location,
+            operation,
+            requested,
+            available,
+            is_offset);
+    }
 };
 
 /**********************************************************************************************************************
  *  CLASS TEMPLATE ARGUMENT DEDUCTION GUIDES  [SWS_CORE_01953]
- *  -------------------------------------------------------------------------------------------------------------------
- *  \details  These guides teach the compiler how to deduce <ElementType, Extent> for ara::core::Span when the caller
- *            omits them.  The set exactly parallels the deduction-guide set mandated for std::span in C++20
- *            extended with const-qualified variants to match our extra constructors.
  *********************************************************************************************************************/
 
-/*--- C-array -------------------------------------------------------------------*/
+// C-array
 template<typename T, std::size_t N>
 Span(T (&)[N]) -> Span<T, N>;
 
-/*--- std::array (mutable + const) ----------------------------------------------*/
+// std::array (mutable + const)
 template<typename T, std::size_t N>
-Span(std::array<T, N>&)       -> Span<T, N>;
+Span(std::array<T, N>&) -> Span<T, N>;
+
 template<typename T, std::size_t N>
 Span(const std::array<T, N>&) -> Span<const T, N>;
 
-/*--- Generic contiguous container  (data() / size()) ---------------------------*/
+// ara::core::Array (mutable + const)
+template<typename T, std::size_t N>
+Span(ara::core::Array<T, N>&) -> Span<T, N>;
+
+template<typename T, std::size_t N>
+Span(const ara::core::Array<T, N>&) -> Span<const T, N>;
+
+// Generic contiguous container (non-const)
 template<class C,
          typename = std::enable_if_t<
              detail::has_data_and_size_v<C> &&
              !detail::is_span_v<std::decay_t<C>> &&
              !detail::is_std_array_v<std::decay_t<C>> &&
+             !detail::is_ara_array_v<std::decay_t<C>> &&
              !detail::is_c_array_v<std::decay_t<C>>>>
 Span(C&) -> Span<
               std::remove_pointer_t<decltype(std::declval<C&>().data())>,
               ara::core::dynamic_extent>;
 
+// Generic contiguous container (const)
 template<class C,
          typename = std::enable_if_t<
              detail::has_data_and_size_v<const C> &&
              !detail::is_span_v<std::decay_t<C>> &&
              !detail::is_std_array_v<std::decay_t<C>> &&
+             !detail::is_ara_array_v<std::decay_t<C>> &&
              !detail::is_c_array_v<std::decay_t<C>>>>
 Span(const C&) -> Span<
                     const std::remove_pointer_t<decltype(std::declval<const C&>().data())>,
                     ara::core::dynamic_extent>;
-
 
 /**********************************************************************************************************************
  *  NON-MEMBER FUNCTIONS [SWS_CORE_01980-01994]
@@ -1017,6 +1412,7 @@ Span(const C&) -> Span<
  * \details
  * - [SWS_CORE_01990]: Factory function for span creation
  * - Alternative to constructor for type deduction
+ * - Validates null pointer with non-zero count
  */
 template<typename ElementType>
 [[nodiscard]] constexpr auto MakeSpan(ElementType* ptr, std::size_t count) noexcept
@@ -1035,6 +1431,7 @@ template<typename ElementType>
  *
  * \details
  * - [SWS_CORE_01991]: Factory function for iterator pair
+ * - Validates range order (first <= last)
  */
 template<typename ElementType>
 [[nodiscard]] constexpr auto MakeSpan(ElementType* firstElem, ElementType* lastElem) noexcept
@@ -1054,6 +1451,7 @@ template<typename ElementType>
  * \details
  * - [SWS_CORE_01992]: Factory function for arrays
  * - Deduces static extent from array size
+ * - Zero overhead abstraction
  */
 template<typename ElementType, std::size_t N>
 [[nodiscard]] constexpr auto MakeSpan(ElementType (&arr)[N]) noexcept
@@ -1072,6 +1470,7 @@ template<typename ElementType, std::size_t N>
  * \details
  * - [SWS_CORE_01993]: Generic container factory
  * - Works with any contiguous container including ara::core types
+ * - Type deduction for element type
  */
 template<typename Container,
          typename = std::enable_if_t<
@@ -1087,6 +1486,10 @@ template<typename Container,
 
 /*!
  * \brief Create const span from generic container
+ *
+ * \tparam Container Container type with data() and size()
+ * \param cont Const container to view
+ * \return Dynamic extent span with const elements
  */
 template<typename Container,
          typename = std::enable_if_t<
@@ -1112,9 +1515,10 @@ template<typename Container,
  * - [SWS_CORE_01980]: Byte representation access
  * - Safe reinterpretation as byte sequence
  * - Preserves const-correctness
+ * - Size calculated at compile time for static spans
  */
 template<typename ElementType, std::size_t Extent>
-[[nodiscard]] auto as_bytes(Span<ElementType, Extent> s) noexcept
+[[nodiscard]] constexpr auto as_bytes(Span<ElementType, Extent> s) noexcept
     -> Span<const ara::core::Byte, 
             Extent == dynamic_extent ? dynamic_extent : sizeof(ElementType) * Extent>
 {
@@ -1135,10 +1539,11 @@ template<typename ElementType, std::size_t Extent>
  * - [SWS_CORE_01981]: Writable byte representation
  * - Only available for non-const element types
  * - Allows byte-level manipulation
+ * - SFINAE-disabled for const elements
  */
 template<typename ElementType, std::size_t Extent,
          typename = std::enable_if_t<!std::is_const_v<ElementType>>>
-[[nodiscard]] auto as_writable_bytes(Span<ElementType, Extent> s) noexcept
+[[nodiscard]] constexpr auto as_writable_bytes(Span<ElementType, Extent> s) noexcept
     -> Span<ara::core::Byte, 
             Extent == dynamic_extent ? dynamic_extent : sizeof(ElementType) * Extent>
 {
@@ -1165,11 +1570,13 @@ template<typename ElementType, std::size_t Extent,
  * \details
  * - Spans are equal if they have same size and elements
  * - Uses constexpr-compatible comparison for C++17
+ * - Element types must be equality-comparable
  */
 template<typename T1, std::size_t E1, typename T2, std::size_t E2>
 [[nodiscard]] constexpr bool operator==(Span<T1, E1> lhs, Span<T2, E2> rhs) noexcept
 {
-    return lhs.size() == rhs.size() && detail::constexpr_equal(lhs.begin(), lhs.end(), rhs.begin());
+    return lhs.size() == rhs.size() && 
+           detail::constexpr_equal(lhs.begin(), lhs.end(), rhs.begin());
 }
 
 template<typename T1, std::size_t E1, typename T2, std::size_t E2>
@@ -1181,7 +1588,8 @@ template<typename T1, std::size_t E1, typename T2, std::size_t E2>
 template<typename T1, std::size_t E1, typename T2, std::size_t E2>
 [[nodiscard]] constexpr bool operator<(Span<T1, E1> lhs, Span<T2, E2> rhs) noexcept
 {
-    return detail::constexpr_lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
+    return detail::constexpr_lexicographical_compare(lhs.begin(), lhs.end(), 
+                                                     rhs.begin(), rhs.end());
 }
 
 template<typename T1, std::size_t E1, typename T2, std::size_t E2>
@@ -1208,6 +1616,8 @@ template<typename T1, std::size_t E1, typename T2, std::size_t E2>
 
 /*!
  * \brief C++17-compatible ranges support for span
+ *
+ * \details Provides range-like operations without requiring C++20 ranges library
  */
 namespace ranges {
 
@@ -1258,37 +1668,26 @@ public:
         using pointer = void;
         using reference = value_type;
         
-        constexpr iterator(typename span_type::iterator it, const F* f) 
+        constexpr iterator(typename span_type::iterator it, const F* f) noexcept
             : it_(it), func_(f) {}
         
-        [[nodiscard]] constexpr value_type operator*() const noexcept{
-            return (*func_)(*it_);
-        }
-
-        constexpr iterator& operator++() noexcept {
-            ++it_;
-            return *this;
-        }
-
-        constexpr iterator operator++(int) noexcept {
-            iterator tmp = *this;
-            ++*this;
-            return tmp;
-        }
+        [[nodiscard]] constexpr value_type operator*() const noexcept { return (*func_)(*it_); }
+        constexpr iterator& operator++() noexcept { ++it_; return *this; }
+        constexpr iterator operator++(int) noexcept { iterator tmp = *this; ++*this; return tmp; }
         
-        [[nodiscard]] constexpr bool operator==(const iterator& other) const noexcept {
-            return it_ == other.it_;
-        }
-        
-        [[nodiscard]] constexpr bool operator!=(const iterator& other) const noexcept {
-            return !(*this == other);
-        }
+        [[nodiscard]] constexpr bool operator==(const iterator& other) const noexcept 
+        { return it_ == other.it_; }
+        [[nodiscard]] constexpr bool operator!=(const iterator& other) const noexcept 
+        { return !(*this == other); }
     };
     
-    constexpr span_transform_view(span_type s, F f) noexcept : span_(s), func_(std::move(f)) {}
+    constexpr span_transform_view(span_type s, F f) noexcept 
+        : span_(s), func_(std::move(f)) {}
 
-    [[nodiscard]] constexpr iterator begin() const noexcept { return iterator(span_.begin(), &func_); }
-    [[nodiscard]] constexpr iterator end() const noexcept { return iterator(span_.end(), &func_); }
+    [[nodiscard]] constexpr iterator begin() const noexcept 
+    { return iterator(span_.begin(), &func_); }
+    [[nodiscard]] constexpr iterator end() const noexcept 
+    { return iterator(span_.end(), &func_); }
     [[nodiscard]] constexpr auto size() const noexcept { return span_.size(); }
     [[nodiscard]] constexpr bool empty() const noexcept { return span_.empty(); }
 };
@@ -1320,7 +1719,7 @@ public:
         typename span_type::iterator end_;
         const Pred* pred_;
         
-        void advance_to_next() {
+        void advance_to_next() noexcept {
             while (current_ != end_ && !(*pred_)(*current_)) {
                 ++current_;
             }
@@ -1364,7 +1763,8 @@ public:
         }
     };
 
-    constexpr span_filter_view(span_type s, Pred p) noexcept : span_(s), pred_(std::move(p)) {}
+    constexpr span_filter_view(span_type s, Pred p) noexcept 
+        : span_(s), pred_(std::move(p)) {}
 
     [[nodiscard]] constexpr iterator begin() const noexcept {
         return iterator(span_.begin(), span_.end(), &pred_);
@@ -1409,7 +1809,7 @@ template<typename T, std::size_t E, typename Pred>
     while (it != end && pred(*it)) {
         ++it;
     }
-    return s.first(static_cast<typename ara::core::Span<T>::size_type>(it - s.begin()));
+    return s.first(static_cast<typename Span<T, E>::size_type>(it - s.begin()));
 }
 
 /*!
@@ -1422,15 +1822,18 @@ template<typename T, std::size_t E, typename Pred>
     while (it != end && pred(*it)) {
         ++it;
     }
-    return s.subspan(static_cast<typename ara::core::Span<T>::size_type>(it - s.begin()));
+    return s.subspan(static_cast<typename Span<T, E>::size_type>(it - s.begin()));
 }
 
 /*!
  * \brief Create span from range
  */
 template<typename Range,
-         typename = std::enable_if_t<detail::is_contiguous_range_v<Range>>>
-[[nodiscard]] constexpr auto from_range(Range&& r) noexcept {
+         typename = std::enable_if_t<
+             detail::is_contiguous_range_v<std::decay_t<Range>> ||
+             detail::is_contiguous_container_v<std::decay_t<Range>>>>
+[[nodiscard]] constexpr auto from_range(Range&& r) noexcept
+{
     return Span(std::forward<Range>(r));
 }
 
@@ -1442,27 +1845,6 @@ template<typename Range,
 /**********************************************************************************************************************
  *  COMPILE-TIME VERIFICATION
  *********************************************************************************************************************/
-/*!
- * \brief Compile-time verification of AUTOSAR requirements for ara::core::Span
- * 
- * \details These static assertions verify:
- * 
- * 1. **Memory layout optimization**: Static extent spans use only 8 bytes (pointer),
- *    while dynamic extent spans use 16 bytes (pointer + size).
- * 
- * 2. **Type trait requirements**: Span must be trivially copyable and destructible
- *    for efficient pass-by-value and zero-overhead guarantees.
- * 
- * 3. **Iterator requirements**: Iterators must satisfy random_access_iterator_tag
- *    to enable vectorization and optimization.
- * 
- * 4. **Conversion safety**: Proper SFINAE constraints prevent invalid conversions
- *    and ensure type safety at compile time.
- * 
- * 5. **Constexpr support**: All operations work in constexpr context for
- *    compile-time computation and optimization.
- */
-
 namespace ara {
 namespace core {
 

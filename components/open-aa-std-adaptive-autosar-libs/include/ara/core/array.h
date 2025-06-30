@@ -79,22 +79,22 @@ namespace std {
  *  ADL-enabled get() functions for ara::core::Array
  *-------------------------------------------------------------------------------------------------------------*/
 template<size_t I, typename T, size_t N>
-constexpr auto get(ara::core::Array<T, N>& a) noexcept -> T& {
+[[nodiscard]] constexpr auto get(ara::core::Array<T, N>& a) noexcept -> T& {
     return ara::core::get<I>(a);
 }
 
 template<size_t I, typename T, size_t N>
-constexpr auto get(const ara::core::Array<T, N>& a) noexcept -> const T& {
+[[nodiscard]] constexpr auto get(const ara::core::Array<T, N>& a) noexcept -> const T& {
     return ara::core::get<I>(a);
 }
 
 template<size_t I, typename T, size_t N>
-constexpr auto get(ara::core::Array<T, N>&& a) noexcept -> T&& {
+[[nodiscard]] constexpr auto get(ara::core::Array<T, N>&& a) noexcept -> T&& {
     return ara::core::get<I>(std::move(a));
 }
 
 template<size_t I, typename T, size_t N>
-constexpr auto get(const ara::core::Array<T, N>&& a) noexcept -> const T&& {
+[[nodiscard]] constexpr auto get(const ara::core::Array<T, N>&& a) noexcept -> const T&& {
     return ara::core::get<I>(std::move(a));
 } // namespace std
   
@@ -1038,13 +1038,6 @@ public:
 
 private:
 
-    template<std::size_t I>
-    constexpr void constexpr_index_check()
-    {
-        static_assert(false,
-            "[ERROR] ara::core::Array::operator[] — index out of range "
-            "during constant evaluation");
-    }
     /*!
      * \brief Logs + terminates upon array-access-out-of-range for ara::core::Array.
      * \param location     The stripped file/line location (e.g., "file.cpp:123").

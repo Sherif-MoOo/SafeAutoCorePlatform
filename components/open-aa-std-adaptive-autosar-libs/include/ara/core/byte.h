@@ -146,8 +146,7 @@ public:
             }
         } else {
             constexpr unsigned char _illegal_byte_value[256] = {};
-            // Ensure constexpr evaluation for out-of-range values
-            static_cast<void>(_illegal_byte_value[input_value]);
+            [[maybe_unused]] const auto verify{_illegal_byte_value[input_value]};
         }
 
     }
@@ -329,7 +328,7 @@ public:
                 TriggerShiftRangeViolation(val.info(), shift);
             } else {
                 constexpr unsigned char _illegal_shift[8] = {};
-                static_cast<void>(_illegal_shift[static_cast<long long>(shift)]);
+                [[maybe_unused]] const auto verify{_illegal_shift[static_cast<long long>(shift)]};
 
             }
         }
@@ -381,7 +380,7 @@ public:
                 TriggerShiftRangeViolation(val.info(), shift);
             } else {
                 constexpr unsigned char _illegal_shift[8] = {};
-                static_cast<void>(_illegal_shift[static_cast<long long>(shift)]);
+                [[maybe_unused]] const auto verify{_illegal_shift[static_cast<long long>(shift)]};
             }
         }
 
@@ -435,7 +434,7 @@ public:
                 TriggerBitPositionViolation(val.info(), pos);
             } else {
                 constexpr unsigned char _illegal_bit_position[8] = {};
-                static_cast<void>(_illegal_bit_position[pos]);
+                [[maybe_unused]] const auto verify{_illegal_bit_position[pos]};
             }
         }
         return (value_ & static_cast<underlying_type>(1u << pos)) != 0;
@@ -460,7 +459,7 @@ public:
                 TriggerBitPositionViolation(val.info(), pos);
             } else {
                 constexpr unsigned char _illegal_bit_position[8] = {};
-                static_cast<void>(_illegal_bit_position[pos]);
+                [[maybe_unused]] const auto verify{_illegal_bit_position[pos]};
             }
         }
         value_ = static_cast<underlying_type>(value_ | static_cast<underlying_type>(1u << pos));
@@ -486,7 +485,7 @@ public:
                 TriggerBitPositionViolation(val.info(), pos);
             } else {
                 constexpr unsigned char _illegal_bit_position[8] = {};
-                static_cast<void>(_illegal_bit_position[pos]);
+                [[maybe_unused]] const auto verify{_illegal_bit_position[pos]};
             }
         }
         value_ = static_cast<underlying_type>(value_ & static_cast<underlying_type>(~(1u << pos)));
@@ -512,7 +511,7 @@ public:
                 TriggerBitPositionViolation(val.info(), pos);
             } else {
                 constexpr unsigned char _illegal_bit_position[8] = {};
-                static_cast<void>(_illegal_bit_position[pos]);
+                [[maybe_unused]] const auto verify{_illegal_bit_position[pos]};
             }
         }
         value_ = static_cast<underlying_type>(value_ ^ static_cast<underlying_type>(1u << pos));
@@ -752,7 +751,7 @@ private:
                 static_cast<long long>(shift));
         } else {
             constexpr unsigned char _illegal_shift[8] = {};
-            static_cast<void>(_illegal_shift[static_cast<long long>(shift)]);
+            [[maybe_unused]] const auto verify{_illegal_shift[static_cast<long long>(shift)]};
 
         }
     }
@@ -802,7 +801,7 @@ template <typename T,
                 static_cast<long long>(shift));
         } else {
             constexpr unsigned char _illegal_shift[8] = {};
-            static_cast<void>(_illegal_shift[static_cast<long long>(shift)]);
+            [[maybe_unused]] const auto verify{_illegal_shift[static_cast<long long>(shift)]};
         }
     }
     return Byte{static_cast<std::uint8_t>(

@@ -32,7 +32,7 @@
 #if defined(__linux__)
 #include <sys/prctl.h>
 #endif
-#include "ara/core/string_view.h"        // For ara::core::StringView
+//#include "ara/core/string_view.h"        // For ara::core::StringView
 #include "ara/core/array.h" // The custom Array implementation header
 #include <cstdint>          // For std::uint8_t
 #include <iostream>         // For std::cout (demonstrations)
@@ -284,6 +284,16 @@ int main(int argc, char* argv[])
  */
 void TestElementAccessAndIterators()
 {
+    
+    ara::core::Array<int,3> AoOo{10,20,30};
+
+    int x = 2;
+
+    auto val = AoOo[x];
+
+    std::cout << "Of: " << x << "Val: " << val << std::endl;
+
+
     std::cout << "\n=== Test 1: Element Access and Iterators ===\n";
     ara::core::Array<int,5> arr = {10, 20, 30, 40, 50};
 
