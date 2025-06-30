@@ -1,6 +1,6 @@
-# OpenAA: Adaptive AUTOSAR CXX_STANDARD 17 Project
+# OpenAA: SafeAuto Core Platform CXX_STANDARD 17 Project
 
-This is a **modular** and **scalable** open‑source Adaptive AUTOSAR demo using **CXX_STANDARD 17**.
+This is a **modular** and **scalable** open‑source safe deterministic automotive middleware using **CXX_STANDARD 17**.
 The project leverages **CMake** for build configuration, enabling straightforward integration, testing, and future expansion.
  
  ---
