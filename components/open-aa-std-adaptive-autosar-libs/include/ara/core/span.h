@@ -26,7 +26,7 @@
  *              - [SWS_CORE_01980-01994] Utility functions and conversions
  *              - Enhanced with C++26-like features while maintaining C++17 compatibility
  *              - Comprehensive ranges support without C++20 ranges library
- *              - Zero-overhead abstraction with 7.5x performance for static extents
+ *              - Zero-overhead abstraction with performance for static extents
  *********************************************************************************************************************/
 
 #ifndef OPEN_AA_ADAPTIVE_AUTOSAR_LIBS_INCLUDE_ARA_CORE_SPAN_H_
@@ -53,7 +53,6 @@
 #include <initializer_list>                         // For C++26-like initializer_list support
 #include <array>                                    // For std::array support
 
-#include "ara/core/ranges.h"                        // For ranges support in span
 #include "ara/core/ranges.h"                        // For ranges support in span
 #include "ara/core/byte.h"                          // For ara::core::Byte type
 #include "ara/core/internal/utility.h"              // For utility functions and traits
@@ -83,7 +82,7 @@ namespace core {
  * - [SWS_CORE_01900]: Core span class template definition
  * - Provides bounds-safe access to contiguous memory sequences
  * - Zero-overhead abstraction when bounds checking is disabled
- * - Static extent spans provide up to 7.5x performance improvement
+ * - Static extent spans provide performance improvement
  * - Full compatibility with AUTOSAR containers (Array, Vector)
  * - Enhanced with C++26 features while maintaining C++17 compatibility
  *
@@ -163,18 +162,18 @@ public:
     {
         // Validate count matches static extent
         if constexpr (Extent != dynamic_extent) {
-            if (!detail::is_constant_evaluated()) {
-                if (count.input() != Extent) {
-                    TriggerSizeViolation(count.info(), count.input(), Extent);
+            if (detail::unlikely(count.input() != Extent)) {
+                if (!detail::is_constant_evaluated()) {
+                        TriggerSizeViolation(count.info(), count.input(), Extent);
+                } else {
+                    constexpr unsigned char _illegal_count[1] = {};
+                    [[maybe_unused]] const auto verify{_illegal_count[1]};
                 }
-            } else {
-                constexpr unsigned char _illegal_count[1] = {};
-                [[maybe_unused]] const auto verify{_illegal_count[(count.input() == Extent) ? 0 : 1]};
             }
         }
 
         // Validate null pointer with non-zero count
-        if (ptr == nullptr && count.input() > 0) {
+        if (detail::unlikely(ptr == nullptr && count.input() > 0)) {
             if (!detail::is_constant_evaluated()) {
                 TriggerNullPointerViolation(count.info());
             } else {
@@ -200,7 +199,7 @@ public:
         : Span{first, static_cast<size_type>(std::distance(first, last.input()))}
     {
         // Validate range order
-        if (last.input() < first) {
+        if (detail::unlikely(last.input() < first)) {
             if (!detail::is_constant_evaluated()) {
                 TriggerRangeViolation(last.info());
             } else {
@@ -212,13 +211,13 @@ public:
         // Validate size matches static extent
         if constexpr (Extent != dynamic_extent) {
             const auto cnt = static_cast<size_type>(std::distance(first, last.input()));
-            if (!detail::is_constant_evaluated()) {
-                if (cnt != Extent) {
+            if (detail::unlikely(cnt != Extent)) {
+                if (!detail::is_constant_evaluated()) {
                     TriggerSizeViolation(last.info(), cnt, Extent);
+                } else {
+                    constexpr unsigned char _illegal_count[1] = {};
+                    [[maybe_unused]] const auto verify{_illegal_count[1]};
                 }
-            } else {
-                constexpr unsigned char _illegal_count[1] = {};
-                [[maybe_unused]] const auto verify{_illegal_count[(cnt == Extent) ? 0 : 1]};
             }
         }
     }
@@ -325,7 +324,7 @@ public:
         // Range order check for random-access iterators
         if constexpr (std::is_same_v<typename std::iterator_traits<It>::iterator_category,
                                     std::random_access_iterator_tag>) {
-            if (last < first) {
+            if (detail::unlikely(last < first)) {
                 if (!detail::is_constant_evaluated()) {
                     TriggerRangeViolation(loc.info());
                 } else {
@@ -335,17 +334,17 @@ public:
             }
         }
 
-        const auto cnt = static_cast<size_type>(std::distance(first, last));
 
         // Extent check for static spans
         if constexpr (Extent != dynamic_extent) {
-            if (!detail::is_constant_evaluated()) {
-                if (cnt != Extent) {
-                    TriggerSizeViolation(loc.info(), cnt, Extent);
+            const auto cnt = static_cast<size_type>(std::distance(first, last));
+            if (detail::unlikely(cnt != Extent)) {
+                if (!detail::is_constant_evaluated()) {
+                        TriggerSizeViolation(loc.info(), cnt, Extent);
+                } else {
+                    constexpr unsigned char _illegal_count[1] = {};
+                    [[maybe_unused]] const auto verify{_illegal_count[1]};
                 }
-            } else {
-                constexpr unsigned char _illegal_count[1] = {};
-                [[maybe_unused]] const auto verify{_illegal_count[(cnt == Extent) ? 0 : 1]};
             }
         }
     }
@@ -381,15 +380,15 @@ public:
     {   
         // Validate size matches static extent
         if constexpr (Extent != dynamic_extent) {
-            if (!detail::is_constant_evaluated()) {
-                if (std::size(cont) != Extent) {
+            if (detail::unlikely(std::size(cont) != Extent)) {
+                if (!detail::is_constant_evaluated()) {
                     TriggerSizeViolation(loc.info(), std::size(cont), Extent);
+                } else {
+                    constexpr unsigned char _illegal_count[1] = {};
+                    [[maybe_unused]] const auto verify{_illegal_count[1]};
                 }
-            } else {
-                constexpr unsigned char _illegal_count[1] = {};
-                [[maybe_unused]] const auto verify{_illegal_count[(std::size(cont) == Extent) ? 0 : 1]};
             }
-        }   
+        }
     }
 
     /*!
@@ -423,13 +422,13 @@ public:
     {
         // Validate size matches static extent
         if constexpr (Extent != dynamic_extent) {
-            if (!detail::is_constant_evaluated()) {
-                if (std::size(cont) != Extent) {
+            if (detail::unlikely(std::size(cont) != Extent)) {
+                if (!detail::is_constant_evaluated()) {
                     TriggerSizeViolation(loc.info(), std::size(cont), Extent);
+                } else {
+                    constexpr unsigned char _illegal_count[1] = {};
+                    [[maybe_unused]] const auto verify{_illegal_count[1]};
                 }
-            } else {
-                constexpr unsigned char _illegal_count[1] = {};
-                [[maybe_unused]] const auto verify{_illegal_count[(std::size(cont) == Extent) ? 0 : 1]};
             }
         }
     }
@@ -466,13 +465,13 @@ public:
     {
         // Validate size matches static extent
         if constexpr (Extent != dynamic_extent) {
-            if (!detail::is_constant_evaluated()) {
-                if (std::size(r) != Extent) {
+            if (detail::unlikely(std::size(r) != Extent)) {
+                if (!detail::is_constant_evaluated()) {
                     TriggerSizeViolation(loc.info(), std::size(r), Extent);
+                } else {
+                    constexpr unsigned char _illegal_count[1] = {};
+                    [[maybe_unused]] const auto verify{_illegal_count[1]};
                 }
-            } else {
-                constexpr unsigned char _illegal_count[1] = {};
-                [[maybe_unused]] const auto verify{_illegal_count[(std::size(r) == Extent) ? 0 : 1]};
             }
         }
     }
@@ -502,18 +501,16 @@ public:
     {
         // Validate size when converting dynamic to static extent
         if constexpr (Extent != dynamic_extent && N == dynamic_extent) {
-            if (!detail::is_constant_evaluated()) {
-                if (source.size() != Extent) {
+            if (detail::unlikely(source.size() != Extent)) {
+                if (!detail::is_constant_evaluated()) {
                     TriggerSizeViolation(loc.info(), source.size(), Extent);
+                } else {
+                    constexpr unsigned char _illegal_count[1] = {};
+                    [[maybe_unused]] const auto verify{_illegal_count[1]};
                 }
-            } else {
-                constexpr unsigned char _illegal_count[1] = {};
-                [[maybe_unused]] const auto verify{
-                    _illegal_count[(source.size() == Extent) ? 0 : 1]};
             }
         }
     }
-
     // -----------------------------------------------------------------------------------
     // C++26 FEATURES - INITIALIZER LIST SUPPORT
     // -----------------------------------------------------------------------------------
@@ -544,15 +541,13 @@ public:
     {
         // Validate size matches static extent
         if constexpr (E != dynamic_extent) {
-            if (!detail::is_constant_evaluated()) {
-                if (il.size() != E) {
+            if (detail::unlikely(il.size() != E)) {
+                if (!detail::is_constant_evaluated()) {
                     TriggerSizeViolation(loc.info(), il.size(), E);
+                } else {
+                    constexpr unsigned char _illegal_count[1] = {};
+                    [[maybe_unused]] const auto verify{_illegal_count[1]};
                 }
-            } else {
-                constexpr unsigned char _illegal_count[1] = {};
-                [[maybe_unused]] const auto verify{
-                    _illegal_count[(il.size() == E) ? 0 : 1]
-                };
             }
         }
     }
@@ -612,14 +607,15 @@ public:
     {
         static_assert(Count <= Extent || Extent == dynamic_extent,
                       "Count exceeds static extent");
-        if (!detail::is_constant_evaluated()) {
-            if (Count > size()) {
+        if (detail::unlikely(Count > size())) {
+            if (!detail::is_constant_evaluated()) {
                 TriggerSubspanViolation(loc.info(), "first", Count, size());
+            } else {
+                constexpr unsigned char _count_check[1] = {};
+                [[maybe_unused]] const auto verify{_count_check[(Count <= size()) ? 0 : 1]};
             }
-        } else {
-            constexpr unsigned char _count_check[1] = {};
-            [[maybe_unused]] const auto verify{_count_check[(Count <= size()) ? 0 : 1]};
         }
+
         return Span<element_type, Count>(data_, Count);
     }
 
@@ -637,14 +633,15 @@ public:
     [[nodiscard]] constexpr auto first(
         const ara::core::internal::InputWithLocation<size_type>& count) const noexcept
         -> Span<element_type, dynamic_extent>
-    {
-        if (!detail::is_constant_evaluated()) {
-            if (count.input() > size()) {
-                TriggerSubspanViolation(count.info(), "first", count.input(), size());
+    {   
+
+        if (count.input() > size()) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerSubspanViolation(count.info(), "first", count.input(), size()); 
+            } else {
+                constexpr unsigned char _count_check[1] = {};
+                [[maybe_unused]] const auto verify{_count_check[1]};
             }
-        } else {
-            constexpr unsigned char _count_check[1] = {};
-            [[maybe_unused]] const auto verify{_count_check[(count.input() <= size()) ? 0 : 1]};
         }
         return Span<element_type, dynamic_extent>(data_, count.input());
     }
@@ -669,13 +666,13 @@ public:
     {
         static_assert(Count <= Extent || Extent == dynamic_extent,
                       "Count exceeds static extent");
-        if (!detail::is_constant_evaluated()) {
-            if (Count > size()) {
+        if (detail::unlikely(Count > size())) {
+            if (!detail::is_constant_evaluated()) {
                 TriggerSubspanViolation(loc.info(), "last", Count, size());
+            } else {
+                constexpr unsigned char _count_check[1] = {};
+                [[maybe_unused]] const auto verify{_count_check[1]};
             }
-        } else {
-            constexpr unsigned char _count_check[1] = {};
-            [[maybe_unused]] const auto verify{_count_check[(Count <= size()) ? 0 : 1]};
         }
         return Span<element_type, Count>(data_ + size() - Count, Count);
     }
@@ -694,14 +691,15 @@ public:
     [[nodiscard]] constexpr auto last(
         const ara::core::internal::InputWithLocation<size_type>& count) const noexcept
         -> Span<element_type, dynamic_extent>
-    {
-        if (!detail::is_constant_evaluated()) {
-            if (count.input() > size()) {
+    {   
+
+        if (count.input() > size()) {
+            if (!detail::is_constant_evaluated()) {
                 TriggerSubspanViolation(count.info(), "last", count.input(), size());
+            } else {
+                constexpr unsigned char _count_check[1] = {};
+                [[maybe_unused]] const auto verify{_count_check[1]};
             }
-        } else {
-            constexpr unsigned char _count_check[1] = {};
-            [[maybe_unused]] const auto verify{_count_check[(count.input() <= size()) ? 0 : 1]};
         }
         return Span<element_type, dynamic_extent>(data_ + size() - count.input(), count.input());
     }
@@ -732,22 +730,22 @@ public:
                       (Extent != dynamic_extent && Count <= Extent - Offset) || 
                       Extent == dynamic_extent,
                       "Count exceeds remaining elements");
-        
-        // Runtime validation for offset
-        if (!detail::is_constant_evaluated()) {
-            if (Offset > size()) {
+
+        if (detail::unlikely(Offset > size())) {
+            if (!detail::is_constant_evaluated()) {
                 TriggerSubspanViolation(loc.info(), "subspan", Offset, size(), true);
+            } else {
+                constexpr unsigned char _offset_check[1] = {};
+                [[maybe_unused]] const auto verify{_offset_check[1]};
             }
-            if (Count != dynamic_extent && Count > size() - Offset) {
+        }
+
+        if (detail::unlikely(Count != dynamic_extent && Count > size() - Offset)) {
+            if (!detail::is_constant_evaluated()) {
                 TriggerSubspanViolation(loc.info(), "subspan", Count, size() - Offset);
-            }
-        } else {
-            constexpr unsigned char _offset_check[1] = {};
-            [[maybe_unused]] const auto verify1{_offset_check[(Offset <= size()) ? 0 : 1]};
-            
-            if constexpr (Count != dynamic_extent) {
+            } else {
                 constexpr unsigned char _count_check[1] = {};
-                [[maybe_unused]] const auto verify2{_count_check[(Count <= size() - Offset) ? 0 : 1]};
+                [[maybe_unused]] const auto verify{_count_check[1]};
             }
         }
         
@@ -774,24 +772,25 @@ public:
                                         size_type count = dynamic_extent) const noexcept
         -> Span<element_type, dynamic_extent>
     {
-        // Validate offset
-        if (!detail::is_constant_evaluated()) {
-            if (offset.input() > size()) {
+        
+        if (detail::unlikely(offset.input() > size())) {
+            if (!detail::is_constant_evaluated()) {
                 TriggerSubspanViolation(offset.info(), "subspan", offset.input(), size(), true);
-            }
-            if (count != dynamic_extent && count > size() - offset.input()) {
-                TriggerSubspanViolation(offset.info(), "subspan", count, size() - offset.input());
-            }
-        } else {
-            constexpr unsigned char _offset_check[1] = {};
-            [[maybe_unused]] const auto verify1{_offset_check[(offset.input() <= size()) ? 0 : 1]};
-
-            if (count != dynamic_extent) {
-                constexpr unsigned char _count_check[1] = {};
-                [[maybe_unused]] const auto verify2{_count_check[(count <= size() - offset.input()) ? 0 : 1]};
+            } else {
+                constexpr unsigned char _offset_check[1] = {};
+                [[maybe_unused]] const auto verify{_offset_check[1]};
             }
         }
-        
+
+        if (detail::unlikely(count != dynamic_extent && count > size() - offset.input())) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerSubspanViolation(offset.info(), "subspan", count, size() - offset.input());
+            } else {
+                constexpr unsigned char _count_check[1] = {};
+                [[maybe_unused]] const auto verify{_count_check[1]};
+            }
+        }
+
         return Span<element_type, dynamic_extent>(
             data_ + offset.input(),
             count == dynamic_extent ? size() - offset.input() : count
@@ -868,16 +867,20 @@ public:
      */
     [[nodiscard]] constexpr reference operator[](
         const ara::core::internal::InputWithLocation<size_type>& idx) const noexcept
-    {
-        if (idx.input() >= size()) {
+    {   
+
+        const size_type& I = idx.input();
+
+        if (detail::unlikely(I >= size())) {
             if (!detail::is_constant_evaluated()) {
-                TriggerBoundsViolation(idx.info(), idx.input(), size());
+                TriggerBoundsViolation(idx.info(), I, size());
             } else {
                 constexpr unsigned char _bounds_check[1] = {};
                 [[maybe_unused]] const auto verify{_bounds_check[1]};
             }
         }
-        return data_[idx.input()];
+
+        return data_[I];
     }
 
     /*!
@@ -895,15 +898,18 @@ public:
     [[nodiscard]] constexpr reference at(
         const ara::core::internal::InputWithLocation<size_type>& idx) const
     {
-        if (idx.input() >= size()) {
+        const size_type& I = idx.input();
+
+        if (detail::unlikely(I >= size())) {
             if (!detail::is_constant_evaluated()) {
-                TriggerBoundsViolation(idx.info(), idx.input(), size());
+                TriggerBoundsViolation(idx.info(), I, size());
             } else {
                 constexpr unsigned char _bounds_check[1] = {};
                 [[maybe_unused]] const auto verify{_bounds_check[1]};
             }
         }
-        return data_[idx.input()];
+
+        return data_[I];
     }
 
     /*!
@@ -921,7 +927,7 @@ public:
         const ara::core::internal::InputWithLocation<std::uint8_t> loc =
               ara::core::internal::make_input_with_location<std::uint8_t>(0)) const noexcept
     {
-        if (empty()) {
+        if (detail::unlikely(empty())) {
             if (!detail::is_constant_evaluated()) {
                 TriggerEmptyAccessViolation(loc.info(), "front");
             } else {
@@ -947,7 +953,7 @@ public:
         const ara::core::internal::InputWithLocation<std::uint8_t> loc =
               ara::core::internal::make_input_with_location<std::uint8_t>(0)) const noexcept
     {
-        if (empty()) {
+        if (detail::unlikely(empty())) {
             if (!detail::is_constant_evaluated()) {
                 TriggerEmptyAccessViolation(loc.info(), "back");
             } else {
@@ -1699,15 +1705,12 @@ public:
 template<typename T, std::size_t E, typename F>
 [[nodiscard]] constexpr auto transform(Span<T, E> s, F&& f) noexcept {
     return span_transform_view<T, E, std::decay_t<F>>(s, std::forward<F>(f));
-[[nodiscard]] constexpr auto transform(Span<T, E> s, F&& f) noexcept {
-    return span_transform_view<T, E, std::decay_t<F>>(s, std::forward<F>(f));
 }
 
 /*!
  * \brief Filter view for spans
  */
 template<typename T, std::size_t E, typename Pred>
-class span_filter_view {
 class span_filter_view {
 public:
     using span_type = Span<T, E>;
@@ -1739,15 +1742,9 @@ public:
         constexpr iterator(typename span_type::iterator curr,
                           typename span_type::iterator end,
                           const Pred* p) noexcept
-                          const Pred* p) noexcept
             : current_(curr), end_(end), pred_(p) {
             advance_to_next();
         }
-
-        [[nodiscard]] constexpr reference operator*() const noexcept { return *current_; }
-        [[nodiscard]] constexpr pointer operator->() const noexcept { return current_.base(); }
-
-        constexpr iterator& operator++() noexcept {
 
         [[nodiscard]] constexpr reference operator*() const noexcept { return *current_; }
         [[nodiscard]] constexpr pointer operator->() const noexcept { return current_.base(); }
@@ -1757,8 +1754,6 @@ public:
             advance_to_next();
             return *this;
         }
-
-        constexpr iterator operator++(int) noexcept {
 
         constexpr iterator operator++(int) noexcept {
             iterator tmp = *this;
@@ -1784,9 +1779,6 @@ public:
 
     [[nodiscard]] constexpr iterator end() const noexcept {
         return iterator(span_.end(), span_.end(), &pred_);
-
-    [[nodiscard]] constexpr iterator end() const noexcept {
-        return iterator(span_.end(), span_.end(), &pred_);
     }
 };
 
@@ -1794,8 +1786,6 @@ public:
  * \brief Create filter view
  */
 template<typename T, std::size_t E, typename Pred>
-[[nodiscard]] constexpr auto filter(Span<T, E> s, Pred&& p) noexcept {
-    return span_filter_view<T, E, std::decay_t<Pred>>(s, std::forward<Pred>(p));
 [[nodiscard]] constexpr auto filter(Span<T, E> s, Pred&& p) noexcept {
     return span_filter_view<T, E, std::decay_t<Pred>>(s, std::forward<Pred>(p));
 }
@@ -1866,7 +1856,6 @@ namespace ara {
 namespace core {
 
 namespace span_test {
-namespace span_test {
 
 // Test types
 using TestSpan = Span<int, 5>;
@@ -1926,7 +1915,6 @@ static_assert(range_span.size() == 5, "Range construction must work");
 // C++26 enhanced features verification
 static_assert(test_span.contains(3), "Contains must work in constexpr");
 
-} // span_test namespace
 } // span_test namespace
 
 } // namespace core

@@ -406,7 +406,7 @@ public:
         
         const size_type& I = idx.input();
 
-        if (I >= N) {
+        if (detail::unlikely(I >= N)) {
 
             if (!detail::is_constant_evaluated()) {
                 TriggerOutOfRangeViolation(
@@ -438,7 +438,7 @@ public:
         
         const size_type& I = idx.input();
 
-        if (I >= N) {
+        if (detail::unlikely(I >= N)) {
 
             if (!detail::is_constant_evaluated()) {
                 TriggerOutOfRangeViolation(
@@ -473,7 +473,7 @@ public:
 
         const size_type& I = idx.input();
 
-        if (I >= N) {
+        if (detail::unlikely(I >= N)) {
 
             if (!detail::is_constant_evaluated()) {
                 TriggerOutOfRangeViolation(
@@ -506,7 +506,7 @@ public:
 
         const size_type& I = idx.input();
 
-        if (I >= N) {
+        if (detail::unlikely(I >= N)) {
 
             if (!detail::is_constant_evaluated()) {
                 TriggerOutOfRangeViolation(

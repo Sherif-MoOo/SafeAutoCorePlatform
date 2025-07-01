@@ -139,14 +139,13 @@ public:
     {
         
         const long long& input_value = val.input();
-
-        if (!detail::is_constant_evaluated()) {
-            if (input_value < 0 || input_value > 255) {
+        if (detail::unlikely(input_value < 0 || input_value > 255)) {
+            if (!detail::is_constant_evaluated()) {
                 TriggerByteRangeViolation(val.info(), input_value);
+            } else {
+                constexpr unsigned char _illegal_byte_value[256] = {};
+                [[maybe_unused]] const auto verify{_illegal_byte_value[input_value]};
             }
-        } else {
-            constexpr unsigned char _illegal_byte_value[256] = {};
-            [[maybe_unused]] const auto verify{_illegal_byte_value[input_value]};
         }
 
     }
@@ -323,7 +322,7 @@ public:
     constexpr auto operator<<=(const ara::core::internal::InputWithLocation<long long>& val) noexcept -> Byte&
     {
         const long long& shift = val.input();
-        if (shift < 0 || shift >= 8) {
+        if (detail::unlikely(shift < 0 || shift >= 8)) {
             if (!detail::is_constant_evaluated()) {
                 TriggerShiftRangeViolation(val.info(), shift);
             } else {
@@ -374,7 +373,7 @@ public:
     {
         const long long& shift = val.input();
 
-        if(shift < 0 || shift >= 8) {
+        if(detail::unlikely(shift < 0 || shift >= 8)) {
             // C++17 compatible bounds checking
             if (!detail::is_constant_evaluated()) {
                 TriggerShiftRangeViolation(val.info(), shift);
@@ -429,7 +428,7 @@ public:
     [[nodiscard]] constexpr auto test(const ara::core::internal::InputWithLocation<std::size_t>& val) const noexcept -> bool
     {
         const std::size_t& pos = val.input();
-        if (pos >= 8) {
+        if (detail::unlikely(pos >= 8)) {
             if (!detail::is_constant_evaluated()) {
                 TriggerBitPositionViolation(val.info(), pos);
             } else {
@@ -454,7 +453,7 @@ public:
     constexpr auto set(const ara::core::internal::InputWithLocation<std::size_t>& val) noexcept -> Byte&
     {
         const std::size_t& pos = val.input();
-        if (pos >= 8) {
+        if (detail::unlikely(pos >= 8)) {
             if (!detail::is_constant_evaluated()) {
                 TriggerBitPositionViolation(val.info(), pos);
             } else {
@@ -480,7 +479,7 @@ public:
     constexpr auto reset(const ara::core::internal::InputWithLocation<std::size_t>& val) noexcept -> Byte&
     {
         const std::size_t& pos = val.input();
-        if (pos >= 8) {
+        if (detail::unlikely(pos >= 8)) {
             if (!detail::is_constant_evaluated()) {
                 TriggerBitPositionViolation(val.info(), pos);
             } else {
@@ -506,7 +505,7 @@ public:
     constexpr auto flip(const ara::core::internal::InputWithLocation<std::size_t>& val) noexcept -> Byte&
     {
         const std::size_t& pos = val.input();
-        if (pos >= 8) {
+        if (detail::unlikely(pos >= 8)) {
             if (!detail::is_constant_evaluated()) {
                 TriggerBitPositionViolation(val.info(), pos);
             } else {
@@ -742,7 +741,7 @@ private:
                                         const ara::core::internal::InputWithLocation<long long>& val) noexcept -> Byte
 {
     const long long& shift = val.input();
-    if (shift < 0 || shift >= 8) {
+    if (detail::unlikely(shift < 0 || shift >= 8)) {
         if (!detail::is_constant_evaluated()) {
             auto& handler = ara::core::internal::ViolationHandler::Instance();
             handler.TriggerShiftRangeViolation(
@@ -792,7 +791,7 @@ template <typename T,
                                         const ara::core::internal::InputWithLocation<long long>& val) noexcept -> Byte
 {
     const long long& shift = val.input();
-    if (shift < 0 || shift >= 8) {
+    if (detail::unlikely(shift < 0 || shift >= 8)) {
         if (!detail::is_constant_evaluated()) {
             auto& handler = ara::core::internal::ViolationHandler::Instance();
             handler.TriggerShiftRangeViolation(

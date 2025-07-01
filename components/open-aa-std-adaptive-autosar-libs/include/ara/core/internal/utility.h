@@ -139,7 +139,7 @@ inline std::mutex g_abortMutex{};
  * \note    This function is used internally to determine if certain operations
  *          can be performed at compile-time or runtime.
  */
-[[nodiscard]] constexpr auto is_constant_evaluated() noexcept -> bool {
+[[nodiscard]] inline constexpr auto is_constant_evaluated() noexcept -> bool {
     #if defined(__cpp_lib_is_constant_evaluated) \
         && (__cpp_lib_is_constant_evaluated >= 202002L)
         return std::is_constant_evaluated();              // C++20 standard API
@@ -152,6 +152,24 @@ inline std::mutex g_abortMutex{};
     #endif
 }
 
+/***********************************************************************************************************************
+ *  BRANCH PREDICTION HINTS
+ ***********************************************************************************************************************/
+[[nodiscard]] inline constexpr auto likely(bool x) noexcept -> bool{
+#if defined(__has_builtin) && __has_builtin(__builtin_expect)
+    return __builtin_expect(!!x, 1);
+#else
+    return x;
+#endif
+}
+
+[[nodiscard]] inline constexpr bool unlikely(bool x) noexcept {
+#if defined(__has_builtin) && __has_builtin(__builtin_expect)
+    return __builtin_expect(!!x, 0);
+#else
+    return x;
+#endif
+}
 
 /***********************************************************************************************************************
  *  INTERNAL: IS_TUPLE_LIKE
@@ -956,56 +974,6 @@ struct is_element_type_compatible<From*, To> : std::bool_constant<
 
 template<typename From, typename To>
 inline constexpr bool is_element_type_compatible_v = is_element_type_compatible<From, To>::value;
-
-/*!
- * \brief  Always-false helper for static_asserts in dependent contexts
- */
-template<typename...>
-inline constexpr bool dependent_false_v = false;
-
-/*!
- * \brief  Detect whether \c T provides \c data() and \c size() that are both noexcept.
- *
- *         Raw pointers are deliberately *excluded* from being considered string-like.
- */
-template<typename T, typename = void>
-struct has_string_like_interface : std::false_type {};
-
-template<typename T>
-struct has_string_like_interface<T,
-    std::void_t<
-        decltype(std::data(std::declval<const T&>())),
-        decltype(std::size(std::declval<const T&>()))
-    >
-> : std::true_type {};
-
-/*! \brief  Raw pointers are *not* string-like. */
-template<typename T>
-struct has_string_like_interface<T*, void> : std::false_type {};
-
-template<typename T>
-inline constexpr bool has_string_like_interface_v =
-    has_string_like_interface<T>::value;
-
-/*!
- * \brief  Determine whether \c T can be converted into a pointer to \c CharT via
- *         its \c data() member (only checked if the type passed the previous test).
- */
-template<typename T, typename CharT, bool = has_string_like_interface_v<T>>
-struct is_string_view_compatible_impl : std::false_type {};
-
-template<typename T, typename CharT>
-struct is_string_view_compatible_impl<T, CharT, true>
-    : std::bool_constant<
-          std::is_convertible_v<
-              decltype(std::data(std::declval<const T&>())),
-              const CharT*
-          >
-      > {};
-
-template<typename T, typename CharT>
-inline constexpr bool is_string_view_compatible_v =
-    is_string_view_compatible_impl<T, CharT>::value;
 
 /*!
  * \brief  Always-false helper for static_asserts in dependent contexts
