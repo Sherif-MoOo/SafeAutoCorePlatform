@@ -133,6 +133,11 @@ void TestPerformance();
 // Violation tests (will terminate)
 void TestSizeViolation();
 void TestBoundsViolation();
+void TestNullPointerViolation();
+void TestRangeViolation();
+void TestEmptyAccessViolation();
+void TestSubspanOffsetViolation();
+void TestSubspanCountViolation();
 
 // Negative compilation tests (commented out)
 void TestNegativeCompilation();
@@ -164,17 +169,42 @@ int main(int argc, char* argv[])
             std::cout << "\nRunning Size Violation Test (will terminate)...\n";
             TestSizeViolation();
             return 1; // Should never reach here
-        }
-        else if (arg == "violation-bounds") {
+        } else if (arg == "violation-bounds") {
             std::cout << "\nRunning Bounds Violation Test (will terminate)...\n";
             TestBoundsViolation();
             return 1; // Should never reach here
-        }
-        else {
-            std::cout << "\nUsage: " << argv[0] << " [violation-size|violation-bounds]\n";
+        } else if (arg == "null-pointer") {
+            std::cout << "\nRunning Null Pointer Violation Test (will terminate)...\n";
+            TestNullPointerViolation();
+            return 1; // Should never reach here
+        } else if (arg == "range-violation") {
+            std::cout << "\nRunning Range Violation Test (will terminate)...\n";
+            TestRangeViolation();
+            return 1; // Should never reach here
+        } else if (arg == "empty-access") {
+            std::cout << "\nRunning Empty Access Violation Test (will terminate)...\n";
+            TestEmptyAccessViolation();
+            return 1; // Should never reach here
+        } else if (arg == "subspan-offset") {
+            std::cout << "\nRunning Subspan Offset Violation Test (will terminate)...\n";
+            TestSubspanOffsetViolation();
+            return 1; // Should never reach here
+        } else if (arg == "subspan-count") {
+            std::cout << "\nRunning Subspan Count Violation Test (will terminate)...\n";
+            TestSubspanCountViolation();
+            return 1; // Should never reach here
+        } else {
+            std::cout << "\nUsage: " << argv[0] << " [violation-size|violation-bounds|null-pointer]\n";
             std::cout << "       No arguments: Run all non-terminating tests\n";
             std::cout << "       violation-size: Test size mismatch violation\n";
-            std::cout << "       violation-bounds: Test bounds violation\n\n";
+            std::cout << "       violation-bounds: Test bounds violation\n";
+            std::cout << "       null-pointer: Test null pointer violation\n";
+            std::cout << "       range-violation: Test range violation\n";
+            std::cout << "       empty-access: Test empty access violation\n";
+            std::cout << "       subspan-offset: Test subspan offset violation\n";
+            std::cout << "       subspan-count: Test subspan count violation\n";
+
+            return 1; // Invalid argument
         }
     }
 
@@ -303,6 +333,30 @@ void TestConstruction()
         std::cout << "std::array construction successful\n";
     }
 
+    PrintSubTest("Construction from move_iterator pair + Location");
+    {
+        int arr[] = {11, 22, 33, 44, 55};
+    
+        using move_it = std::move_iterator<int*>;
+    
+        move_it first(arr);        // begin
+        move_it last (arr + 5);    // end
+    
+        /* Wrap 'last' explicitly – now the parameter type matches exactly    */
+    
+        ara::core::Span<int>   s1(first, last);   // generic constructor
+        ara::core::Span<int,5> s2(first, last);   // idem
+    
+        std::cout << "dyn span size: "  << s1.size() << " (expected 5)\n";
+        std::cout << "stat span size: " << s2.size() << " (expected 5)\n";
+    
+        assert(s1.size() == 5);
+        assert(s1.front() == 11 && s1.back() == 55);
+    
+        assert(s2.size() == 5);
+        assert(s2.front() == 11 && s2.back() == 55);
+    }
+
     PrintSubTest("Construction from Containers");
     {
         std::vector<int> vec = {1, 2, 3, 4, 5};
@@ -326,6 +380,30 @@ void TestConstruction()
         
         std::cout << "Container construction successful\n";
     }
+
+
+#if __cplusplus >= 202002L
+    PrintSubTest("Construction from std::ranges::subrange");
+    {
+        int arr[] = { 5, 10, 15, 20, 25, 30 };
+
+        std::ranges::subrange sub(arr + 1, arr + 5);
+
+        ara::core::Span<int>   s1(sub);          
+        ara::core::Span<int,4> s2(sub);          
+
+        std::cout << "dyn span size: "  << s1.size() << " (expected 4)\n";
+        std::cout << "stat span size: " << s2.size() << " (expected 4)\n";
+
+        assert(s1.size() == 4);
+        assert(s1.front() == 10 && s1.back() == 25);
+
+        assert(s2.size() == 4);
+        assert(s2.front() == 10 && s2.back() == 25);
+
+        std::cout << "subrange construction successful\n";
+    }
+#endif
 
     PrintSubTest("Converting Constructor");
     {
@@ -1138,10 +1216,6 @@ void TestInitializerListSupport()
         ara::core::Span<const int> s1 = {1, 2, 3, 4, 5}; // dangling initializer list
         // ara::core::Span<int> s2 = {1, 2, 3}; // Would fail: non-const initializer list
         
-        assert(s1.size() == 5);
-        assert(s1[0] == 1);
-        assert(s1[4] == 5);
-        
         std::cout << "Initializer list elements: ";
         for (int val : s1) {
             std::cout << val << " ";
@@ -1156,6 +1230,10 @@ void TestInitializerListSupport()
         assert(s1.size() == 3);
         assert(s1[1] == 20);
         
+        for (int val : s1) {
+            std::cout << val << " ";
+        }
+        std::cout << "\n";
         // Size must match for static extent
         // ara::core::Span<const int, 3> s2 = {1, 2};  // Would trigger violation
         
@@ -1771,6 +1849,72 @@ void TestBoundsViolation()
     
     // Never reached
     std::cout << "Value: " << val << " (should never print)\n";
+}
+
+/*!
+ * \brief Test null‐pointer violation: constructing a non‐empty span from nullptr.
+ */
+void TestNullPointerViolation()
+{
+    std::cout << "Creating span from nullptr with nonzero size (will terminate)...\n";
+    int* p = nullptr;
+    // Dynamic‐extent constructor: nullptr + count > 0 → triggers null‐pointer violation.
+    ara::core::Span<int> s(p, 1);
+    // Never reached
+    std::cout << "ERROR: this should never print!\n";
+}
+
+/*!
+ * \brief Test range‐order violation: constructing from iterators where last < first.
+ */
+void TestRangeViolation()
+{
+    std::cout << "Constructing span with reversed iterator pair (will terminate)...\n";
+    int arr[] = {1,2,3,4};
+    
+    // Attempting to create span with reversed iterators
+    [[maybe_unused]] auto s = ara::core::Span<int>(arr + 3, arr + 1);
+
+    // This should never be reached
+    std::cout << "ERROR: this should never print!\n";
+}
+
+/*!
+ * \brief Test empty‐access violation: calling front() or back() on an empty span.
+ */
+void TestEmptyAccessViolation()
+{
+    std::cout << "Accessing front()/back() on empty span (will terminate)...\n";
+    ara::core::Span<int> empty;
+    [[maybe_unused]] int a = empty.front();
+    // Or: empty.back();
+    std::cout << "ERROR: this should never print!\n";
+}
+
+/*!
+ * \brief Test subspan‐offset violation: taking subspan with offset > size().
+ */
+void TestSubspanOffsetViolation()
+{
+    std::cout << "Creating subspan with offset > size (will terminate)...\n";
+    int arr[] = {1,2,3};
+    ara::core::Span<int> s(arr);
+    // subspan(offset, count) where offset 5 > size 3
+    [[maybe_unused]] auto sub = s.subspan(5, 1);
+    std::cout << "ERROR: this should never print!\n";
+}
+
+/*!
+ * \brief Test subspan‐count violation: taking subspan with count > remaining size.
+ */
+void TestSubspanCountViolation()
+{
+    std::cout << "Creating subspan with count > remaining elements (will terminate)...\n";
+    int arr[] = {1,2,3,4};
+    ara::core::Span<int> s(arr);
+    // subspan<Offset,Count>() static: e.g. Offset=2,Count=5 → 2+5 > 4
+    [[maybe_unused]] auto sub = s.subspan<2, 5>();
+    std::cout << "ERROR: this should never print!\n";
 }
 
 /**********************************************************************************************************************

@@ -458,6 +458,13 @@ void TestBitwiseOperations()
     }
 }
 
+constexpr ara::core::Byte shift_constexpr() noexcept
+{
+    ara::core::Byte b{0b0000'0001};
+    b <<= 7;
+    return b;
+}
+
 /*!
  * \brief Test #4: Shift Operations
  */
@@ -481,7 +488,9 @@ void TestShiftOperations()
         ara::core::Byte b2{0b00000001};
         b2 <<= 7;
         assert(b2.to_integer() == 0b10000000);
-        
+
+        constexpr ara::core::Byte b99 = shift_constexpr();
+        static_cast<void>(b99); // Ensure constexpr works
         // Edge case: shift by 0
         [[maybe_unused]] ara::core::Byte b3{123};
         assert((b3 << 0).to_integer() == 123);

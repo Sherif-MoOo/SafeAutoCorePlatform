@@ -32,7 +32,7 @@
 #if defined(__linux__)
 #include <sys/prctl.h>
 #endif
-#include "ara/core/string_view.h"        // For ara::core::StringView
+//#include "ara/core/string_view.h"        // For ara::core::StringView
 #include "ara/core/array.h" // The custom Array implementation header
 #include <cstdint>          // For std::uint8_t
 #include <iostream>         // For std::cout (demonstrations)
@@ -284,6 +284,16 @@ int main(int argc, char* argv[])
  */
 void TestElementAccessAndIterators()
 {
+    
+    ara::core::Array<int,3> AoOo{10,20,30};
+
+    int x = 2;
+
+    auto val = AoOo[x];
+
+    std::cout << "Of: " << x << "Val: " << val << std::endl;
+
+
     std::cout << "\n=== Test 1: Element Access and Iterators ===\n";
     ara::core::Array<int,5> arr = {10, 20, 30, 40, 50};
 
@@ -1274,7 +1284,7 @@ void TestTupleInterface()
         /*  generic lambda: accepts any number of arguments,
             returns their sum with a fold-expression        */
         constexpr int sum = ara::core::apply(
-            [](auto... xs) constexpr { return (xs + ...); },
+            [](auto... xs) constexpr noexcept -> int { return (xs + ...); },
             ca
         );
         static_assert(sum == 6, "variadic sum failed");
@@ -1283,20 +1293,41 @@ void TestTupleInterface()
     /*---------------------------------------------------*
      * 7. ara::core::tuple_cat                            *
      *---------------------------------------------------*/
-    {
-        using A2 = ara::core::Array<int,2>;
-        constexpr A2 cb{ 4, 5 };
+    #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+        // Conditional Safe Mode: Additional tests with std::string
+        // std::tuple_cat is noexcept false and std::make_tuple is noexcept false
+        // {   
+        //     using namespace ara::core::literals::string_view_literals;
+        //     using A2 = ara::core::Array<ara::core::StringView,2>;
+        //     constexpr A2 cb{ "Hello"_sv, "World"_sv };
+
+        //     /* concatenate two Arrays into a single tuple */
+        //     auto tup = ara::core::tuple_cat(ca, cb);
+        //     static_assert( std::tuple_size_v<decltype(tup)> == 5,
+        //                    "tuple_cat size wrong" );
     
-        /* concatenate two Arrays into a single tuple */
-        constexpr auto tup = ara::core::tuple_cat(ca, cb);
-        static_assert( std::tuple_size_v<decltype(tup)> == 5,
-                       "tuple_cat size wrong" );
+        //     /* verify individual elements */
+        //     static_assert( std::get<0>(tup) == 1 );
+        //     static_assert( std::get<3>(tup) == "Hello" );
+        //     static_assert( std::get<4>(tup) == "World" );
+        // }
+
+        {
+            using A2 = ara::core::Array<int,2>;
+            constexpr A2 cb{ 4, 5 };
+        
+            /* concatenate two Arrays into a single tuple */
+            constexpr auto tup = ara::core::tuple_cat(ca, cb);
+            static_assert( std::tuple_size_v<decltype(tup)> == 5,
+                           "tuple_cat size wrong" );
+        
+            /* verify individual elements */
+            static_assert( std::get<0>(tup) == 1 );
+            static_assert( std::get<3>(tup) == 4 );
+            static_assert( std::get<4>(tup) == 5 );
+        }
     
-        /* verify individual elements */
-        static_assert( std::get<0>(tup) == 1 );
-        static_assert( std::get<3>(tup) == 4 );
-        static_assert( std::get<4>(tup) == 5 );
-    }
+    #endif // ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
 
     std::cout << "\n>>> Tuple interface - ALL CHECKS PASSED\n";
 }

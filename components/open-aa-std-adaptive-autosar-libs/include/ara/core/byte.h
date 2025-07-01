@@ -62,7 +62,6 @@
 #include "ara/core/internal/utility.h"              // For utility functions and traits
 #include "ara/core/internal/location_utils.h"       // For capturing file/line details
 #include "ara/core/internal/violation_handler.h"    // To trigger violations
-#include "ara/core/abort.h"                         // For direct abort on non-specified violations
 
 /**********************************************************************************************************************
  *  NAMESPACE: ara::core
@@ -135,37 +134,20 @@ public:
      *
      * \note Values outside [0, 255] trigger violation handler
      */
-    template <typename IntegralType,
-              typename = std::enable_if_t<std::is_integral_v<IntegralType>>>
-    constexpr explicit Byte(IntegralType val) 
-#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-        noexcept(!std::numeric_limits<IntegralType>::is_signed || 
-                 (std::numeric_limits<IntegralType>::max() <= 255))
-#else
-        noexcept
-#endif
-        : value_(static_cast<underlying_type>(val))
+    constexpr explicit Byte(const ara::core::internal::InputWithLocation<long long>& val) noexcept
+        : value_{static_cast<underlying_type>(val.input())}
     {
-#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-        // In strict no-exception mode, ensure construction is truly noexcept
-        static_assert(std::is_nothrow_constructible_v<underlying_type, IntegralType>,
-            "\n[ERROR] in ara::core::Byte: Construction must be noexcept when exceptions are disabled.\n");
-#endif
         
-        // C++17 compatible bounds checking
-        if constexpr (std::is_signed_v<IntegralType>) {
+        const long long& input_value = val.input();
+        if (detail::unlikely(input_value < 0 || input_value > 255)) {
             if (!detail::is_constant_evaluated()) {
-                if (val < 0 || val > 255) {
-                    TriggerByteRangeViolation(ARA_CORE_INTERNAL_FILELINE, val);
-                }
-            }
-        } else {
-            if (!detail::is_constant_evaluated()) {
-                if (val > 255) {
-                    TriggerByteRangeViolation(ARA_CORE_INTERNAL_FILELINE, val);
-                }
+                TriggerByteRangeViolation(val.info(), input_value);
+            } else {
+                constexpr unsigned char _illegal_byte_value[256] = {};
+                [[maybe_unused]] const auto verify{_illegal_byte_value[input_value]};
             }
         }
+
     }
 
     /*!
@@ -329,7 +311,7 @@ public:
     /*!
      * \brief Left shift assignment operator.
      *
-     * \param shift Number of positions to shift
+     * \param val Number of positions to shift
      * \return Reference to this byte after operation
      *
      * \details
@@ -337,13 +319,16 @@ public:
      * - Prevents undefined behavior from over-shifting
      * - Enhanced safety beyond standard requirements
      */
-    template <typename IntegralType,
-              typename = std::enable_if_t<std::is_integral_v<IntegralType>>>
-    constexpr auto operator<<=(IntegralType shift) noexcept -> Byte&
+    constexpr auto operator<<=(const ara::core::internal::InputWithLocation<long long>& val) noexcept -> Byte&
     {
-        if (!detail::is_constant_evaluated()) {
-            if (shift < 0 || shift >= 8) {
-                ara::core::Abort("Byte shift amount out of range [0, 7]");
+        const long long& shift = val.input();
+        if (detail::unlikely(shift < 0 || shift >= 8)) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerShiftRangeViolation(val.info(), shift);
+            } else {
+                constexpr unsigned char _illegal_shift[8] = {};
+                [[maybe_unused]] const auto verify{_illegal_shift[static_cast<long long>(shift)]};
+
             }
         }
         value_ = static_cast<underlying_type>(
@@ -356,7 +341,7 @@ public:
      * \brief Rejecting left shift assignment for non-integral types.
      *
      * \tparam T Non-integral type
-     * \param shift Invalid shift type (unused)
+     * \param val Invalid shift type (unused)
      *
      * \details
      * - Provides clear compile-time error message
@@ -384,15 +369,20 @@ public:
      * - Prevents undefined behavior from over-shifting
      * - Enhanced safety beyond standard requirements
      */
-    template <typename IntegralType,
-              typename = std::enable_if_t<std::is_integral_v<IntegralType>>>
-    constexpr auto operator>>=(IntegralType shift) noexcept -> Byte&
+    constexpr auto operator>>=(const ara::core::internal::InputWithLocation<long long>& val) noexcept -> Byte&
     {
-        if (!detail::is_constant_evaluated()) {
-            if (shift < 0 || shift >= 8) {
-                ara::core::Abort("Byte shift amount out of range [0, 7]");
+        const long long& shift = val.input();
+
+        if(detail::unlikely(shift < 0 || shift >= 8)) {
+            // C++17 compatible bounds checking
+            if (!detail::is_constant_evaluated()) {
+                TriggerShiftRangeViolation(val.info(), shift);
+            } else {
+                constexpr unsigned char _illegal_shift[8] = {};
+                [[maybe_unused]] const auto verify{_illegal_shift[static_cast<long long>(shift)]};
             }
         }
+
         value_ = static_cast<underlying_type>(
             static_cast<underlying_type>(value_ >> (static_cast<unsigned>(shift) & 0x7u))
         );
@@ -427,7 +417,7 @@ public:
     /*!
      * \brief Test if specific bit is set.
      *
-     * \param pos Bit position to test [0, 7]
+     * \param idx Bit position to test [0, 7]
      * \return true if bit is set, false otherwise
      *
      * \details
@@ -435,13 +425,16 @@ public:
      * - Bounds checked for safety
      * - Modern C++ style interface
      */
-    [[nodiscard]] constexpr auto test(std::size_t pos) const noexcept -> bool
+    [[nodiscard]] constexpr auto test(const ara::core::internal::InputWithLocation<std::size_t>& val) const noexcept -> bool
     {
-        if (pos >= 8) {
+        const std::size_t& pos = val.input();
+        if (detail::unlikely(pos >= 8)) {
             if (!detail::is_constant_evaluated()) {
-                ara::core::Abort("Bit position out of range [0, 7]");
+                TriggerBitPositionViolation(val.info(), pos);
+            } else {
+                constexpr unsigned char _illegal_bit_position[8] = {};
+                [[maybe_unused]] const auto verify{_illegal_bit_position[pos]};
             }
-            return false;
         }
         return (value_ & static_cast<underlying_type>(1u << pos)) != 0;
     }
@@ -449,7 +442,7 @@ public:
     /*!
      * \brief Set specific bit to 1.
      *
-     * \param pos Bit position to set [0, 7]
+     * \param val Bit position to set [0, 7]
      * \return Reference to this byte
      *
      * \details
@@ -457,13 +450,16 @@ public:
      * - Bounds checked for safety
      * - Chainable operation
      */
-    constexpr auto set(std::size_t pos) noexcept -> Byte&
+    constexpr auto set(const ara::core::internal::InputWithLocation<std::size_t>& val) noexcept -> Byte&
     {
-        if (pos >= 8) {
+        const std::size_t& pos = val.input();
+        if (detail::unlikely(pos >= 8)) {
             if (!detail::is_constant_evaluated()) {
-                ara::core::Abort("Bit position out of range [0, 7]");
+                TriggerBitPositionViolation(val.info(), pos);
+            } else {
+                constexpr unsigned char _illegal_bit_position[8] = {};
+                [[maybe_unused]] const auto verify{_illegal_bit_position[pos]};
             }
-            return *this;
         }
         value_ = static_cast<underlying_type>(value_ | static_cast<underlying_type>(1u << pos));
         return *this;
@@ -472,7 +468,7 @@ public:
     /*!
      * \brief Reset specific bit to 0.
      *
-     * \param pos Bit position to reset [0, 7]
+     * \param val Bit position to reset [0, 7]
      * \return Reference to this byte
      *
      * \details
@@ -480,13 +476,16 @@ public:
      * - Bounds checked for safety
      * - Chainable operation
      */
-    constexpr auto reset(std::size_t pos) noexcept -> Byte&
+    constexpr auto reset(const ara::core::internal::InputWithLocation<std::size_t>& val) noexcept -> Byte&
     {
-        if (pos >= 8) {
+        const std::size_t& pos = val.input();
+        if (detail::unlikely(pos >= 8)) {
             if (!detail::is_constant_evaluated()) {
-                ara::core::Abort("Bit position out of range [0, 7]");
+                TriggerBitPositionViolation(val.info(), pos);
+            } else {
+                constexpr unsigned char _illegal_bit_position[8] = {};
+                [[maybe_unused]] const auto verify{_illegal_bit_position[pos]};
             }
-            return *this;
         }
         value_ = static_cast<underlying_type>(value_ & static_cast<underlying_type>(~(1u << pos)));
         return *this;
@@ -495,7 +494,7 @@ public:
     /*!
      * \brief Flip specific bit.
      *
-     * \param pos Bit position to flip [0, 7]
+     * \param val Bit position to flip [0, 7]
      * \return Reference to this byte
      *
      * \details
@@ -503,13 +502,16 @@ public:
      * - Bounds checked for safety
      * - Chainable operation
      */
-    constexpr auto flip(std::size_t pos) noexcept -> Byte&
+    constexpr auto flip(const ara::core::internal::InputWithLocation<std::size_t>& val) noexcept -> Byte&
     {
-        if (pos >= 8) {
+        const std::size_t& pos = val.input();
+        if (detail::unlikely(pos >= 8)) {
             if (!detail::is_constant_evaluated()) {
-                ara::core::Abort("Bit position out of range [0, 7]");
+                TriggerBitPositionViolation(val.info(), pos);
+            } else {
+                constexpr unsigned char _illegal_bit_position[8] = {};
+                [[maybe_unused]] const auto verify{_illegal_bit_position[pos]};
             }
-            return *this;
         }
         value_ = static_cast<underlying_type>(value_ ^ static_cast<underlying_type>(1u << pos));
         return *this;
@@ -626,6 +628,52 @@ private:
             location,
             static_cast<long long>(value));
     }
+
+    /*!
+     * \brief Trigger violation for out-of-range shift operation.
+     *
+     * \param location Source location information
+     * \param shift The invalid shift amount
+     *
+     * \details
+     * - Uses AUTOSAR violation handler for consistency
+     * - Provides detailed error information
+     * - [[noreturn]] ensures proper compiler optimization
+     */
+    template <typename T>
+    [[noreturn]] static auto TriggerShiftRangeViolation(
+        std::string_view location,
+        T shift) noexcept -> void
+    {
+        auto& handler = ara::core::internal::ViolationHandler::Instance();
+        handler.TriggerShiftRangeViolation(
+            ara::core::internal::ViolationHandler::ByteKey{},
+            location,
+            static_cast<long long>(shift));
+    }
+
+    /*!
+     * \brief Trigger violation for out-of-range bit position.
+     *
+     * \param location Source location information
+     * \param pos The invalid bit position
+     *
+     * \details
+     * - Uses AUTOSAR violation handler for consistency
+     * - Provides detailed error information
+     * - [[noreturn]] ensures proper compiler optimization
+     */
+    [[noreturn]] static auto TriggerBitPositionViolation(
+        std::string_view location,
+        std::size_t pos) noexcept -> void
+    {
+        auto& handler = ara::core::internal::ViolationHandler::Instance();
+        handler.TriggerBitPositionViolation(
+            ara::core::internal::ViolationHandler::ByteKey{},
+            location,
+            pos);
+    }
+
 };
 
 /**********************************************************************************************************************
@@ -689,10 +737,23 @@ private:
  * \param shift Number of positions to shift
  * \return Result of left shift
  */
-template <typename IntegralType,
-          typename = std::enable_if_t<std::is_integral_v<IntegralType>>>
-[[nodiscard]] constexpr auto operator<<(Byte b, IntegralType shift) noexcept -> Byte
+[[nodiscard]] constexpr auto operator<<(Byte b, 
+                                        const ara::core::internal::InputWithLocation<long long>& val) noexcept -> Byte
 {
+    const long long& shift = val.input();
+    if (detail::unlikely(shift < 0 || shift >= 8)) {
+        if (!detail::is_constant_evaluated()) {
+            auto& handler = ara::core::internal::ViolationHandler::Instance();
+            handler.TriggerShiftRangeViolation(
+                ara::core::internal::ViolationHandler::ByteKey{},
+                val.info(),
+                static_cast<long long>(shift));
+        } else {
+            constexpr unsigned char _illegal_shift[8] = {};
+            [[maybe_unused]] const auto verify{_illegal_shift[static_cast<long long>(shift)]};
+
+        }
+    }
     return Byte{static_cast<std::uint8_t>(
         static_cast<std::uint8_t>(b) << (static_cast<unsigned>(shift) & 0x7u))};
 }
@@ -726,10 +787,22 @@ template <typename T,
  * \param shift Number of positions to shift
  * \return Result of right shift
  */
-template <typename IntegralType,
-          typename = std::enable_if_t<std::is_integral_v<IntegralType>>>
-[[nodiscard]] constexpr auto operator>>(Byte b, IntegralType shift) noexcept -> Byte
+[[nodiscard]] constexpr auto operator>>(Byte b,
+                                        const ara::core::internal::InputWithLocation<long long>& val) noexcept -> Byte
 {
+    const long long& shift = val.input();
+    if (detail::unlikely(shift < 0 || shift >= 8)) {
+        if (!detail::is_constant_evaluated()) {
+            auto& handler = ara::core::internal::ViolationHandler::Instance();
+            handler.TriggerShiftRangeViolation(
+                ara::core::internal::ViolationHandler::ByteKey{},
+                val.info(),
+                static_cast<long long>(shift));
+        } else {
+            constexpr unsigned char _illegal_shift[8] = {};
+            [[maybe_unused]] const auto verify{_illegal_shift[static_cast<long long>(shift)]};
+        }
+    }
     return Byte{static_cast<std::uint8_t>(
         static_cast<std::uint8_t>(b) >> (static_cast<unsigned>(shift) & 0x7u))};
 }

@@ -26,6 +26,7 @@
 #ifndef ARA_CORE_INTERNAL_VIOLATION_HANDLER_H_
 #define ARA_CORE_INTERNAL_VIOLATION_HANDLER_H_
 #include <limits>                                   // For numeric_limits
+#include "ara/core/internal/location_utils.h"       // For capturing file/line details
 
 /**********************************************************************************************************************
  *  NAMESPACE: ara::core::internal
@@ -39,9 +40,19 @@ template <typename T, std::size_t N>
 class Array;
 
 class Byte;
+[[nodiscard]] constexpr auto operator<<(
+        Byte,
+        const internal::InputWithLocation<long long>&) noexcept -> Byte;
+
+[[nodiscard]] constexpr auto operator>>(
+        Byte,
+        const internal::InputWithLocation<long long>&) noexcept -> Byte;
 
 template<typename ElementType, std::size_t Extent>
 class Span;
+
+template<typename CharT, typename Traits>
+class BasicStringView;
 
 template<typename CharT, typename Traits>
 class BasicStringView;
@@ -120,6 +131,10 @@ public:
              * \note   Ensures that ara::core::Byte allowed trigger violations.
              */
             friend class ara::core::Byte;
+            friend constexpr auto 
+            ::ara::core::operator<<(ara::core::Byte, const ara::core::internal::InputWithLocation<long long>&) noexcept -> ara::core::Byte;
+            friend constexpr auto
+            ::ara::core::operator>>(ara::core::Byte, const ara::core::internal::InputWithLocation<long long>&) noexcept -> ara::core::Byte;
     };
 
     
@@ -229,6 +244,37 @@ public:
     [[noreturn]] auto TriggerByteRangeViolation(ByteKey&& /*unused*/,
                                                 std::string_view location,
                                                 long long value) noexcept -> void;
+    
+    /*!
+     * \brief  Triggers a ShiftRangeViolation.
+     * \param  location   An implementation-defined identifier of the location where the violation was detected
+     *                    (e.g., "file.cpp:123").
+     * \param  shift      The invalid shift amount that caused the violation.
+     * \details
+     * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+     * and does not throw exceptions.
+     * \note   [SWS_CORE_00090]
+     */
+    [[noreturn]] auto TriggerShiftRangeViolation(ByteKey&& /*unused*/,
+                                                 std::string_view location,
+                                                 long long shift) noexcept -> void;
+    
+    /*!
+     * \brief  Triggers a BitPositionViolation.
+     *
+     * \param  location   An implementation-defined identifier of the location where the violation was detected
+     *                    (e.g., "file.cpp:123").
+     * \param  pos        The invalid bit position that caused the violation.
+     *
+     * \details
+     * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+     * and does not throw exceptions.
+     *
+     * \note   [SWS_CORE_00090]
+     */
+    [[noreturn]] auto TriggerBitPositionViolation(ByteKey&& /*unused*/,
+                                                  std::string_view location,
+                                                  std::size_t pos) noexcept -> void;
 
     
     /*!
@@ -249,6 +295,67 @@ public:
                                                std::size_t actual,
                                                std::size_t expected) noexcept -> void;
     
+    /*! 
+    * \brief  Triggers a SpanNullPointerViolation.
+     * \param  location   An implementation-defined identifier of the location where the violation was detected
+     *                    (e.g., "file.cpp:123").
+     * \details
+     * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+     * and does not throw exceptions.
+     * \note   [SWS_CORE_00090]
+     */
+    [[noreturn]] auto TriggerSpanNullPointerViolation(SpanKey&& /*unused*/,
+                                                      std::string_view location) noexcept -> void;
+
+    /*!
+     * \brief  Triggers a SpanRangeViolation.
+     *
+     * \param  location   An implementation-defined identifier of the location where the violation was detected
+     *                    (e.g., "file.cpp:123").
+     * \details
+     * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+     * and does not throw exceptions.
+     * \note   [SWS_CORE_00090]
+     */
+    [[noreturn]] auto TriggerSpanRangeViolation(SpanKey&& /*unused*/,
+                                                std::string_view location) noexcept -> void;
+
+    /*!
+     * \brief  Triggers a SpanEmptyAccessViolation.
+     *
+     * \param  location   An implementation-defined identifier of the location where the violation was detected
+     *                    (e.g., "file.cpp:123").
+     * \param  operation  The operation that caused the violation (e.g., "front", "back").
+     *
+     * \details
+     * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+     * and does not throw exceptions.
+     *
+     */
+    [[noreturn]] auto TriggerSpanEmptyAccessViolation(SpanKey&& /*unused*/,
+                                                      std::string_view location,
+                                                      std::string_view operation) noexcept -> void;
+
+    /*!
+     * \brief  Triggers a SpanSubspanViolation.
+     * \param  location   An implementation-defined identifier of the location where the violation was detected
+     *                    (e.g., "file.cpp:123").
+     * \param  operation  The operation that caused the violation (e.g., "first", "last", "subspan").
+     * \param  requested  The requested size or offset that caused the violation.
+     * \param  available  The available size of the span.
+     * \param  is_offset  Indicates whether the requested value is an offset (true) or a size (false).
+     * \details
+     * Logs a violation message and terminates the process abnormally as per [SWS_CORE_00090]. This method is noexcept
+     * and does not throw exceptions.
+     * \note   [SWS_CORE_00090]
+     */
+    [[noreturn]] auto TriggerSpanSubspanViolation(SpanKey&& /*unused*/,
+                                                  std::string_view location,
+                                                  std::string_view operation,
+                                                  std::size_t requested,
+                                                  std::size_t available,
+                                                  bool is_offset = true) noexcept -> void;
+
     /*!
      * \brief  Triggers a SpanBoundsViolation.
      *
@@ -266,6 +373,7 @@ public:
                                                  std::string_view location,
                                                  std::size_t index,
                                                  std::size_t size) noexcept -> void;
+
 
     /*!
      * \brief  Triggers a StringViewBoundsViolation.
