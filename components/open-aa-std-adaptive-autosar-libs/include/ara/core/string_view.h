@@ -100,23 +100,23 @@ public:
     // -----------------------------------------------------------------------------------
     // TYPE ALIASES [SWS_CORE_03011-03022]
     // -----------------------------------------------------------------------------------
-    using traits_type            = Traits;                          /*!< [SWS_CORE_03011] Character traits type */
-    using value_type            = CharT;                           /*!< [SWS_CORE_03012] Character type */
-    using pointer               = CharT*;                          /*!< [SWS_CORE_03013] Pointer to character */
-    using const_pointer         = const CharT*;                    /*!< [SWS_CORE_03014] Const pointer to character */
-    using reference             = CharT&;                          /*!< [SWS_CORE_03015] Reference to character */
-    using const_reference       = const CharT&;                    /*!< [SWS_CORE_03016] Const reference to character */
-    using const_iterator        = const CharT*;                    /*!< [SWS_CORE_03017] Const iterator type */
-    using iterator              = const_iterator;                  /*!< [SWS_CORE_03018] Iterator type (same as const) */
-    using const_reverse_iterator = std::reverse_iterator<const_iterator>; /*!< [SWS_CORE_03019] Const reverse iterator */
-    using reverse_iterator      = const_reverse_iterator;          /*!< [SWS_CORE_03020] Reverse iterator */
-    using size_type             = std::size_t;                     /*!< [SWS_CORE_03021] Size type */
-    using difference_type       = std::ptrdiff_t;                  /*!< [SWS_CORE_03022] Difference type */
+    using traits_type            = Traits;                                 /*!< [SWS_CORE_03011] Character traits type */
+    using value_type             = CharT;                                  /*!< [SWS_CORE_03012] Character type */
+    using pointer                = CharT*;                                 /*!< [SWS_CORE_03013] Pointer to character */
+    using const_pointer          = const CharT*;                           /*!< [SWS_CORE_03014] Const pointer to character */
+    using reference              = CharT&;                                 /*!< [SWS_CORE_03015] Reference to character */
+    using const_reference        = const CharT&;                           /*!< [SWS_CORE_03016] Const reference to character */
+    using const_iterator         = const CharT*;                           /*!< [SWS_CORE_03017] Const iterator type */
+    using iterator               = const_iterator;                         /*!< [SWS_CORE_03018] Iterator type (same as const) */
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;  /*!< [SWS_CORE_03019] Const reverse iterator */
+    using reverse_iterator       = const_reverse_iterator;                 /*!< [SWS_CORE_03020] Reverse iterator */
+    using size_type              = std::size_t;                            /*!< [SWS_CORE_03021] Size type */
+    using difference_type        = std::ptrdiff_t;                         /*!< [SWS_CORE_03022] Difference type */
 
     // -----------------------------------------------------------------------------------
     // STATIC MEMBERS [SWS_CORE_03031]
     // -----------------------------------------------------------------------------------
-    static constexpr size_type npos = static_cast<size_type>(-1); /*!< [SWS_CORE_03031] Invalid position indicator */
+    static constexpr size_type npos = std::numeric_limits<size_type>::max(); /*!< [SWS_CORE_03031] Invalid position indicator */
 
     // -----------------------------------------------------------------------------------
     // CONSTRUCTORS [SWS_CORE_03040-03050]
@@ -130,7 +130,7 @@ public:
      * - Results in data() == nullptr and size() == 0
      */
     constexpr BasicStringView() noexcept
-        : data_(nullptr), size_(0) {}
+        : data_{nullptr}, size_{0} {}
 
     /*!
      * \brief Copy constructor
@@ -152,7 +152,10 @@ public:
      * - Behavior is undefined if [s, s + count) is not valid
      */
     constexpr BasicStringView(const CharT* s, size_type count) noexcept
-        : data_(s), size_(count) {}
+        : data_{s}, size_{count}
+        {
+            
+        }
 
     /*!
      * \brief Construct from C-string
@@ -165,12 +168,17 @@ public:
      * - C++26 feature: nullptr check for safety
      */
     template<typename = void>  // SFINAE for better error messages
-    constexpr BasicStringView(const CharT* s)  noexcept
+    constexpr BasicStringView(const CharT* s,
+                              const ara::core::internal::InputWithLocation<std::uint8_t> loc =
+                                    ara::core::internal::make_input_with_location<std::uint8_t>(0)) noexcept
         : data_(s), size_(s ? Traits::length(s) : 0)
     {
-        if (!detail::is_constant_evaluated()) {
-            if (!s) {
-                TriggerNullptrViolation(ARA_CORE_INTERNAL_FILELINE);
+        if (detail::unlikely(!s)) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerNullptrViolation(loc.info());
+            } else {
+                constexpr unsigned char _null_pointer_violation[1] = {};
+                [[maybe_unused]] const auto verify{_null_pointer_violation[1]};
             }
         }
     }
@@ -293,13 +301,18 @@ public:
      * - [SWS_CORE_03060]: Unchecked element access
      * - Zero-cost in release builds
      */
-    [[nodiscard]] constexpr auto operator[](size_type pos) const noexcept -> const_reference
-    {
-        if (!detail::is_constant_evaluated()) {
-            if (pos >= size_) {
-                TriggerIndexViolation(ARA_CORE_INTERNAL_FILELINE, pos, size_);
+    [[nodiscard]] constexpr auto operator[](const ara::core::internal::InputWithLocation<size_type>& pos) const noexcept -> const_reference
+    {   
+        const size_type& I = pos.input();
+        if (detail::unlikely(I >= size_)) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerIndexViolation(pos.info(), I, size_);
+            } else {
+                constexpr unsigned char _bounds_check[1] = {};
+                [[maybe_unused]] const auto verify{_bounds_check[1]};
             }
         }
+
         return data_[pos];
     }
 
@@ -314,10 +327,16 @@ public:
      * - Always performs bounds checking
      * - Calls violation handler on out-of-bounds
      */
-    [[nodiscard]] constexpr auto at(size_type pos) const noexcept -> const_reference
+    [[nodiscard]] constexpr auto at(const ara::core::internal::InputWithLocation<size_type>& pos) const noexcept -> const_reference
     {
-        if (pos >= size_) {
-            TriggerBoundsViolation(ARA_CORE_INTERNAL_FILELINE, pos, size_);
+        const size_type& I = pos.input();
+        if (detail::unlikely(I >= size_)) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerBoundsViolation(pos.info(), I, size_);
+            } else {
+                constexpr unsigned char _bounds_check[1] = {};
+                [[maybe_unused]] const auto verify{_bounds_check[1]};
+            }
         }
         return data_[pos];
     }
@@ -330,11 +349,16 @@ public:
      * \details
      * - [SWS_CORE_03062]: Front element access
      */
-    [[nodiscard]] constexpr auto front() const noexcept -> const_reference
-    {
-        if (!detail::is_constant_evaluated()) {
-            if (empty()) {
-                TriggerEmptyAccessViolation(ARA_CORE_INTERNAL_FILELINE, "front");
+    [[nodiscard]] constexpr auto front(const ara::core::internal::InputWithLocation<std::uint8_t> loc =
+                                    ara::core::internal::make_input_with_location<std::uint8_t>(0)) const noexcept -> const_reference
+    {   
+
+        if (detail::unlikely(empty())) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerEmptyAccessViolation(loc.info(), "front");
+            } else {
+                constexpr unsigned char _empty_access_violation[1] = {};
+                [[maybe_unused]] const auto verify{_empty_access_violation[1]};
             }
         }
         return data_[0];
@@ -348,13 +372,19 @@ public:
      * \details
      * - [SWS_CORE_03063]: Back element access
      */
-    [[nodiscard]] constexpr auto back() const noexcept -> const_reference
+    [[nodiscard]] constexpr auto back(const ara::core::internal::InputWithLocation<std::uint8_t> loc =
+                                      ara::core::internal::make_input_with_location<std::uint8_t>(0)) const noexcept -> const_reference
     {
-        if (!detail::is_constant_evaluated()) {
-            if (empty()) {
-                TriggerEmptyAccessViolation(ARA_CORE_INTERNAL_FILELINE, "back");
+        
+        if (detail::unlikely(empty())) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerEmptyAccessViolation(loc.info(), "back");
+            } else {
+                constexpr unsigned char _empty_access_violation[1] = {};
+                [[maybe_unused]] const auto verify{_empty_access_violation[1]};
             }
         }
+
         return data_[size_ - 1];
     }
 
@@ -431,15 +461,18 @@ public:
      * - [SWS_CORE_03080]: Remove prefix
      * - Behavior undefined if n > size()
      */
-    constexpr auto remove_prefix(size_type n) noexcept -> void
+    constexpr auto remove_prefix(const ara::core::internal::InputWithLocation<size_type>& n) noexcept -> void
     {
-        if (!detail::is_constant_evaluated()) {
-            if (n > size_) {
-                TriggerRemoveViolation(ARA_CORE_INTERNAL_FILELINE, n, size_, "remove_prefix");
+        if (detail::unlikely(n.input() > size_)) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerRemoveViolation(n.info(), n.input(), size_, "remove_prefix");
+            } else {
+                constexpr unsigned char _remove_violation[1] = {};
+                [[maybe_unused]] const auto verify{_remove_violation[1]};
             }
         }
-        data_ += n;
-        size_ -= n;
+        data_ += n.input();
+        size_ -= n.input();
     }
 
     /*!
@@ -451,14 +484,17 @@ public:
      * - [SWS_CORE_03081]: Remove suffix
      * - Behavior undefined if n > size()
      */
-    constexpr auto remove_suffix(size_type n) noexcept -> void
+    constexpr auto remove_suffix(const ara::core::internal::InputWithLocation<size_type>& n) noexcept -> void
     {
-        if (!detail::is_constant_evaluated()) {
-            if (n > size_) {
-                TriggerRemoveViolation(ARA_CORE_INTERNAL_FILELINE, n, size_, "remove_suffix");
+        if (detail::unlikely(n.input() > size_)) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerRemoveViolation(n.info(), n.input(), size_, "remove_suffix");
+            } else {
+                constexpr unsigned char _remove_violation[1] = {};
+                [[maybe_unused]] const auto verify{_remove_violation[1]};
             }
         }
-        size_ -= n;
+        size_ -= n.input();
     }
 
     /*!
@@ -492,12 +528,17 @@ public:
      * - [SWS_CORE_03090]: Copy operation
      * - Triggers violation if pos > size()
      */
-    auto copy(CharT* dest, size_type count, size_type pos = 0) const noexcept -> size_type
+    constexpr auto copy(CharT* dest, const ara::core::internal::InputWithLocation<size_type>& count, size_type pos = 0) const noexcept -> size_type
     {
-        if (pos > size_) {
-            TriggerPosViolation(ARA_CORE_INTERNAL_FILELINE, pos, size_);
+        if (detail::unlikely(pos > size_)) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerPosViolation(count.info(), pos, size_);
+            } else {
+                constexpr unsigned char _pos_violation[1] = {};
+                [[maybe_unused]] const auto verify{_pos_violation[1]};
+            }
         }
-        const size_type rlen = (std::min)(count, size_ - pos);
+        const size_type rlen = (std::min)(count.input(), size_ - pos);
         Traits::copy(dest, data_ + pos, rlen);
         return rlen;
     }
@@ -513,14 +554,21 @@ public:
      * - [SWS_CORE_03091]: Substring operation
      * - Triggers violation if pos > size()
      */
-    [[nodiscard]] constexpr auto substr(size_type pos = 0, size_type count = npos) const
+    [[nodiscard]] constexpr auto substr(const ara::core::internal::InputWithLocation<size_type>& pos = 0, size_type count = npos) const
         noexcept -> BasicStringView
     {
-        if (pos > size_) {
-            TriggerPosViolation(ARA_CORE_INTERNAL_FILELINE, pos, size_);
+        
+        if (detail::unlikely(pos.input() > size_)) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerPosViolation(pos.info(), pos.input(), size_);
+            } else {
+                constexpr unsigned char _pos_violation[1] = {};
+                [[maybe_unused]] const auto verify{_pos_violation[1]};
+            }
         }
-        const size_type rlen = (std::min)(count, size_ - pos);
-        return BasicStringView(data_ + pos, rlen);
+
+        const size_type rlen = (std::min)(count, size_ - pos.input());
+        return BasicStringView(data_ + pos.input(), rlen);
     }
 
     /*!

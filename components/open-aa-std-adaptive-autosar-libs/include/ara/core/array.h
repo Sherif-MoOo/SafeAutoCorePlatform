@@ -50,6 +50,7 @@
 #include <iterator>                                 // For std::reverse_iterator
 
 #include "ara/core/internal/utility.h"              // For utility functions and traits
+#include "ara/core/algorithm.h"                     // For algorithm utilities
 #include "ara/core/internal/location_utils.h"       // For capturing file/line details
 #include "ara/core/internal/violation_handler.h"    // To Trigger the violation
 
@@ -96,7 +97,7 @@ template<size_t I, typename T, size_t N>
 template<size_t I, typename T, size_t N>
 [[nodiscard]] constexpr auto get(const ara::core::Array<T, N>&& a) noexcept -> const T&& {
     return ara::core::get<I>(std::move(a));
-} // namespace std
+}
   
 /*---------------------------------------------------------------------------------------------------------------
  *  (1) tuple_size – "How many elements?"
@@ -142,161 +143,6 @@ struct tuple_element<I, ara::core::Array<T, N>>
 };
 
 } // namespace std
-
-
-/**********************************************************************************************************************
- *  TUPLE-LIKE UTILITIES
- *  ---------------------------------------------------------------------------------------------------------------
- *  ara::core::apply      – constexpr replacement for std::apply that works with ADL
- *  ara::core::tuple_cat  – concatenates any number of tuple-protocol objects
- *********************************************************************************************************************/
-namespace ara {
-namespace core {
-
-/**********************************************************************************************************************
- *  ara::core::apply
- *********************************************************************************************************************/
-/*!
- * \brief  Applies a callable to the elements of a tuple-like object.
- *
- * \details
- * This is a constexpr, SFINAE-friendly replacement for std::apply that works with
- * any tuple-like type via ADL. It unpacks the tuple-like object and invokes the
- * callable with its elements as arguments.
- *
- * Features:
- * - Works with any tuple-like type (std::tuple, std::pair, ara::core::Array, etc.)
- * - Preserves value categories when forwarding arguments
- * - Fully constexpr and noexcept aware
- * - SFINAE-friendly with proper enable_if constraints
- *
- * \tparam F     The type of the callable (function, lambda, functor, etc.).
- * \tparam Tuple The type of the tuple-like object.
- * \param  f     The callable to apply.
- * \param  tup   The tuple-like object containing the arguments.
- * \return       The result of calling f with the unpacked elements of tup.
- *
- * \pre Tuple must be a tuple-like type (satisfy is_tuple_like_v).
- * \pre F must be invocable with the unpacked elements of Tuple.
- *
- * Example usage:
- * \code
- * ara::core::Array<int, 3> arr{10, 20, 30};
- * auto sum = ara::core::apply([](int a, int b, int c) { return a + b + c; }, arr);
- * // sum == 60
- * 
- * // Works with perfect forwarding
- * auto concat = ara::core::apply(
- *     [](auto&&... args) { return (... + args); },
- *     std::make_tuple(std::string("Hello"), ' ', std::string("World"))
- * );
- * // concat == "Hello World"
- * \endcode
- */
-template<typename F, typename Tuple>
-[[nodiscard]] constexpr auto apply(F&& f, Tuple&& tup)
-#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-    noexcept(noexcept(detail::apply_impl(
-        std::forward<F>(f),
-        std::forward<Tuple>(tup),
-        std::make_index_sequence<std::tuple_size_v<
-            std::remove_cv_t<std::remove_reference_t<Tuple>>>>{})))
-#else
-    noexcept
-#endif
-    -> std::enable_if_t<
-        detail::is_tuple_like_v<std::remove_reference_t<Tuple>>,
-        decltype(detail::apply_impl(
-            std::forward<F>(f),
-            std::forward<Tuple>(tup),
-            std::make_index_sequence<std::tuple_size_v<
-                std::remove_cv_t<std::remove_reference_t<Tuple>>>>{}))>
-{
-    static_assert(detail::is_tuple_like_v<std::remove_reference_t<Tuple>>,
-        "\n[ERROR] ara::core::apply: The second argument must be a tuple-like type.\n");
-    
-    constexpr std::size_t N = std::tuple_size_v<
-        std::remove_cv_t<std::remove_reference_t<Tuple>>>;
-    
-#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-    static_assert(noexcept(detail::apply_impl(
-        std::forward<F>(f),
-        std::forward<Tuple>(tup),
-        std::make_index_sequence<N>{})),
-        "\n[ERROR] ara::core::apply: The callable invocation must be noexcept when exceptions are disabled.\n");
-#endif
-    
-    return detail::apply_impl(std::forward<F>(f),
-                              std::forward<Tuple>(tup),
-                              std::make_index_sequence<N>{});
-}
-
-/*!
- * \brief  Concatenates any number of tuple-like objects into a single std::tuple.
- *
- * \details
- * This function concatenates multiple tuple-like objects into a single std::tuple,
- * following the same semantics as std::tuple_cat. It creates a new tuple containing
- * values (not references) of all elements from the input objects.
- *
- * Behavior:
- * - For lvalue arguments: elements are copied
- * - For rvalue arguments: elements are moved
- * - All types are decayed (cv-qualifiers and references removed)
- * - Works in constexpr contexts
- * - Fully noexcept aware
- *
- * This implementation correctly handles the C++ standard semantics where tuple_cat
- * creates a tuple of values, enabling use in constexpr contexts and avoiding
- * dangling reference issues.
- *
- * \tparam Tuples The types of the tuple-like objects to concatenate.
- * \param  tpls   The tuple-like objects to concatenate.
- * \return        A std::tuple containing values of all elements.
- *
- * \pre All types in Tuples must be tuple-like (satisfy is_tuple_like_v).
- *
- * Example usage:
- * \code
- * ara::core::Array<int, 2> arr{1, 2};
- * std::pair<double, char> pr{3.14, 'x'};
- * std::tuple<bool> tup{true};
- * 
- * auto combined = ara::core::tuple_cat(arr, pr, tup);
- * // combined is std::tuple<int, int, double, char, bool>{1, 2, 3.14, 'x', true}
- * 
- * // Works in constexpr contexts
- * constexpr ara::core::Array<int, 3> c_arr{10, 20, 30};
- * constexpr auto c_result = ara::core::tuple_cat(c_arr, std::make_pair(40, 50));
- * static_assert(std::get<0>(c_result) == 10);
- * static_assert(std::get<4>(c_result) == 50);
- * \endcode
- */
-template<typename... Tuples>
-[[nodiscard]] constexpr auto tuple_cat(Tuples&&... tpls)
-#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-    noexcept(noexcept(std::tuple_cat(detail::to_std_tuple(std::forward<Tuples>(tpls))...)))
-#else
-    noexcept
-#endif
-    -> std::enable_if_t<
-        (detail::is_tuple_like_v<std::remove_reference_t<Tuples>> && ...),
-        decltype(std::tuple_cat(detail::to_std_tuple(std::forward<Tuples>(tpls))...))>
-{
-    static_assert((detail::is_tuple_like_v<std::remove_reference_t<Tuples>> && ...),
-        "\n[ERROR] ara::core::tuple_cat: All arguments must be tuple-like types.\n");
-    
-#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-    static_assert(noexcept(std::tuple_cat(detail::to_std_tuple(std::forward<Tuples>(tpls))...)),
-        "\n[ERROR] ara::core::tuple_cat: The tuple concatenation must be noexcept when exceptions are disabled.\n");
-#endif
-    
-    return std::tuple_cat(detail::to_std_tuple(std::forward<Tuples>(tpls))...);
-}
-
-} // namespace core
-} // namespace ara
-
 
 /**********************************************************************************************************************
  *  NAMESPACE: ara::core
@@ -344,20 +190,20 @@ public:
      */
     static_assert(std::is_nothrow_destructible_v<T>,
                 "\n[ERROR] in ara::core::Array: The type T must have a noexcept destructor.\n");
-                
-    static_assert(std::is_nothrow_constructible_v<T> || !std::is_default_constructible_v<T>,
+
+    static_assert(!std::is_default_constructible_v<T> || std::is_nothrow_constructible_v<T>,
                 "\n[ERROR] in ara::core::Array: The type T must be noexcept default constructible or not default constructible.\n");
-                  
-    static_assert(std::is_nothrow_move_constructible_v<T> || !std::is_move_constructible_v<T>,
+
+    static_assert(!std::is_move_constructible_v<T> || std::is_nothrow_move_constructible_v<T>,
                 "\n[ERROR] in ara::core::Array: The type T must be noexcept move constructible or not move constructible.\n");
-                  
-    static_assert(std::is_nothrow_move_assignable_v<T> || !std::is_move_assignable_v<T>,
+
+    static_assert(!std::is_move_assignable_v<T> || std::is_nothrow_move_assignable_v<T>,
                 "\n[ERROR] in ara::core::Array: The type T must be noexcept move assignable or not move assignable.\n");
-                  
-    static_assert(std::is_nothrow_copy_constructible_v<T> || !std::is_copy_constructible_v<T>,
+
+    static_assert(!std::is_copy_constructible_v<T> || std::is_nothrow_copy_constructible_v<T>,
                 "\n[ERROR] in ara::core::Array: The type T must be noexcept copy constructible or not copy constructible.\n");
-                  
-    static_assert(std::is_nothrow_copy_assignable_v<T> || !std::is_copy_assignable_v<T>,
+
+    static_assert(!std::is_copy_assignable_v<T> || std::is_nothrow_copy_assignable_v<T>,
                 "\n[ERROR] in ara::core::Array: The type T must be noexcept copy assignable or not copy assignable.\n");
 #endif
 
@@ -381,12 +227,53 @@ public:
     // -----------------------------------------------------------------------------------
     // 3) DEFAULT AND COPY/MOVE OPERATIONS [SWS_CORE_01201]
     // -----------------------------------------------------------------------------------
-    constexpr Array() noexcept = default;                                      /*!< [SWS_CORE_01201]: Default constructor */
-    constexpr Array(const Array&) noexcept = default;                          /*!< [SWS_CORE_01201]: Copy constructor */
-    constexpr Array(Array&&) noexcept = default;                               /*!< [SWS_CORE_01201]: Move constructor */
-    constexpr auto operator=(const Array&) noexcept -> Array& = default;       /*!< [SWS_CORE_01201]: Copy assignment */ 
-    constexpr auto operator=(Array&&) noexcept -> Array& = default;            /*!< [SWS_CORE_01201]: Move assignment */ 
-    ~Array() noexcept = default;                                               /*!< [SWS_CORE_01201]: Destructor */
+    constexpr Array()
+    #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+        noexcept(std::is_nothrow_default_constructible_v<T>)
+    #else
+        noexcept
+    #endif
+        = default; /*!< [SWS_CORE_01201]: Default constructor */
+    
+    constexpr Array(const Array&)
+        #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+            noexcept(std::is_nothrow_copy_constructible_v<T>)
+        #else
+            noexcept
+        #endif
+        = default; /*!< [SWS_CORE_01201]: Copy constructor */
+
+    constexpr Array(Array&&)
+        #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+            noexcept(std::is_nothrow_move_constructible_v<T>)
+        #else
+            noexcept
+        #endif
+        = default; /*!< [SWS_CORE_01201]: Move constructor */
+    
+    constexpr auto operator=(const Array&)
+        #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+            noexcept(std::is_nothrow_copy_assignable_v<T>)
+        #else
+            noexcept
+        #endif
+        -> Array& = default; /*!< [SWS_CORE_01201]: Copy assignment */
+
+    constexpr auto operator=(Array&&)
+        #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+            noexcept(std::is_nothrow_move_assignable_v<T>)
+        #else
+            noexcept
+        #endif
+        -> Array& = default; /*!< [SWS_CORE_01201]: Move assignment */
+    
+    ~Array()
+        #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+            noexcept(std::is_nothrow_destructible_v<T>)
+        #else
+            noexcept
+        #endif
+        = default; /*!< [SWS_CORE_01201]: Destructor */
 
     // -----------------------------------------------------------------------------------
     // 4) OPERATOR[] [SWS_CORE_01265], [SWS_CORE_01266]
@@ -1786,20 +1673,39 @@ static_assert(sizeof(Array<int, 4>) == 4 * sizeof(int),
 static_assert(std::is_standard_layout_v<Array<int, 4>>,
     "Array<int,4> should have standard layout");
 
+static_assert(std::is_standard_layout_v<Array<int, 0>>,
+    "Array<int,0> should have standard layout (empty class rule)");
+
 static_assert(std::is_trivial_v<Array<int, 4>>,
     "Array<int,4> should be trivial because int is trivial");
+
+static_assert(std::is_trivial_v<Array<int, 0>>,
+    "Array<int,0> should be trivial (empty class rule)");
 
 static_assert(std::is_trivially_copy_constructible_v<Array<int, 4>>,
     "Array<int,4> should be trivially copy-constructible");
 
+static_assert(std::is_trivially_copy_constructible_v<Array<int, 0>>,
+    "Array<int,0> should be trivially copy-constructible (empty class rule)");
+
 static_assert(std::is_trivially_move_assignable_v<Array<int, 4>>,
     "Array<int,4> should be trivially move-assignable");
+
+static_assert(std::is_trivially_move_assignable_v<Array<int, 0>>,
+    "Array<int,0> should be trivially move-assignable (empty class rule)");
 
 // No implicit element-wise conversions
 static_assert(!std::is_convertible_v<Array<int,4>, int*>,
     "Array should not implicitly decay to pointer");
+
+static_assert(!std::is_convertible_v<Array<int,0>, int*>,
+    "Array<int,0> should not implicitly decay to pointer (empty class rule)");
+
 static_assert(!std::is_convertible_v<int*, Array<int,4>>,
     "Pointer should not implicitly convert to Array");
+
+static_assert(!std::is_convertible_v<int*, Array<int,0>>,
+    "Pointer should not implicitly convert to Array<int,0> (empty class rule)");
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Case 2 : non-trivial element type

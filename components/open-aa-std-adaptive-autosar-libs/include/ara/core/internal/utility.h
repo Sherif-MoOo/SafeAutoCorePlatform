@@ -1135,30 +1135,66 @@ public:
 
     /*!
      * \brief Default constructor for the storage.
-     *
-     * Zero‑initializes \c data_.
      */
-    constexpr ArrayStorage() noexcept = default;
+    constexpr ArrayStorage()
+     #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+        noexcept(std::is_nothrow_default_constructible_v<T>)
+     #else
+        noexcept
+     #endif
+        = default;
 
     /*!
      * \brief Defaulted copy constructor.
      */
-    constexpr ArrayStorage(const ArrayStorage&) noexcept = default;
+    constexpr ArrayStorage(const ArrayStorage&)
+        #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+            noexcept(std::is_nothrow_copy_constructible_v<T>)
+        #else
+            noexcept
+        #endif
+            = default;
 
     /*!
      * \brief Defaulted move constructor.
      */
-    constexpr ArrayStorage(ArrayStorage&&) noexcept = default;
+    constexpr ArrayStorage(ArrayStorage&&)
+        #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+            noexcept(std::is_nothrow_move_constructible_v<T>)
+        #else
+            noexcept
+        #endif
+            = default;
 
     /*!
      * \brief Defaulted copy assignment operator.
      */
-    constexpr ArrayStorage& operator=(const ArrayStorage&) noexcept = default;
+    constexpr ArrayStorage& operator=(const ArrayStorage&)
+        #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+            noexcept(std::is_nothrow_copy_assignable_v<T>)
+        #else
+            noexcept
+        #endif
+            = default;
 
     /*!
      * \brief Defaulted move assignment operator.
      */
-    constexpr ArrayStorage& operator=(ArrayStorage&&) noexcept = default;
+    constexpr ArrayStorage& operator=(ArrayStorage&&)
+        #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+            noexcept(std::is_nothrow_move_assignable_v<T>)
+        #else
+            noexcept
+        #endif
+            = default;
+
+    ~ArrayStorage()
+        #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+            noexcept(std::is_nothrow_destructible_v<T>)
+        #else
+            noexcept
+        #endif
+        = default;
 };
 
 /*!
@@ -1209,6 +1245,11 @@ public:
      * \brief Defaulted move assignment operator.
      */
     constexpr ArrayStorage& operator=(ArrayStorage&&) noexcept = default;
+
+    /*!
+     * \brief Defaulted destructor.
+     */
+    ~ArrayStorage() noexcept = default;
 };
 
 /***********************************************************************************************************************
