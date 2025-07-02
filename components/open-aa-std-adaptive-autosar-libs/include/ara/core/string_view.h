@@ -60,6 +60,7 @@
 
 #include "ara/core/ranges.h"                        // For ranges support in string view
 #include "ara/core/internal/utility.h"              // For utility functions and traits
+#include "ara/core/algorithm.h"                     // For algorithm utilities
 #include "ara/core/internal/location_utils.h"       // For capturing file/line details
 #include "ara/core/internal/violation_handler.h"    // To trigger violations
 
@@ -463,16 +464,19 @@ public:
      */
     constexpr auto remove_prefix(const ara::core::internal::InputWithLocation<size_type>& n) noexcept -> void
     {
-        if (detail::unlikely(n.input() > size_)) {
+        const size_type count = n.input();
+        
+        if (detail::unlikely(count > size_)) {
             if (!detail::is_constant_evaluated()) {
-                TriggerRemoveViolation(n.info(), n.input(), size_, "remove_prefix");
+                TriggerRemoveViolation(n.info(), count, size_, "remove_prefix");
             } else {
                 constexpr unsigned char _remove_violation[1] = {};
                 [[maybe_unused]] const auto verify{_remove_violation[1]};
             }
         }
-        data_ += n.input();
-        size_ -= n.input();
+        
+        data_ += count;
+        size_ -= count;
     }
 
     /*!
@@ -486,15 +490,18 @@ public:
      */
     constexpr auto remove_suffix(const ara::core::internal::InputWithLocation<size_type>& n) noexcept -> void
     {
-        if (detail::unlikely(n.input() > size_)) {
+        const size_type count = n.input();
+        
+        if (detail::unlikely(count > size_)) {
             if (!detail::is_constant_evaluated()) {
-                TriggerRemoveViolation(n.info(), n.input(), size_, "remove_suffix");
+                TriggerRemoveViolation(n.info(), count, size_, "remove_suffix");
             } else {
                 constexpr unsigned char _remove_violation[1] = {};
                 [[maybe_unused]] const auto verify{_remove_violation[1]};
             }
         }
-        size_ -= n.input();
+        
+        size_ -= count;
     }
 
     /*!
@@ -505,11 +512,9 @@ public:
      * \details
      * - [SWS_CORE_03082]: Swap operation
      */
-    constexpr auto swap(BasicStringView& v) noexcept -> void
+    constexpr auto swap(BasicStringView& other) noexcept -> void
     {
-        auto tmp = *this;
-        *this = v;
-        v = tmp;
+        other = ara::core::exchange(*this, other);
     }
 
     // -----------------------------------------------------------------------------------
@@ -530,6 +535,17 @@ public:
      */
     constexpr auto copy(CharT* dest, const ara::core::internal::InputWithLocation<size_type>& count, size_type pos = 0) const noexcept -> size_type
     {
+        // Validate destination
+        if (detail::unlikely(dest == nullptr)) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerNullptrViolation(count.info());
+            } else {
+                constexpr unsigned char _null_dest[1] = {};
+                [[maybe_unused]] const auto verify{_null_dest[1]};
+            }
+        }
+        
+        // Validate position
         if (detail::unlikely(pos > size_)) {
             if (!detail::is_constant_evaluated()) {
                 TriggerPosViolation(count.info(), pos, size_);
@@ -538,8 +554,21 @@ public:
                 [[maybe_unused]] const auto verify{_pos_violation[1]};
             }
         }
+        
         const size_type rlen = (std::min)(count.input(), size_ - pos);
-        Traits::copy(dest, data_ + pos, rlen);
+        
+        if (rlen > 0) {
+            if (!detail::is_constant_evaluated()) {
+                // Runtime: use optimized copy
+                Traits::copy(dest, data_ + pos, rlen);
+            } else {
+                // Compile-time: manual copy
+                for (size_type i = 0; i < rlen; ++i) {
+                    Traits::assign(dest[i], data_[pos + i]);
+                }
+            }
+        }
+        
         return rlen;
     }
 
@@ -558,17 +587,19 @@ public:
         noexcept -> BasicStringView
     {
         
-        if (detail::unlikely(pos.input() > size_)) {
+        const size_type position = pos.input();
+        
+        if (detail::unlikely(position > size_)) {
             if (!detail::is_constant_evaluated()) {
-                TriggerPosViolation(pos.info(), pos.input(), size_);
+                TriggerPosViolation(pos.info(), position, size_);
             } else {
                 constexpr unsigned char _pos_violation[1] = {};
                 [[maybe_unused]] const auto verify{_pos_violation[1]};
             }
         }
 
-        const size_type rlen = (std::min)(count, size_ - pos.input());
-        return BasicStringView(data_ + pos.input(), rlen);
+        const size_type rlen = (std::min)(count, size_ - position);
+        return BasicStringView(data_ + position, rlen);
     }
 
     /*!
@@ -583,11 +614,14 @@ public:
     [[nodiscard]] constexpr auto compare(BasicStringView v) const noexcept -> int
     {
         const size_type rlen = (std::min)(size_, v.size_);
-        int ret = Traits::compare(data_, v.data_, rlen);
-        if (ret == 0) {
-            ret = (size_ == v.size_) ? 0 : (size_ < v.size_ ? -1 : 1);
+        
+        if (rlen > 0) {
+            const int ret = detail::constexpr_compare<CharT, Traits>(data_, v.data_, rlen);
+            if (ret != 0) return ret;
         }
-        return ret;
+        
+        // Compare sizes if prefixes are equal
+        return (size_ == v.size_) ? 0 : (size_ < v.size_ ? -1 : 1);
     }
 
     [[nodiscard]] constexpr auto compare(size_type pos1, size_type count1,
@@ -636,7 +670,8 @@ public:
      */
     [[nodiscard]] constexpr auto starts_with(BasicStringView sv) const noexcept -> bool
     {
-        return size_ >= sv.size_ && compare(0, sv.size_, sv) == 0;
+        return size_ >= sv.size_ && 
+               (sv.empty() || detail::constexpr_compare<CharT, Traits>(data_, sv.data_, sv.size_) == 0);
     }
 
     [[nodiscard]] constexpr auto starts_with(CharT ch) const noexcept -> bool
@@ -661,7 +696,9 @@ public:
      */
     [[nodiscard]] constexpr auto ends_with(BasicStringView sv) const noexcept -> bool
     {
-        return size_ >= sv.size_ && compare(size_ - sv.size_, npos, sv) == 0;
+        return size_ >= sv.size_ && 
+               (sv.empty() || detail::constexpr_compare<CharT, Traits>(
+                   data_ + size_ - sv.size_, sv.data_, sv.size_) == 0);
     }
 
     [[nodiscard]] constexpr auto ends_with(CharT ch) const noexcept -> bool
@@ -715,6 +752,7 @@ public:
      */
     [[nodiscard]] constexpr auto find(BasicStringView v, size_type pos = 0) const noexcept -> size_type
     {
+        // Early exit conditions
         if (pos > size_ || v.size_ > size_ - pos) {
             return npos;
         }
@@ -723,12 +761,13 @@ public:
             return pos;
         }
         
+        // Use optimized search
         const auto result = detail::constexpr_search<CharT, Traits>(
             data_ + pos, data_ + size_,
             v.data_, v.data_ + v.size_
         );
         
-        return result == data_ + size_ ? npos : static_cast<size_type>(result - data_);
+        return (result == data_ + size_) ? npos : static_cast<size_type>(result - data_);
     }
 
     [[nodiscard]] constexpr auto find(CharT ch, size_type pos = 0) const noexcept -> size_type
@@ -737,7 +776,7 @@ public:
             return npos;
         }
         
-        const auto result = detail::constexpr_find<CharT, Traits>(
+        const auto result = detail::constexpr_memchr<CharT, Traits>(
             data_ + pos, size_ - pos, ch
         );
         
@@ -776,9 +815,20 @@ public:
         
         const size_type last = (std::min)(pos, size_ - v.size_);
         
-        for (size_type i = last + 1; i > 0; --i) {
-            if (compare(i - 1, v.size_, v) == 0) {
-                return i - 1;
+        // Search backwards with optimization for single character
+        if (v.size_ == 1) {
+            for (size_type i = last + 1; i > 0; --i) {
+                if (Traits::eq(data_[i - 1], v.data_[0])) {
+                    return i - 1;
+                }
+            }
+        } else {
+            // Multi-character search
+            for (size_type i = last + 1; i > 0; --i) {
+                if (detail::constexpr_compare<CharT, Traits>(
+                        data_ + i - 1, v.data_, v.size_) == 0) {
+                    return i - 1;
+                }
             }
         }
         
@@ -787,7 +837,17 @@ public:
 
     [[nodiscard]] constexpr auto rfind(CharT ch, size_type pos = npos) const noexcept -> size_type
     {
-        return rfind(BasicStringView(&ch, 1), pos);
+        if (empty()) return npos;
+        
+        const size_type last = (std::min)(pos, size_ - 1);
+        
+        for (size_type i = last + 1; i > 0; --i) {
+            if (Traits::eq(data_[i - 1], ch)) {
+                return i - 1;
+            }
+        }
+        
+        return npos;
     }
 
     [[nodiscard]] constexpr auto rfind(const CharT* s, size_type pos, size_type count) const noexcept -> size_type
@@ -813,11 +873,48 @@ public:
     [[nodiscard]] constexpr auto find_first_of(BasicStringView v, size_type pos = 0) const noexcept
         -> size_type
     {
-        for (size_type i = pos; i < size_; ++i) {
-            for (size_type j = 0; j < v.size_; ++j) {
-                if (Traits::eq(data_[i], v.data_[j])) {
+        if (pos >= size_ || v.empty()) {
+            return npos;
+        }
+    
+        /* Single character → delegate to find() */
+        if (v.size_ == 1) {
+            return this->find(v.front(), pos);
+        }
+    
+        /* Very small set (≤ 8) → current double loop */
+        if (v.size_ <= 8) {
+            for (size_type i = pos; i < size_; ++i) {
+                for (size_type j = 0; j < v.size_; ++j) {
+                    if (Traits::eq(data_[i], v.data_[j])) {
+                        return i;
+                    }
+                }
+            }
+            return npos;
+        }
+    
+    
+        /* constexpr evaluation cannot use a lookup table */
+        if (detail::is_constant_evaluated() || sizeof(value_type) != 1) {
+            /* Fallback O(n·m) */
+            for (size_type i = pos; i < size_; ++i) {
+                if (v.find(data_[i]) != npos) {
                     return i;
                 }
+            }
+            return npos;
+        }
+    
+    
+        bool present[256] = {};                       /* 256-byte stack array      */
+        for (size_type j = 0; j < v.size_; ++j) {     /* O(m) */
+            present[static_cast<unsigned char>(v.data_[j])] = true;
+        }
+    
+        for (size_type i = pos; i < size_; ++i) {     /* O(n) */
+            if (present[static_cast<unsigned char>(data_[i])]) {
+                return i;
             }
         }
         return npos;
@@ -852,17 +949,47 @@ public:
     [[nodiscard]] constexpr auto find_last_of(BasicStringView v, size_type pos = npos) const noexcept
         -> size_type
     {
-        if (empty()) {
+        if (empty() || v.empty()) {
             return npos;
         }
-        
+    
         const size_type last = (std::min)(pos, size_ - 1);
-        
-        for (size_type i = last + 1; i > 0; --i) {
-            for (size_type j = 0; j < v.size_; ++j) {
-                if (Traits::eq(data_[i - 1], v.data_[j])) {
-                    return i - 1;
+    
+        /* Single character → just rfind */
+        if (v.size_ == 1) {
+            return this->rfind(v.data_[0], last);
+        }
+    
+        constexpr size_type small_set_threshold = 8;          
+        if (v.size_ <= small_set_threshold) {
+            for (size_type i = last + 1; i-- > 0; ) {
+                for (size_type j = 0; j < v.size_; ++j) {
+                    if (Traits::eq(data_[i], v.data_[j])) {
+                        return i;
+                    }
                 }
+            }
+            return npos;
+        }
+    
+        /* Constant-evaluation or wide chars → stay with O(n·m) */
+        if (detail::is_constant_evaluated() || sizeof(value_type) != 1) {
+            for (size_type i = last + 1; i-- > 0; ) {
+                if (v.find(data_[i]) != npos) {
+                    return i;
+                }
+            }
+            return npos;
+        }
+    
+        /* 8-bit fast path: build presence table once, scan backward */
+        bool present[256] = {};
+        for (size_type j = 0; j < v.size_; ++j) {
+            present[static_cast<unsigned char>(v.data_[j])] = true;
+        }
+        for (size_type i = last + 1; i-- > 0; ) {
+            if (present[static_cast<unsigned char>(data_[i])]) {
+                return i;
             }
         }
         return npos;
@@ -897,15 +1024,58 @@ public:
     [[nodiscard]] constexpr auto find_first_not_of(BasicStringView v, size_type pos = 0) const noexcept
         -> size_type
     {
-        for (size_type i = pos; i < size_; ++i) {
-            bool found = false;
-            for (size_type j = 0; j < v.size_; ++j) {
-                if (Traits::eq(data_[i], v.data_[j])) {
-                    found = true;
-                    break;
+
+        if (pos >= size_) {
+            return npos;
+        }
+        if (v.empty()) {
+            return pos;
+        }
+    
+        if (v.size_ == 1) {
+            const value_type ch = v.data_[0];
+            for (size_type i = pos; i < size_; ++i) {
+                if (!Traits::eq(data_[i], ch)) {
+                    return i;
                 }
             }
-            if (!found) {
+            return npos;
+        }
+    
+        constexpr size_type small_set_threshold = 8;
+        if (v.size_ <= small_set_threshold) {
+            for (size_type i = pos; i < size_; ++i) {
+                bool found = false;
+                for (size_type j = 0; j < v.size_; ++j) {
+                    if (Traits::eq(data_[i], v.data_[j])) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    return i;
+                }
+            }
+            return npos;
+        }
+    
+        /* constexpr evaluation or wide characters → fall back to O(n·m) loop */
+        if (detail::is_constant_evaluated() || sizeof(value_type) != 1) {
+            for (size_type i = pos; i < size_; ++i) {
+                if (v.find(data_[i]) == npos) {
+                    return i;
+                }
+            }
+            return npos;
+        }
+    
+        /* 8-bit fast path: build presence table */
+        bool present[256] = {};                           /*256-byte stack buffer*/
+        for (size_type j = 0; j < v.size_; ++j) {         /*O(m)*/
+            present[static_cast<unsigned char>(v.data_[j])] = true;
+        }
+        for (size_type i = pos; i < size_; ++i) {         /*O(n)*/
+            if (!present[static_cast<unsigned char>(data_[i])]) {
                 return i;
             }
         }
@@ -950,18 +1120,58 @@ public:
         if (empty()) {
             return npos;
         }
-        
+    
         const size_type last = (std::min)(pos, size_ - 1);
-        
-        for (size_type i = last + 1; i > 0; --i) {
-            bool found = false;
-            for (size_type j = 0; j < v.size_; ++j) {
-                if (Traits::eq(data_[i - 1], v.data_[j])) {
-                    found = true;
-                    break;
+    
+        if (v.empty()) {
+            return last;
+        }
+    
+        if (v.size_ == 1) {
+            const value_type ch = v.data_[0];
+            for (size_type i = last + 1; i-- > 0; ) {
+                if (!Traits::eq(data_[i - 1], ch)) {
+                    return i - 1;
                 }
             }
-            if (!found) {
+            return npos;
+        }
+    
+        constexpr size_type small_set_threshold = 8;
+        if (v.size_ <= small_set_threshold) {
+            for (size_type i = last + 1; i-- > 0; ) {
+                const value_type cur = data_[i - 1];
+                bool found = false;
+                for (size_type j = 0; j < v.size_; ++j) {
+                    if (Traits::eq(cur, v.data_[j])) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    return i - 1;
+                }
+            }
+            return npos;
+        }
+    
+        /* constexpr evaluation (C++17) or wide characters -> fallback O(n·m) loop */
+        if (detail::is_constant_evaluated() || sizeof(value_type) != 1) {
+            for (size_type i = last + 1; i-- > 0; ) {
+                if (v.find(data_[i - 1]) == npos) {
+                    return i - 1;
+                }
+            }
+            return npos;
+        }
+    
+        /* 8-bit fast path: build presence table once, then scan backward */
+        bool present[256] = {};                          /* 256-byte stack array*/
+        for (size_type j = 0; j < v.size_; ++j) {        /* O(m)*/
+            present[static_cast<unsigned char>(v.data_[j])] = true;
+        }
+        for (size_type i = last + 1; i-- > 0; ) {        /* O(n)*/
+            if (!present[static_cast<unsigned char>(data_[i - 1])]) {
                 return i - 1;
             }
         }
@@ -1297,41 +1507,58 @@ template<typename CharT, typename Traits>
 /**********************************************************************************************************************
  *  STREAM OPERATORS [SWS_CORE_03170]
  *********************************************************************************************************************/
-/*-------------------------------------------------------------------------------------------------
- *  operator<<  –  stream inserter for ara::core::BasicStringView
- *  ----------------------------------------------------------------------------------------------
- *  • Standard-conforming: uses `std::streamsize` (not a nested typedef).
- *  • Trailing-return-type (`auto … ->`) for modern “auto trailing style”.
- *  • Keeps existing formatting / padding rules of the stream.
- *------------------------------------------------------------------------------------------------*/
-template< typename CharT, typename Traits >
-inline auto operator<<( std::basic_ostream< CharT, Traits >&                os,
-                        ara::core::BasicStringView< CharT, Traits >         sv )
-        -> std::basic_ostream< CharT, Traits >&
-{
-    using streamsize = std::streamsize;                              /* canonical alias */
-
-    const streamsize width  = os.width( 0 );                         /* consume field-width  */
-    const streamsize count  = static_cast< streamsize >( sv.size() );/* number of characters */
-
-    /* fast-path: no padding requested ----------------------------------------------------------*/
-    if ( width <= count )
-        return os.write( sv.data(), count );
-
-    const streamsize pad  = width - count;                           /* spaces to pad        */
-    const bool  left_adj  = ( os.flags() & std::ios_base::adjustfield )
-                            == std::ios_base::left;                  /* alignment direction  */
-
-    const CharT fill_ch   = os.fill();                               /* padding character    */
-
-    if ( !left_adj )
-        for ( streamsize i = 0; i < pad; ++i ) os.put( fill_ch );    /* right-align padding  */
-
-    os.write( sv.data(), count );                                    /* actual payload       */
-
-    if ( left_adj )
-        for ( streamsize i = 0; i < pad; ++i ) os.put( fill_ch );    /* left-align padding   */
-
+/*!
+ * \brief Stream insertion operator
+ *
+ * \param os Output stream
+ * \param sv String view to output
+ * \return Reference to stream
+ *
+ * \details
+ * - [SWS_CORE_03170]: Stream output support
+ * - Respects stream formatting (width, alignment)
+ * - Efficient single write operation when possible
+ */
+template<typename CharT, typename Traits>
+inline auto operator<<(
+    std::basic_ostream<CharT, Traits>& os,
+    BasicStringView<CharT, Traits> sv) -> std::basic_ostream<CharT, Traits>& {
+    // Get current stream state
+    const auto width = os.width();
+    const auto fill_char = os.fill();
+    
+    // Reset width to prevent double application
+    os.width(0);
+    
+    // Handle width and alignment
+    const auto str_len = static_cast<std::streamsize>(sv.size());
+    
+    if (width <= str_len) {
+        // No padding needed - direct output
+        return os.write(sv.data(), str_len);
+    }
+    
+    // Calculate padding
+    const auto padding = width - str_len;
+    const bool left_align = (os.flags() & std::ios_base::adjustfield) == std::ios_base::left;
+    
+    // Output with padding
+    if (!left_align) {
+        // Right align - pad first
+        for (std::streamsize i = 0; i < padding; ++i) {
+            os.put(fill_char);
+        }
+    }
+    
+    os.write(sv.data(), str_len);
+    
+    if (left_align) {
+        // Left align - pad after
+        for (std::streamsize i = 0; i < padding; ++i) {
+            os.put(fill_char);
+        }
+    }
+    
     return os;
 }
 
@@ -2008,6 +2235,9 @@ static_assert("abc" < "def"_sv, "Reverse string literal less than must work");
 namespace std::ranges {
     template<class CharT, class Traits>
     inline constexpr bool enable_borrowed_range<ara::core::BasicStringView<CharT, Traits>> = true;
+    
+    template<class CharT, class Traits>
+    inline constexpr bool enable_view<ara::core::BasicStringView<CharT, Traits>> = true;
 }
 #endif
 

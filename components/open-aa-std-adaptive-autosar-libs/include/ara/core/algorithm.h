@@ -181,6 +181,50 @@ template<typename... Tuples>
     return std::tuple_cat(detail::to_std_tuple(std::forward<Tuples>(tpls))...);
 }
 
+/**********************************************************************************************************************
+ *  ara::core::exchange
+ *********************************************************************************************************************/
+/*!
+ * \brief  Exchanges the value of an object with a new value.
+ *   \details
+ * This function replaces the value of the given object with a new value and returns the old value.
+ * It is similar to std::exchange but provides additional compile-time checks for noexcept
+ * and SFINAE constraints to ensure the types are suitable for exchange operations.
+ * \tparam T The type of the object to exchange.
+ * \tparam U The type of the new value (default is T).
+ * \param obj The object whose value will be exchanged.
+ * \param new_value The new value to assign to the object.
+ * \return The old value of the object before the exchange.
+ * \note This function is designed to be noexcept when exceptions are disabled,
+ *       ensuring that it can be used in contexts where exception safety is a concern.
+ * \pre T must be nothrow-move-constructible and nothrow-assignable from U
+ *       when exceptions are disabled.
+ * \warning If exceptions are disabled, T must be nothrow-move-constructible
+ *          and nothrow-assignable from U.
+ *          If these conditions are not met, static_assert will trigger a compile-time error.
+ */
+template <typename T, typename U = T>
+[[nodiscard]] constexpr T exchange(T& obj, U&& new_value)
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    noexcept(std::is_nothrow_move_constructible_v<T> &&
+             std::is_nothrow_assignable_v<T&, U>)
+#else
+    noexcept
+#endif
+{
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+    static_assert(std::is_nothrow_move_constructible_v<T>,
+        "\n[ERROR] ara::core::exchange: T must be nothrow-move-constructible when exceptions are disabled.\n");
+    static_assert(std::is_nothrow_assignable_v<T&, U>,
+        "\n[ERROR] ara::core::exchange: T must be nothrow-assignable from U when exceptions are disabled.\n");
+#endif
+
+    T old = std::move(obj);                 /* Step 1 – capture old value           */
+    obj    = std::forward<U>(new_value);    /* Step 2 – assign new value to *obj*   */
+    return old;                             /* Step 3 – return the old value        */
+}
+
+
 } // namespace core
 } // namespace ara
 

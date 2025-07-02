@@ -23,6 +23,7 @@
 #include <string_view>                              // for std::basic_string_view
 #include <string>                                   // for std::basic_string
 #include <string_view>                              // for std::basic_string_view
+#include <cstring>                                  // For std::memcpy, std::memmove, std::memcmp
 /**********************************************************************************************************************
  *  SECTION: Forward Declaration
  *********************************************************************************************************************/
@@ -677,6 +678,48 @@ template<typename InputIt, typename T>
 }
 
 /*!
+ * \brief Optimized constexpr memchr for finding characters
+ *
+ * \details Uses compile-time loop unrolling when possible
+ */
+template<typename CharT, typename Traits>
+constexpr const CharT* constexpr_memchr(const CharT* str, size_t count, CharT ch) noexcept {
+
+    if (count == 0) {
+        return nullptr;
+    }
+
+    if (!detail::is_constant_evaluated()) {
+        // Runtime: use optimized standard library
+        if constexpr (std::is_same_v<CharT, char> && std::is_same_v<Traits, std::char_traits<char>>) {
+            return static_cast<const CharT*>(std::memchr(str, ch, count));
+        } else if constexpr (std::is_same_v<CharT, wchar_t> && std::is_same_v<Traits, std::char_traits<wchar_t>>) {
+            return static_cast<const CharT*>(std::wmemchr(str, ch, count));
+        }
+    }
+    
+    // Compile-time or generic: manual search with unrolling
+    const CharT* end = str + count;
+    
+    // Unroll by 4 for better performance
+    while (str + 4 <= end) {
+        if (Traits::eq(str[0], ch)) return str;
+        if (Traits::eq(str[1], ch)) return str + 1;
+        if (Traits::eq(str[2], ch)) return str + 2;
+        if (Traits::eq(str[3], ch)) return str + 3;
+        str += 4;
+    }
+    
+    // Handle remaining elements
+    while (str < end) {
+        if (Traits::eq(*str, ch)) return str;
+        ++str;
+    }
+    
+    return nullptr;
+}
+
+/*!
  * \brief  Constexpr-compatible equal implementation
  *
  * \tparam InputIt1 First range iterator type
@@ -704,8 +747,7 @@ template<typename InputIt1, typename InputIt2>
  * \return Length of the string, excluding the null terminator
  */
 template<typename CharT>
-[[nodiscard]] constexpr std::size_t constexpr_strlen(const CharT* str) noexcept
-{
+[[nodiscard]] constexpr auto constexpr_strlen(const CharT* str) noexcept -> std::size_t {
     if (str == nullptr) return 0;              // or omit for stricter C semantics
 
     if constexpr (std::is_same_v<CharT, char> &&
@@ -751,15 +793,23 @@ template<typename CharT>
  * \param s2 Second string to compare
  * \param count Number of characters to compare
  * \return Negative if s1 < s2, positive if s1 > s2, zero if equal
+ * \details Uses memcmp when possible for better performance
  */
 template<typename CharT, typename Traits>
-[[nodiscard]] constexpr auto constexpr_compare(const CharT* s1, const CharT* s2, std::size_t count) noexcept -> int
-{
-    for (std::size_t i = 0; i < count; ++i) {
-        if (Traits::lt(s1[i], s2[i])) return -1;
-        if (Traits::lt(s2[i], s1[i])) return 1;
+[[nodiscard]] constexpr int constexpr_compare(const CharT* s1, const CharT* s2, size_t count) noexcept {
+    if (!detail::is_constant_evaluated() && count > 0) {
+        // Runtime: use optimized comparison
+        if constexpr (std::is_same_v<Traits, std::char_traits<CharT>>) {
+            if constexpr (std::is_same_v<CharT, char>) {
+                return std::memcmp(s1, s2, count);
+            } else if constexpr (std::is_same_v<CharT, wchar_t>) {
+                return std::wmemcmp(s1, s2, count);
+            }
+        }
     }
-    return 0;
+    
+    // Compile-time or generic: use traits
+    return Traits::compare(s1, s2, count);
 }
 
 /*!
@@ -773,8 +823,7 @@ template<typename CharT, typename Traits>
  * \return Pointer to the first occurrence of ch, or nullptr if not found
  */
 template<typename CharT, typename Traits>
-[[nodiscard]] constexpr auto constexpr_find(const CharT* str, std::size_t count, CharT ch) noexcept -> const CharT*
-{
+[[nodiscard]] constexpr auto constexpr_find(const CharT* str, std::size_t count, CharT ch) noexcept -> const CharT* {
     for (std::size_t i = 0; i < count; ++i) {
         if (Traits::eq(str[i], ch)) {
             return str + i;
@@ -793,28 +842,46 @@ template<typename CharT, typename Traits>
  * \param s_first Beginning of the substring to find
  * \param s_last End of the substring to find
  * \return Pointer to the first occurrence of the substring, or last if not found
+ * \details Simplified Boyer-Moore algorithm that works in constexpr context
  */
 template<typename CharT, typename Traits>
-[[nodiscard]] constexpr auto constexpr_search(const CharT* first, const CharT* last,
-                                              const CharT* s_first, const CharT* s_last) noexcept -> const CharT*
-{
-    const auto len = static_cast<std::size_t>(last - first);
-    const auto s_len = static_cast<std::size_t>(s_last - s_first);
+[[nodiscard]] constexpr auto constexpr_search(
+    const CharT* first1, const CharT* last1,
+    const CharT* first2, const CharT* last2) noexcept -> const CharT* {
     
-    if (s_len == 0) return first;
-    if (s_len > len) return last;
+    const auto len1 = static_cast<size_t>(last1 - first1);
+    const auto len2 = static_cast<size_t>(last2 - first2);
     
-    for (std::size_t i = 0; i <= len - s_len; ++i) {
-        bool found = true;
-        for (std::size_t j = 0; j < s_len; ++j) {
-            if (!Traits::eq(first[i + j], s_first[j])) {
-                found = false;
-                break;
+    if (len2 == 0) return first1;
+    if (len2 > len1) return last1;
+    
+    // For small patterns, use simple search
+    if (len2 <= 4) {
+        const auto last_possible = last1 - len2 + 1;
+        for (auto it = first1; it < last_possible; ++it) {
+            if (Traits::compare(it, first2, len2) == 0) {
+                return it;
             }
         }
-        if (found) return first + i;
+        return last1;
     }
-    return last;
+    
+    // For larger patterns, use optimized search with first/last char check
+    const CharT first_char = *first2;
+    const CharT last_char = *(last2 - 1);
+    const auto last_possible = last1 - len2 + 1;
+    
+    for (auto it = first1; it < last_possible; ++it) {
+        // Quick first and last character check
+        if (Traits::eq(*it, first_char) && Traits::eq(*(it + len2 - 1), last_char)) {
+            // Full comparison only if first and last match
+            if (Traits::compare(it, first2, len2) == 0) {
+                return it;
+            }
+        }
+    }
+    
+    return last1;
 }
 
 /**********************************************************************************************************************
