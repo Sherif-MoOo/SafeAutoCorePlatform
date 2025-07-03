@@ -63,6 +63,7 @@
 #include "ara/core/algorithm.h"                     // For algorithm utilities
 #include "ara/core/internal/location_utils.h"       // For capturing file/line details
 #include "ara/core/internal/violation_handler.h"    // To trigger violations
+#include "ara/core/internal/xxh3_minimal.h"         // For XXH3 hashing support
 
 /**********************************************************************************************************************
  *  NAMESPACE: ara::core
@@ -1563,27 +1564,221 @@ inline auto operator<<(
 }
 
 /**********************************************************************************************************************
- *  HASH SUPPORT [SWS_CORE_03180]
+ *  HASH SUPPORT
  *********************************************************************************************************************/
+/*!
+ * \brief High-quality hash functor for BasicStringView
+ *
+ * \details
+ * Provides a hybrid hashing approach optimized for different contexts:
+ * - Compile-time: Uses FNV-1a algorithm (constexpr-compatible)
+ * - Runtime: Uses XXH3-64 algorithm (high performance, excellent distribution)
+ * 
+ * The implementation ensures:
+ * - Deterministic hashing (same input always produces same output)
+ * - Good distribution properties for hash tables
+ * - High performance for runtime hashing
+ * - Compatibility with std::hash interface
+ * 
+ * \note The runtime path uses a deterministic seed based on the functor's address
+ *       to provide some protection against hash flooding attacks while maintaining
+ *       determinism within a process.
+ */
+struct hash_string_view {
+private:
+    /*!
+     * \brief Generate deterministic seed for XXH3
+     *
+     * \return 64-bit seed value unique per process
+     *
+     * \details
+     * Uses the address of a static variable XORed with a constant to create
+     * a seed that's deterministic within a process but varies between runs.
+     * This provides some protection against hash collision attacks.
+     */
+    [[nodiscard]] static auto get_seed() noexcept -> uint64_t {
+        // Golden ratio constant for better bit distribution
+        constexpr uint64_t golden_ratio = 0x9E3779B97F4A7C15ULL;
+        
+        // Use address of static variable for per-process uniqueness
+        static const char seed_anchor = 0;
+        
+        return golden_ratio ^ 
+               static_cast<uint64_t>(reinterpret_cast<std::uintptr_t>(&seed_anchor));
+    }
+    
+    /*!
+     * \brief Constexpr FNV-1a hash implementation
+     *
+     * \tparam CharT Character type
+     * \param data Pointer to character data
+     * \param size Number of characters
+     * \return 64-bit hash value
+     *
+     * \details
+     * FNV-1a (Fowler-Noll-Vo) algorithm:
+     * - Simple and fast
+     * - Good distribution for small strings
+     * - Fully constexpr-compatible
+     */
+    template<typename CharT>
+    [[nodiscard]] static constexpr auto fnv1a_hash(
+        const CharT* data, 
+        std::size_t size) noexcept -> uint64_t {
+        
+        // FNV-1a 64-bit offset basis
+        uint64_t hash = 14695981039346656037ULL;
+        
+        // FNV-1a 64-bit prime
+        constexpr uint64_t prime = 1099511628211ULL;
+        
+        // Process each byte
+        for (std::size_t i = 0; i < size; ++i) {
+            // Ensure unsigned conversion to avoid sign extension
+            using unsigned_char_t = std::make_unsigned_t<CharT>;
+            const auto byte = static_cast<uint64_t>(
+                static_cast<unsigned_char_t>(data[i])
+            );
+            
+            hash ^= byte;
+            hash *= prime;
+        }
+        
+        return hash;
+    }
+    
+    /*!
+     * \brief High-quality mixer for hash finalization
+     *
+     * \param x Value to mix
+     * \return Mixed value with improved bit distribution
+     *
+     * \details
+     * Uses MurmurHash3 finalizer for excellent avalanche properties.
+     * Ensures all bits of input affect all bits of output.
+     */
+    [[nodiscard]] static constexpr auto mix_bits(uint64_t x) noexcept -> uint64_t {
+        // MurmurHash3 finalizer
+        x ^= x >> 33;
+        x *= 0xFF51AFD7ED558CCDULL;
+        x ^= x >> 33;
+        x *= 0xC4CEB9FE1A85EC53ULL;
+        x ^= x >> 33;
+        return x;
+    }
+    
+public:
+    /*!
+     * \brief Hash a string view
+     *
+     * \tparam CharT Character type
+     * \tparam Traits Character traits
+     * \param sv String view to hash
+     * \return Hash value as std::size_t
+     *
+     * \details
+     * Dual-path implementation:
+     * 1. Compile-time: Uses FNV-1a for constexpr compatibility
+     * 2. Runtime: Uses XXH3-64 for superior performance and distribution
+     * 
+     * Both paths produce high-quality hash values suitable for hash tables.
+     */
+    template<typename CharT, typename Traits>
+    [[nodiscard]] constexpr auto operator()(
+        BasicStringView<CharT, Traits> sv) const noexcept -> std::size_t {
+        
+        // -----------------------------------------------------------------------------------
+        // COMPILE-TIME PATH - FNV-1a
+        // -----------------------------------------------------------------------------------
+        if (detail::is_constant_evaluated()) {
+            const uint64_t raw_hash = fnv1a_hash(sv.data(), sv.size());
+            const uint64_t mixed_hash = mix_bits(raw_hash);
+            
+            // Fold to size_t
+            if constexpr (sizeof(std::size_t) == sizeof(uint64_t)) {
+                return static_cast<std::size_t>(mixed_hash);
+            } else {
+                // 32-bit platform: XOR-fold the halves
+                const uint32_t hi = static_cast<uint32_t>(mixed_hash >> 32);
+                const uint32_t lo = static_cast<uint32_t>(mixed_hash);
+                return static_cast<std::size_t>(hi ^ lo);
+            }
+        }
+        
+        // -----------------------------------------------------------------------------------
+        // RUNTIME PATH - XXH3-64
+        // -----------------------------------------------------------------------------------
+        
+        // Convert to byte view for hashing
+        const void* data = static_cast<const void*>(sv.data());
+        const std::size_t byte_size = sv.size() * sizeof(CharT);
+        
+        // Get high-quality hash from XXH3
+        const uint64_t hash64 = detail::xxh3_64bits_withSeed(
+            data, 
+            byte_size, 
+            get_seed()
+        );
+        
+        // Apply final mixing for better distribution
+        const uint64_t mixed = mix_bits(hash64);
+        
+        // Convert to size_t
+        if constexpr (sizeof(std::size_t) == sizeof(uint64_t)) {
+            return static_cast<std::size_t>(mixed);
+        } else {
+            // 32-bit platform: XOR-fold with additional mixing
+            const uint32_t hi = static_cast<uint32_t>(mixed >> 32);
+            const uint32_t lo = static_cast<uint32_t>(mixed);
+            const uint32_t folded = hi ^ lo;
+            
+            // Additional mixing for 32-bit result
+            return static_cast<std::size_t>(mix_bits(folded));
+        }
+    }
+    
+    /*!
+     * \brief Transparent hash support (C++20 feature backported)
+     *
+     * \details
+     * Allows heterogeneous lookup in unordered containers when enabled.
+     * This means you can look up a std::string key using a StringView.
+     */
+    using is_transparent = void;
+};
 
 } // namespace core
 } // namespace ara
 
-// Hash specialization in std namespace
+// -----------------------------------------------------------------------------------
+// STD::HASH SPECIALIZATION
+// -----------------------------------------------------------------------------------
+
 namespace std {
 
+/*!
+ * \brief Hash specialization for ara::core::BasicStringView
+ *
+ * \tparam CharT Character type
+ * \tparam Traits Character traits type
+ *
+ * \details
+ * Enables ara::core::BasicStringView to be used as key in std::unordered_map
+ * and other unordered associative containers.
+ * 
+ * Inherits from ara::core::hash_string_view to provide the implementation
+ * while satisfying the std::hash interface requirements.
+ * 
+ * \note This specialization is injected into std namespace as required by
+ *       the C++ standard for user-defined types.
+ */
 template<typename CharT, typename Traits>
-struct hash<ara::core::BasicStringView<CharT, Traits>> {
-    [[nodiscard]] auto operator()(ara::core::BasicStringView<CharT, Traits> v) const noexcept -> std::size_t
-    {
-        // FNV-1a hash algorithm
-        std::size_t result = 14695981039346656037ULL;
-        for (CharT ch : v) {
-            result ^= static_cast<std::size_t>(ch);
-            result *= 1099511628211ULL;
-        }
-        return result;
-    }
+struct hash<ara::core::BasicStringView<CharT, Traits>> 
+    : ara::core::hash_string_view {
+    
+    // Inherit all functionality from hash_string_view
+    using ara::core::hash_string_view::operator();
+    using ara::core::hash_string_view::is_transparent;
 };
 
 } // namespace std

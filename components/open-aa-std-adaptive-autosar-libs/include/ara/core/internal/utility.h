@@ -609,6 +609,10 @@ struct default_traits
 template<typename CharT>
 struct default_traits<const CharT, void> : default_traits<CharT> {};
 
+template<class CharT, class Traits>
+inline constexpr bool is_default_char_traits_v =
+    std::is_same_v<Traits, typename default_traits<CharT>::type>;
+
 /*!
  * \brief Performs a lexicographical comparison between two ranges.
  *
@@ -691,9 +695,9 @@ constexpr const CharT* constexpr_memchr(const CharT* str, size_t count, CharT ch
 
     if (!detail::is_constant_evaluated()) {
         // Runtime: use optimized standard library
-        if constexpr (std::is_same_v<CharT, char> && std::is_same_v<Traits, std::char_traits<char>>) {
+        if constexpr (std::is_same_v<CharT, char> && is_default_char_traits_v<CharT, Traits>) {
             return static_cast<const CharT*>(std::memchr(str, ch, count));
-        } else if constexpr (std::is_same_v<CharT, wchar_t> && std::is_same_v<Traits, std::char_traits<wchar_t>>) {
+        } else if constexpr (std::is_same_v<CharT, wchar_t> && is_default_char_traits_v<CharT, Traits>) {
             return static_cast<const CharT*>(std::wmemchr(str, ch, count));
         }
     }
@@ -799,7 +803,7 @@ template<typename CharT, typename Traits>
 [[nodiscard]] constexpr int constexpr_compare(const CharT* s1, const CharT* s2, size_t count) noexcept {
     if (!detail::is_constant_evaluated() && count > 0) {
         // Runtime: use optimized comparison
-        if constexpr (std::is_same_v<Traits, std::char_traits<CharT>>) {
+        if constexpr (is_default_char_traits_v<CharT, Traits>) {
             if constexpr (std::is_same_v<CharT, char>) {
                 return std::memcmp(s1, s2, count);
             } else if constexpr (std::is_same_v<CharT, wchar_t>) {
