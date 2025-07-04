@@ -5,24 +5,21 @@
 # CMake Toolchain File
 # --------------------
 # Purpose:
-#   This file configures the CMake build system to use qcc/q++ version 12.2.0 compilers
-#   specifically targeting qnx8.0 x86_64 architectures. It also sets up various
+#   This file configures the CMake build system to use qcc/q++ version 8.3.0 compilers
+#   specifically targeting qnx710 x86_64 architectures. It also sets up various
 #   build tools and utilities required during the build process, ensuring
 #   compatibility and proper configuration.
-#
-# Key Features:
-#   - Configures the qcc 12.2.0 toolchain for C and C++.
+## Key Features:
+#   - Configures the qcc 8.3.0 toolchain for C and C++.
 #   - Specifies tools for archiving, linking, and inspecting object files.
 #   - Configures find behavior for locating libraries, includes, and programs.
-#
-# Target Environment:
-#   - Operating System: qnx 8.0
+## Target Environment:
+#   - Operating System: qnx 7.10
 #   - Architecture: x86_64
-#   - Compiler: qcc/q++ version 12.2.0
-#==========================================================================================]
-
+#   - Compiler: qcc/q++ version 8.3.0
+#==========================================================================================
 #[======================================================================
-# CMake Toolchain File for QNX 8.0 x86_64
+# CMake Toolchain File for QNX 7.1.0 x86_64
 #]======================================================================]
 
 # Ensure QNX environment variables are set
@@ -37,7 +34,7 @@ endif()
 # Defines the system version, name, and target processor architecture. This is critical
 # for ensuring that the build system generates code optimized for the specified platform.
 #==========================================================================================
-set(CMAKE_SYSTEM_VERSION   8.0.0)
+set(CMAKE_SYSTEM_VERSION   7.1.0)
 set(CMAKE_SYSTEM_NAME      QNX)
 set(CMAKE_SYSTEM_PROCESSOR x86_64)
 
@@ -60,10 +57,11 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 #==========================================================================================
 set(CMAKE_C_COMPILER   qcc)
 set(CMAKE_CXX_COMPILER q++)
-set(CMAKE_C_COMPILER_TARGET   "12.2.0,gcc_ntox86_64")
-set(CMAKE_CXX_COMPILER_TARGET "12.2.0,gcc_ntox86_64_cxx")
+set(CMAKE_C_COMPILER_TARGET   "8.3.0,gcc_ntox86_64")
+set(CMAKE_CXX_COMPILER_TARGET "8.3.0,gcc_ntox86_64_cxx")
 set(CMAKE_ASM_COMPILER        ${CMAKE_C_COMPILER}            CACHE FILEPATH "" FORCE)
 set(CMAKE_ASM_COMPILER_TARGET ${CMAKE_C_COMPILER_TARGET}     CACHE STRING   "" FORCE)
+
 
 #==========================================================================================
 # Toolchain Utilities

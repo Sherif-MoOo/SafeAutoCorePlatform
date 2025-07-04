@@ -21,6 +21,46 @@
       }
     },
     {
+      "name" : "qcc8_qnx710_aarch64_release",
+      "inherits": "base_unix_makefiles",
+      "description": "Release build using QCC-8 for QNX 7.10 aarch64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/qcc8_qnx710_aarch64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "$env{QNX_HOST}/usr"
+      }
+    },
+    {
+      "name": "qcc8_qnx710_aarch64_debug",
+      "inherits": "base_unix_makefiles",
+      "description": "Debug build using QCC-8 for QNX 7.10 aarch64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/qcc8_qnx710_aarch64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_PREFIX_PATH": "$env{QNX_HOST}/usr"
+      }
+    },
+    {
+      "name": "qcc8_qnx710_x86_64_release",
+      "inherits": "base_unix_makefiles",
+      "description": "Release build using QCC-8 for QNX 7.10 x86_64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/qcc8_qnx710_x86_64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "$env{QNX_HOST}/usr"
+      }
+    },
+    {
+      "name": "qcc8_qnx710_x86_64_debug",
+      "inherits": "base_unix_makefiles",
+      "description": "Debug build using QCC-8 for QNX 7.10 x86_64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/qcc8_qnx710_x86_64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_PREFIX_PATH": "$env{QNX_HOST}/usr"
+      }
+    },
+    {
       "name": "qcc12_qnx800_aarch64_release",
       "inherits": "base_unix_makefiles",
       "description": "Release build using QCC-12 for QNX 8.0 aarch64",

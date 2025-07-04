@@ -2,10 +2,6 @@
 # OpenAA: Open Source Adaptive AUTOSAR Project
 # Author: Sherif Mohamed
 #
-# This software is copyright protected and proprietary to Your
-# Company. You are granted only those rights as set out in the
-# license conditions. All other rights remain with Your Company.
-#
 # File description:
 # -----------------
 # CMake initial-cache file for OpenAA - QNX 8.0 aarch64 using QCC-12.
@@ -80,7 +76,7 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries")
 #
 # Added Flags:
 #   -Werror: Treat all warnings as errors.
-#   -Wstrict-overflow=2: Warn when the compiler assumes signed overflow does not occur.
+#   -Wstrict-overflow=5: Warn when the compiler assumes signed overflow does not occur.
 #   -Wmissing-prototypes: Warn if a global function is defined without a previous prototype.
 #   -Wstrict-aliasing=2: Enforce strict aliasing rules.
 #   -Wundef: Warn if an undefined identifier is evaluated in an `#if` directive.
@@ -92,7 +88,7 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries")
 #   -mcpu=generic: Optimize for generic AArch64 architecture.
 #=======================================================================
 set(CMAKE_C_FLAGS_INIT "-Wall -Wextra -Wconversion -pedantic -Wshadow -D_QNX_SOURCE \
--Werror -Wstrict-overflow=2 -Wmissing-prototypes \
+-Werror -Wstrict-overflow=5 -Wmissing-prototypes \
 -Wstrict-aliasing=2 -Wundef -Wredundant-decls \
 -Wcast-align -Wformat=2 -Wfloat-equal \
 -fno-common -mcpu=generic" CACHE STRING "Initial C Compiler Flags")
@@ -132,13 +128,13 @@ set(CMAKE_C_FLAGS_RELEASEWITHO2_INIT "-O2 -DNDEBUG" CACHE STRING "C Compiler Fla
 #   -Wold-style-cast: Warn about C-style casts.
 #   -pedantic: Enforce strict ISO compliance.
 #   -Wshadow: Warn when a variable shadows another variable.
-#   -Wno-error=deprecated-declarations: Do not treat deprecated declarations as errors.
+#  : Do not treat deprecated declarations as errors.
 #   -v: Verbose output during compilation.
 #   -D_QNX_SOURCE: Define _QNX_SOURCE macro for QNX-specific features.
 #
 # Added Flags:
 #   -Werror: Treat all warnings as errors.
-#   -Wstrict-overflow=2: Warn when the compiler assumes signed overflow does not occur.
+#   -Wstrict-overflow=5: Warn when the compiler assumes signed overflow does not occur.
 #   -Wstrict-aliasing=2: Enforce strict aliasing rules.
 #   -Wundef: Warn if an undefined identifier is evaluated in an `#if` directive.
 #   -Wredundant-decls: Warn about redundant declarations.
@@ -150,8 +146,8 @@ set(CMAKE_C_FLAGS_RELEASEWITHO2_INIT "-O2 -DNDEBUG" CACHE STRING "C Compiler Fla
 #   -mcpu=generic: Optimize for generic AArch64 architecture.
 #=======================================================================
 set(CMAKE_CXX_FLAGS_INIT "-Wall -Wextra -Wnon-virtual-dtor -Wconversion -Wold-style-cast \
--pedantic -Wshadow -Wno-error=deprecated-declarations -v -D_QNX_SOURCE \
--Werror -Wstrict-overflow=2 \
+-pedantic -Wshadow -v -D_QNX_SOURCE \
+-Werror -Wstrict-overflow=5 \
 -Wstrict-aliasing=2 -Wundef -Wredundant-decls \
 -Wcast-align -Wformat=2 -Wfloat-equal \
 -fno-exceptions -fno-rtti -mcpu=generic" CACHE STRING "Initial C++ Compiler Flags")

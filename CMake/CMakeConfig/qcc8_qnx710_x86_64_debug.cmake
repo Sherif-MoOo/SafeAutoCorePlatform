@@ -4,31 +4,31 @@
 #
 # File description:
 # -----------------
-# CMake initial-cache file for OpenAA - QNX 8.0 x86_64 using QCC-12.
+# CMake initial-cache file for OpenAA - QNX 7.10 x86_64 using QCC-8.
 # This file sets essential CMake variables and compiler/linker flags
 # to streamline the build process.
 #=======================================================================]
 
 #[=======================================================================[
 .rst:
-QNX800_x86_64_QCC12
+QNX710_x86_64_QCC8
 ---------------------
-CMake initial cache file for QNX 8.0 x86_64 using QCC-12.
+CMake initial cache file for QNX 7.1.0 x86_64 using QCC-8.
 
 All variables can be set as initial cache variables and passed as a file to CMake:
 
 .. code-block:: cmake
 
-    # Create an initial cache file (qcc12_qnx800_x86_64.cmake) and define in there:
-    set(CMAKE_PREFIX_PATH "/opt/qnx800/host/linux/x86_64/usr" CACHE STRING "")
-    set(CMAKE_TOOLCHAIN_FILE "/opt/toolchain/qcc12_qnx800_x86_64.cmake" CACHE PATH "")
+    # Create an initial cache file (qcc8_qnx710_x86_64.cmake) and define in there:
+    set(CMAKE_PREFIX_PATH "/opt/qnx710/host/linux/x86_64/usr" CACHE STRING "")
+    set(CMAKE_TOOLCHAIN_FILE "/opt/toolchain/qcc8_qnx710_x86_64.cmake" CACHE PATH "")
 
 .. code-block:: shell-session
 
     # QNX dev kit can only be used with bash!
     $ bash -i
-    $ source /opt/qnx800/qnxsdp-env.sh
-    $ cmake -C CMake/CMakeConfig/qcc12_qnx800_x86_64.cmake -S <project-root> -B <build-dir>
+    $ source /opt/qnx710/qnxsdp-env.sh
+    $ cmake -C CMake/CMakeConfig/qcc8_qnx710_x86_64.cmake -S <project-root> -B <build-dir>
 
 Platform, quality, and product-specific build caches can be defined externally without
 unnecessarily inflating or patching CMakeLists.txt files contained in the project.
@@ -40,7 +40,7 @@ independently of the project.
 
     Set the environment variables before you initialize the cache in respect to the
     actual paths on your machine! To use the QNX dev kit, one must use bash and
-    source the file /opt/qnx800/qnxsdp-env.sh!
+    source the file /opt/qnx710/qnxsdp-env.sh!
 #]=======================================================================]
 
 #[=======================================================================[
@@ -56,7 +56,7 @@ independently of the project.
 #
 # Recommended: OFF for static libraries to simplify deployment.
 #=======================================================================
-message(STATUS "Using qcc12_qnx800_x86_64_release.cmake for initial cache setup.")
+message(STATUS "Using qcc8_qnx710_x86_64_release.cmake for initial cache setup.")
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries")
 

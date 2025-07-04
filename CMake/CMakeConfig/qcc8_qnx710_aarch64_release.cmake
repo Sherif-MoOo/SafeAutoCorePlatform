@@ -4,31 +4,31 @@
 #
 # File description:
 # -----------------
-# CMake initial-cache file for OpenAA - QNX 8.0 x86_64 using QCC-12.
+# CMake initial-cache file for OpenAA - QNX 7.10 aarch64 using QCC-8.
 # This file sets essential CMake variables and compiler/linker flags
 # to streamline the build process.
 #=======================================================================]
 
 #[=======================================================================[
 .rst:
-QNX800_x86_64_QCC12
+QNX710_AARCH64_QCC8
 ---------------------
-CMake initial cache file for QNX 8.0 x86_64 using QCC-12.
+CMake initial cache file for QNX 7.1.0 aarch64 using QCC-8.
 
 All variables can be set as initial cache variables and passed as a file to CMake:
 
 .. code-block:: cmake
 
-    # Create an initial cache file (qcc12_qnx800_x86_64.cmake) and define in there:
-    set(CMAKE_PREFIX_PATH "/opt/qnx800/host/linux/x86_64/usr" CACHE STRING "")
-    set(CMAKE_TOOLCHAIN_FILE "/opt/toolchain/qcc12_qnx800_x86_64.cmake" CACHE PATH "")
+    # Create an initial cache file (qcc8_qnx710_aarch64.cmake) and define in there:
+    set(CMAKE_PREFIX_PATH "/opt/qnx710/host/linux/x86_64/usr" CACHE STRING "")
+    set(CMAKE_TOOLCHAIN_FILE "/opt/toolchain/qcc8_qnx710_aarch64.cmake" CACHE PATH "")
 
 .. code-block:: shell-session
 
     # QNX dev kit can only be used with bash!
     $ bash -i
-    $ source /opt/qnx800/qnxsdp-env.sh
-    $ cmake -C CMake/CMakeConfig/qcc12_qnx800_x86_64.cmake -S <project-root> -B <build-dir>
+    $ source /opt/qnx710/qnxsdp-env.sh
+    $ cmake -C CMake/CMakeConfig/qcc8_qnx710_aarch64.cmake -S <project-root> -B <build-dir>
 
 Platform, quality, and product-specific build caches can be defined externally without
 unnecessarily inflating or patching CMakeLists.txt files contained in the project.
@@ -40,7 +40,7 @@ independently of the project.
 
     Set the environment variables before you initialize the cache in respect to the
     actual paths on your machine! To use the QNX dev kit, one must use bash and
-    source the file /opt/qnx800/qnxsdp-env.sh!
+    source the file /opt/qnx710/qnxsdp-env.sh!
 #]=======================================================================]
 
 #[=======================================================================[
@@ -56,7 +56,7 @@ independently of the project.
 #
 # Recommended: OFF for static libraries to simplify deployment.
 #=======================================================================
-message(STATUS "Using qcc12_qnx800_x86_64_release.cmake for initial cache setup.")
+message(STATUS "Using qcc8_qnx710_aarch64_release.cmake for initial cache setup.")
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries")
 
@@ -75,38 +75,37 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries")
 #   -D_QNX_SOURCE: Define _QNX_SOURCE macro for QNX-specific features.
 #
 # Added Flags:
-#   -Werror: Treat warnings as errors.
-#   -Wstrict-overflow=5: Warn about optimizations that assume no overflow.
-#   -Wmissing-prototypes: Warn if a function is defined without a prototype.
-#   -Wstrict-aliasing=2: Enable strict aliasing rules.
-#   -Wundef: Warn if an undefined macro is used.
+#   -Werror: Treat all warnings as errors.
+#   -Wstrict-overflow=5: Warn when the compiler assumes signed overflow does not occur.
+#   -Wmissing-prototypes: Warn if a global function is defined without a previous prototype.
+#   -Wstrict-aliasing=2: Enforce strict aliasing rules.
+#   -Wundef: Warn if an undefined identifier is evaluated in an #if directive.
 #   -Wredundant-decls: Warn about redundant declarations.
-#   -Wcast-align: Warn if a pointer cast might result in misaligned access.
-#   -Wformat=2: Enable format string checks.
-#   -Wfloat-equal: Warn if floating-point values are compared for equality.
-#   -fno-common: Prevent common symbols from being created.
-#   -march=x86-64: Generate code for x86-64 architecture.
-#   -mtune=generic: Optimize for generic x86-64 processors.
-#   -fpic, -fpie: Generate position-independent code for shared libraries.
-#   -fstack-protector-strong: Enable stack protection to prevent buffer overflows
-#   -D_FORTIFY_SOURCE=2: Enable additional compile-time checks for buffer overflows.
-#   -ftrapv: Trap on signed integer overflow.
-#   -frecord-gcc-switches: Record GCC command-line switches in the binary.
-#   -flto: Enable Link Time Optimization (LTO) for better performance.
+#   -Wcast-align: Warn about potentially unsafe alignment casts.
+#   -Wformat=2: Check printf/scanf format strings.
+#   -Wfloat-equal: Warn if floating point values are used in equality comparisons.
+#   -fno-common: Prevent multiple definitions.
+#   -march=armv8.2-a -mcpu=cortex-a75+crypto: Tune code generation for ARMv8.2-A A75+crypto core.
+#   -fpic -fpie: Generate position-independent code.
+#   -fstack-protector-strong: Enable strong stack protection.
+#   -msign-return-address=all: Pointer-authentication for return addresses.
+#   -D_FORTIFY_SOURCE=2: Enable glibc buffer overflow checks.
+#   -ftrapv: Trap on signed overflow at runtime.
+#   -frecord-gcc-switches: Embed compiler switch history into DWARF.
+#   -flto: Enable Link Time Optimization across all units.
 #=======================================================================
-set(CMAKE_C_FLAGS_INIT
-    "-Wall -Wextra -Wconversion -pedantic -Wshadow -D_QNX_SOURCE \
-     -Werror -Wstrict-overflow=5 -Wmissing-prototypes \
-     -Wstrict-aliasing=2 -Wundef -Wredundant-decls \
-     -Wcast-align -Wformat=2 -Wfloat-equal \
-     -fno-common \
-     -march=x86-64 -mtune=generic \
-     -fpic -fpie \
-     -fstack-protector-strong \
-     -D_FORTIFY_SOURCE=2 \
-     -ftrapv -frecord-gcc-switches \
-     -flto"
-  CACHE STRING "Initial C Compiler Flags with LTO and hardening")
+set(CMAKE_C_FLAGS_INIT "-Wall -Wextra -Wconversion -pedantic -Wshadow -D_QNX_SOURCE \
+-Werror -Wstrict-overflow=5 -Wmissing-prototypes \
+-Wstrict-aliasing=2 -Wundef -Wredundant-decls \
+-Wcast-align -Wformat=2 -Wfloat-equal \
+-fno-common \
+-march=armv8.2-a -mcpu=cortex-a75+crypto \
+-fpic -fpie \
+-fstack-protector-strong \
+-msign-return-address=all \
+-D_FORTIFY_SOURCE=2 \
+-ftrapv -frecord-gcc-switches \
+-flto" CACHE STRING "Initial C Compiler Flags with LTO and hardening")
 
 #-----------------------------------------------------------------------
 # Build-Type Specific C Flags
@@ -142,19 +141,19 @@ set(CMAKE_C_FLAGS_RELEASEWITHO2_INIT "-O2 -DNDEBUG" CACHE STRING "C Compiler Fla
 #
 # Mirror C flags and add C++-specific hardening and LTO.
 #=======================================================================
-set(CMAKE_CXX_FLAGS_INIT
-    "-Wall -Wextra -Wnon-virtual-dtor -Wconversion -Wold-style-cast \
-     -pedantic -Wshadow -D_QNX_SOURCE \
-     -Werror -Wstrict-overflow=5 -Wstrict-aliasing=2 -Wundef -Wredundant-decls \
-     -Wcast-align -Wformat=2 -Wfloat-equal \
-     -fno-exceptions -fno-rtti -fno-common \
-     -march=x86-64 -mtune=generic \
-     -fpic -fpie \
-     -fstack-protector-strong \
-     -D_FORTIFY_SOURCE=2 \
-     -ftrapv -fno-record-gcc-switches \
-     -flto"
-  CACHE STRING "Initial C++ Compiler Flags with LTO and hardening")
+set(CMAKE_CXX_FLAGS_INIT "-Wall -Wextra -Wnon-virtual-dtor -Wconversion -Wold-style-cast \
+-pedantic -Wshadow -D_QNX_SOURCE \
+-Werror -Wstrict-overflow=5 \
+-Wstrict-aliasing=2 -Wundef -Wredundant-decls \
+-Wcast-align -Wformat=2 -Wfloat-equal \
+-fno-exceptions -fno-rtti -fno-common \
+-march=armv8.2-a -mcpu=cortex-a75+crypto \
+-fpic -fpie \
+-fstack-protector-strong \
+-msign-return-address=all \
+-D_FORTIFY_SOURCE=2 \
+-ftrapv -frecord-gcc-switches \
+-flto" CACHE STRING "Initial C++ Compiler Flags with LTO and hardening")
 
 #-----------------------------------------------------------------------
 # Build-Type Specific C++ Flags

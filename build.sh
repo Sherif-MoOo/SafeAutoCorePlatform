@@ -128,7 +128,10 @@ trap cleanup SIGINT SIGTERM
 # 7) Setup QNX Environment (if needed)
 # ------------------------------------------------------------------------------
 setup_environment() {
-    if [[ "$BUILD_TARGET" == qcc12_qnx800_aarch64 || "$BUILD_TARGET" == qcc12_qnx800_x86_64 ]]; then
+    if [[ "$BUILD_TARGET" == qcc8_qnx710_aarch64  ||
+          "$BUILD_TARGET" == qcc8_qnx710_x86_64   ||
+          "$BUILD_TARGET" == qcc12_qnx800_aarch64 || 
+          "$BUILD_TARGET" == qcc12_qnx800_x86_64 ]]; then
         if [ -z "$SDP_PATH" ]; then
             log ERROR "SDP path must be provided for QNX builds."
             exit 1
@@ -188,6 +191,22 @@ define_build_parameters() {
                 PRESET_NAME="clang21_linux_aarch64_debug"
             else
                 PRESET_NAME="clang21_linux_aarch64_release"
+            fi
+            CONFIG_FILE="CMake/CMakeConfig/${PRESET_NAME}.cmake"
+            ;;
+        qcc8_qnx710_aarch64)
+            if [ "$BUILD_TYPE" == "Debug" ]; then
+                PRESET_NAME="qcc8_qnx710_aarch64_debug"
+            else
+                PRESET_NAME="qcc8_qnx710_aarch64_release"
+            fi
+            CONFIG_FILE="CMake/CMakeConfig/${PRESET_NAME}.cmake"
+            ;;
+        qcc8_qnx710_x86_64)
+            if [ "$BUILD_TYPE" == "Debug" ]; then
+                PRESET_NAME="qcc8_qnx710_x86_64_debug"
+            else
+                PRESET_NAME="qcc8_qnx710_x86_64_release"
             fi
             CONFIG_FILE="CMake/CMakeConfig/${PRESET_NAME}.cmake"
             ;;

@@ -73,7 +73,7 @@ set(CMAKE_C_FLAGS_DEBUG_INIT "-O0 -g3" CACHE STRING "C Compiler Flags for Debug 
 # extensive debugging information.
 #=======================================================================
 set(CMAKE_CXX_FLAGS_INIT "-Wall -Wextra -Wnon-virtual-dtor -Wconversion -Wold-style-cast -pedantic \
--Wshadow -Wno-error=deprecated-declarations -Wdouble-promotion -Wformat=2  -g -fno-inline -fno-omit-frame-pointer" CACHE STRING "Initial C++ Compiler Flags for Debug Build")
+-Wshadow -Wdouble-promotion -Wformat=2  -g -fno-inline -fno-omit-frame-pointer" CACHE STRING "Initial C++ Compiler Flags for Debug Build")
 
 set(CMAKE_CXX_FLAGS_DEBUG_INIT "-O0 -g3" CACHE STRING "C++ Compiler Flags for Debug Build")
 
