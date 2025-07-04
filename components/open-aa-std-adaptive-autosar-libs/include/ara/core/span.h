@@ -1927,6 +1927,9 @@ static_assert(test_span.contains(3), "Contains must work in constexpr");
 namespace std::ranges {
     template<class T, std::size_t E>
     inline constexpr bool enable_borrowed_range<ara::core::Span<T, E>> = true;
+
+    template<class T, std::size_t E>
+    inline constexpr bool enable_view<ara::core::Span<T, E>> = true;
 }
 #endif
 

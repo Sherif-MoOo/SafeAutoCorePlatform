@@ -219,6 +219,10 @@ public:
     using const_reference        = const T&;                                            /*!< [SWS_CORE_01211]: Type of a const-ref    */
     using pointer                = T*;                                                  /*!< [SWS_CORE_01217]: Pointer to element     */
     using const_pointer          = const T*;                                            /*!< [SWS_CORE_01218]: Const pointer          */
+    // Iterator type - raw pointer automatically satisfying all C++ standard requirements:
+    // - Until C++17: LegacyRandomAccessIterator and LegacyContiguousIterator
+    // - C++17+: Additionally LiteralType  
+    // - C++20+: Additionally contiguous_iterator concept and ConstexprIterator   
     using iterator               = T*;                                                  /*!< [SWS_CORE_01212]: Iterator type          */
     using const_iterator         = const T*;                                            /*!< [SWS_CORE_01213]: Const iterator type    */
     using reverse_iterator       = std::reverse_iterator<iterator>;                     /*!< [SWS_CORE_01219]: Reverse iterator       */
@@ -880,9 +884,8 @@ public:
         } else {
             for (size_type i = 0; i < N; ++i)
             {
-                T temp = std::move(this->data_[i]);
-                this->data_[i] = std::move(other.data_[i]);
-                other.data_[i] = std::move(temp);
+                other.data_[i] = ara::core::exchange(this->data_[i],
+                                                     std::move(other.data_[i]));
             }
         }
 
@@ -916,9 +919,8 @@ public:
         {
             for (size_type i = 0; i < N; ++i)
             {
-                T temp = std::move(this->data_[i]);
-                this->data_[i] = std::move(other.data_[i]);
-                other.data_[i] = std::move(temp);
+                other.data_[i] = ara::core::exchange(this->data_[i],
+                                                     std::move(other.data_[i]));
             }
         }
     }
