@@ -613,6 +613,25 @@ template<class CharT, class Traits>
 inline constexpr bool is_default_char_traits_v =
     std::is_same_v<Traits, typename default_traits<CharT>::type>;
 
+template<typename T>
+using is_real_pointer = std::bool_constant<
+    std::is_pointer_v<std::remove_reference_t<T>>>;
+
+template<typename T>
+inline constexpr bool is_real_pointer_v = is_real_pointer<T>::value;
+
+/*!
+ * \brief SFINAE helper to detect if a type is a basic_string (including rvalues)
+ */
+template<typename T>
+struct is_basic_string : std::false_type {};
+
+template<typename CharT, typename Traits, typename Alloc>
+struct is_basic_string<std::basic_string<CharT, Traits, Alloc>> : std::true_type {};
+
+template<typename T>
+inline constexpr bool is_basic_string_v = is_basic_string<std::decay_t<T>>::value;
+
 /*!
  * \brief Performs a lexicographical comparison between two ranges.
  *
@@ -898,6 +917,14 @@ template<typename CharT, typename Traits>
 template<typename...>
 using void_t = void;
 
+
+#if __cplusplus >= 202002L
+template<typename T> using remove_cvref_t = std::remove_cvref_t<T>;
+#else
+template<typename T>
+using remove_cvref_t =
+    typename std::remove_cv<typename std::remove_reference<T>::type>::type;
+#endif
 /*!
  * \brief  Detection helper for C-style arrays
  */

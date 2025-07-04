@@ -108,7 +108,7 @@ public:
     using const_pointer          = const CharT*;                           /*!< [SWS_CORE_03014] Const pointer to character */
     using reference              = CharT&;                                 /*!< [SWS_CORE_03015] Reference to character */
     using const_reference        = const CharT&;                           /*!< [SWS_CORE_03016] Const reference to character */
-    using const_iterator         = const CharT*;                           /*!< [SWS_CORE_03017] Const iterator type */
+    using const_iterator         = const_pointer;                           /*!< [SWS_CORE_03017] Const iterator type */
     using iterator               = const_iterator;                         /*!< [SWS_CORE_03018] Iterator type (same as const) */
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;  /*!< [SWS_CORE_03019] Const reverse iterator */
     using reverse_iterator       = const_reverse_iterator;                 /*!< [SWS_CORE_03020] Reverse iterator */
@@ -147,17 +147,29 @@ public:
      * \brief Construct from pointer and count
      *
      * \param s Pointer to character sequence
-     * \param count Number of characters
+     * \param count Number of characters (wrapped with location info)
      *
      * \details
      * - [SWS_CORE_03043]: Pointer and count constructor
+     * - Validates null pointer with non-zero count
      * - Behavior is undefined if [s, s + count) is not valid
+     * 
+     * \note Using InputWithLocation for enhanced debugging
      */
-    constexpr BasicStringView(const CharT* s, size_type count) noexcept
-        : data_{s}, size_{count}
-        {
-            
+    constexpr BasicStringView(const_pointer s, 
+                             const ara::core::internal::InputWithLocation<size_type>& count) noexcept
+        : data_{s}, size_{count.input()}
+    {
+        // Validate null pointer with non-zero count
+        if (detail::unlikely(s == nullptr && count.input() > 0)) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerNullptrViolation(count.info());
+            } else {
+                constexpr unsigned char _null_pointer_violation[1] = {};
+                [[maybe_unused]] const auto verify{_null_pointer_violation[1]};
+            }
         }
+    }
 
     /*!
      * \brief Construct from C-string
@@ -169,11 +181,12 @@ public:
      * - Length determined by Traits::length()
      * - C++26 feature: nullptr check for safety
      */
-    template<typename = void>  // SFINAE for better error messages
-    constexpr BasicStringView(const CharT* s,
+    template< class Ptr,
+              std::enable_if_t<detail::is_real_pointer_v<Ptr>, int> = 0 >
+    constexpr BasicStringView(const Ptr s,
                               const ara::core::internal::InputWithLocation<std::uint8_t> loc =
                                     ara::core::internal::make_input_with_location<std::uint8_t>(0)) noexcept
-        : data_(s), size_(s ? Traits::length(s) : 0)
+        : data_{s}, size_{s ? Traits::length(s) : 0}
     {
         if (detail::unlikely(!s)) {
             if (!detail::is_constant_evaluated()) {
@@ -209,34 +222,260 @@ public:
     }
 
     /*!
+     * \brief construct from r-value container
+     * \tparam Container Contiguous container type
+     * \param cont Container to view
+     * \details
+     */
+    template<
+        typename Container,
+        typename = std::enable_if_t<
+            detail::is_contiguous_container_v<Container> &&
+            !detail::is_contiguous_range_v<Container> &&
+            !detail::is_basic_string_v<std::decay_t<Container>> &&
+            !std::is_same_v< BasicStringView,
+                        detail::remove_cvref_t<Container>>
+        >
+    >
+    constexpr BasicStringView(const Container&&) noexcept
+    {
+        static_assert(detail::dependent_false_v<CharT>,
+            "\n[ERROR] ara::core::BasicStringView: "
+            "Cannot construct a view from an r-value container. Use lvalue containers only.\n");
+    }
+
+    /*!
+     * \brief Construct from lvalue string
+     *
+     * \tparam Traits2 Traits of the string (may differ)
+     * \tparam Alloc2 Allocator type of the string
+     * \param str String to view
+     *
+     * \details
+     * - Safe construction from lvalue strings only
+     * - Allows different traits/allocators
+     * - Zero-cost view creation
+     */
+    template<typename Traits2, typename Alloc2>
+    constexpr BasicStringView(const std::basic_string<CharT, Traits2, Alloc2>& str) noexcept
+        : data_{str.data()}, size_{str.size()} {}
+
+
+    /*!
+     * \brief Construct from C-style array
+     *
+     * \tparam N Size of array (including null terminator)
+     * \param arr Array to view
+     *
+     * \details
+     * - Automatically deduces size
+     * - Excludes null terminator from view
+     * - Compile-time size calculation
+     */
+    template<size_t N>
+    constexpr BasicStringView(const CharT (&arr)[N]) noexcept
+        : data_{arr}, size_{N > 0 ? N - 1 : 0}  // Exclude null terminator
+    {
+        static_assert(N > 0,
+            "\n[ERROR] ara::core::BasicStringView: "
+            "Cannot create string view from zero-sized array.\n");
+    }
+
+    /*!
+     * \brief Construct from ara::core::Array
+     *
+     * \tparam N Size of array
+     * \param arr Array to view
+     * \param loc Source location for error reporting
+     *
+     * \details
+     * - Seamless integration with ara::core types
+     * - Validates against null terminators in data
+     * - Compile-time size known
+     */
+    template<size_t N>
+    constexpr BasicStringView(const ara::core::Array<CharT, N>& arr) noexcept
+        : data_{arr.data()}
+    {
+        // Find actual string length (up to first null)
+        size_type actual_len = 0;
+        for (size_type i = 0; i < N; ++i) {
+            if (arr[i] == CharT{}) break;
+            ++actual_len;
+        }
+        size_ = actual_len;
+    }
+
+    /*!
+     * \brief Construct from std::array
+     *
+     * \tparam N Size of array
+     * \param arr array to view
+     * \param loc Source location for error reporting
+     *
+     * \details
+     * - Seamless integration with ara::core types
+     * - Validates against null terminators in data
+     * - Compile-time size known
+     */
+    template<size_t N>
+    constexpr BasicStringView(const std::array<CharT, N>& arr) noexcept
+        : data_{arr.data()}
+    {
+        // Find actual string length (up to first null)
+        size_type actual_len = 0;
+        for (size_type i = 0; i < N; ++i) {
+            if (arr[i] == CharT{}) break;
+            ++actual_len;
+        }
+        size_ = actual_len;
+    }
+
+        /*!
+     * \brief Construct from contiguous container (non-const)
+     *
+     * \tparam Container Contiguous container type
+     * \param cont Container to view
+     * \param loc Source location for error reporting (default captured)
+     *
+     * \details
+     * - Constructs span from any contiguous container with data() and size()
+     * - Excludes spans, arrays, and ranges (handled by other constructors)
+     * - Validates size compatibility for static spans
+     */
+    template<
+        typename Container,
+        typename = std::enable_if_t<
+            !detail::is_std_array_v<std::decay_t<Container>> &&
+            !detail::is_ara_array_v<std::decay_t<Container>> &&
+            !detail::is_c_array_v<std::decay_t<Container>> &&
+            !detail::is_contiguous_range_v<Container> &&
+            !detail::is_basic_string_v<std::decay_t<Container>> &&
+            !std::is_const_v<std::remove_reference_t<Container>> &&
+             detail::is_contiguous_container_v<Container> &&
+             detail::is_string_view_compatible_v<Container, CharT>
+        >
+    >     
+    constexpr BasicStringView(Container& cont,
+                              const ara::core::internal::InputWithLocation<std::uint8_t> loc =
+                                    ara::core::internal::make_input_with_location<std::uint8_t>(0))
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+        noexcept(noexcept(std::data(cont)) && noexcept(std::size(cont)))
+#else
+        noexcept
+#endif
+        : data_{std::data(cont)}, size_{std::size(cont)}
+    {
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+        static_assert(noexcept(std::data(cont)) && noexcept(std::size(cont)),
+                "\n[ERROR] BasicStringView constructor must be noexcept for all string-like types.\n");
+#endif
+        if (detail::unlikely(data_ == nullptr && size_ > 0)) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerNullptrViolation(loc.info());
+            } else {
+                constexpr unsigned char _null_pointer_violation[1] = {};
+                [[maybe_unused]] const auto verify{_null_pointer_violation[1]};
+            }
+        }
+    }
+
+    /*!
+     * \brief Construct from contiguous container (const)
+     *
+     * \tparam Container Contiguous container type
+     * \param cont Constant container to view
+     * \param loc Source location for error reporting (default captured)
+     *
+     * \details
+     * - Constructs span from any contiguous container with data() and size()
+     * - Excludes spans, arrays, and ranges (handled by other constructors)
+     */
+    template <typename Container,
+              typename = std::enable_if_t<
+                  !detail::is_std_array_v<std::decay_t<Container>> &&
+                  !detail::is_ara_array_v<std::decay_t<Container>> &&
+                  !detail::is_c_array_v<std::decay_t<Container>> &&
+                  !detail::is_contiguous_range_v<Container> &&
+                  !detail::is_basic_string_v<std::decay_t<Container>> &&
+             detail::is_contiguous_container_v<Container> &&
+             detail::is_string_view_compatible_v<Container, CharT>
+        >
+    >   
+    constexpr BasicStringView(const Container& cont,
+                              const ara::core::internal::InputWithLocation<std::uint8_t> loc =
+                                    ara::core::internal::make_input_with_location<std::uint8_t>(0))
+#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+        noexcept(noexcept(std::data(cont)) && noexcept(std::size(cont)))
+#else
+        noexcept
+#endif
+        : data_{std::data(cont)}, size_{std::size(cont)}
+    {
+
+#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
+        static_assert(noexcept(std::data(cont)) && noexcept(std::size(cont)),
+                "\n[ERROR] BasicStringView constructor must be noexcept for all string-like types.\n");
+#endif
+        if (detail::unlikely(data_ == nullptr && size_ > 0)) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerNullptrViolation(loc.info());
+            } else {
+                constexpr unsigned char _null_pointer_violation[1] = {};
+                [[maybe_unused]] const auto verify{_null_pointer_violation[1]};
+            }
+        }
+
+    }
+
+    /*!
      * \brief Construct from string-like container
      *
      * \tparam Range String-like type with data() and size()
      * \param str String-like object
+     * \param loc Source location for error reporting
      *
      * \details
      * - [SWS_CORE_03046]: Range constructor
      * - Works with std::string, std::vector<CharT>, etc.
+     * - SFINAE-protected for type safety
      */
     template<typename Range,
              typename = std::enable_if_t<
                  !std::is_same_v<std::decay_t<Range>, BasicStringView> &&
                  !std::is_pointer_v<std::decay_t<Range>> &&
-                 !std::is_array_v<std::remove_reference_t<Range>> &&
-                 detail::is_string_view_compatible_v<Range, CharT>>>
-    constexpr BasicStringView(const Range& str)
+                 !detail::is_std_array_v<std::decay_t<Range>> &&
+                 !detail::is_ara_array_v<std::decay_t<Range>> &&
+                 !detail::is_c_array_v<std::decay_t<Range>> &&
+                 !detail::is_basic_string_v<std::remove_reference_t<Range>> &&
+                 detail::is_string_view_compatible_v<Range, CharT> &&
+                 std::is_lvalue_reference_v<Range&&>
+        >
+    >   
+    constexpr BasicStringView(Range&& str,
+                              const ara::core::internal::InputWithLocation<std::uint8_t> loc =
+                                    ara::core::internal::make_input_with_location<std::uint8_t>(0))
 #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
         noexcept(noexcept(std::data(str)) && noexcept(std::size(str)))
 #else
         noexcept
 #endif
-        : data_(std::data(str)), size_(std::size(str))
+        : data_{std::data(str)}, size_{std::size(str)}
     {
 #ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
         static_assert(noexcept(std::data(str)) && noexcept(std::size(str)),
-            "\n[ERROR] ara::core::BasicStringView: "
-            "Range must have noexcept data() and size() methods.\n");
+                "\n[ERROR] BasicStringView constructor must be noexcept for all string-like types.\n");
 #endif
+        
+        // Validate data pointer
+        if (detail::unlikely(data_ == nullptr && size_ > 0)) {
+            if (!detail::is_constant_evaluated()) {
+                TriggerNullptrViolation(loc.info());
+            } else {
+                constexpr unsigned char _null_pointer_violation[1] = {};
+                [[maybe_unused]] const auto verify{_null_pointer_violation[1]};
+            }
+        }
     }
 
     /*!
@@ -638,19 +877,19 @@ public:
         return substr(pos1, count1).compare(v.substr(pos2, count2));
     }
 
-    [[nodiscard]] constexpr auto compare(const CharT* s) const noexcept -> int
+    [[nodiscard]] constexpr auto compare(const_pointer s) const noexcept -> int
     {
         return compare(BasicStringView(s));
     }
 
     [[nodiscard]] constexpr auto compare(size_type pos1, size_type count1,
-                                        const CharT* s) const noexcept -> int
+                                        const_pointer s) const noexcept -> int
     {
         return substr(pos1, count1).compare(BasicStringView(s));
     }
 
     [[nodiscard]] constexpr auto compare(size_type pos1, size_type count1,
-                                        const CharT* s, size_type count2) const noexcept -> int
+                                        const_pointer s, size_type count2) const noexcept -> int
     {
         return substr(pos1, count1).compare(BasicStringView(s, count2));
     }
@@ -680,7 +919,7 @@ public:
         return !empty() && Traits::eq(front(), ch);
     }
 
-    [[nodiscard]] constexpr auto starts_with(const CharT* s) const noexcept -> bool
+    [[nodiscard]] constexpr auto starts_with(const_pointer s) const noexcept -> bool
     {
         return starts_with(BasicStringView(s));
     }
@@ -707,7 +946,7 @@ public:
         return !empty() && Traits::eq(back(), ch);
     }
 
-    [[nodiscard]] constexpr auto ends_with(const CharT* s) const noexcept -> bool
+    [[nodiscard]] constexpr auto ends_with(const_pointer s) const noexcept -> bool
     {
         return ends_with(BasicStringView(s));
     }
@@ -732,7 +971,7 @@ public:
         return find(ch) != npos;
     }
 
-    [[nodiscard]] constexpr auto contains(const CharT* s) const noexcept -> bool
+    [[nodiscard]] constexpr auto contains(const_pointer s) const noexcept -> bool
     {
         return find(s) != npos;
     }
@@ -784,12 +1023,12 @@ public:
         return result ? static_cast<size_type>(result - data_) : npos;
     }
 
-    [[nodiscard]] constexpr auto find(const CharT* s, size_type pos, size_type count) const noexcept -> size_type
+    [[nodiscard]] constexpr auto find(const_pointer s, size_type pos, size_type count) const noexcept -> size_type
     {
         return find(BasicStringView(s, count), pos);
     }
 
-    [[nodiscard]] constexpr auto find(const CharT* s, size_type pos = 0) const noexcept -> size_type
+    [[nodiscard]] constexpr auto find(const_pointer s, size_type pos = 0) const noexcept -> size_type
     {
         return find(BasicStringView(s), pos);
     }
@@ -851,12 +1090,12 @@ public:
         return npos;
     }
 
-    [[nodiscard]] constexpr auto rfind(const CharT* s, size_type pos, size_type count) const noexcept -> size_type
+    [[nodiscard]] constexpr auto rfind(const_pointer s, size_type pos, size_type count) const noexcept -> size_type
     {
         return rfind(BasicStringView(s, count), pos);
     }
 
-    [[nodiscard]] constexpr auto rfind(const CharT* s, size_type pos = npos) const noexcept -> size_type
+    [[nodiscard]] constexpr auto rfind(const_pointer s, size_type pos = npos) const noexcept -> size_type
     {
         return rfind(BasicStringView(s), pos);
     }
@@ -926,13 +1165,13 @@ public:
         return find(ch, pos);
     }
 
-    [[nodiscard]] constexpr auto find_first_of(const CharT* s, size_type pos, size_type count) const
+    [[nodiscard]] constexpr auto find_first_of(const_pointer s, size_type pos, size_type count) const
        noexcept -> size_type
     {
         return find_first_of(BasicStringView(s, count), pos);
     }
 
-    [[nodiscard]] constexpr auto find_first_of(const CharT* s, size_type pos = 0) const noexcept -> size_type
+    [[nodiscard]] constexpr auto find_first_of(const_pointer s, size_type pos = 0) const noexcept -> size_type
     {
         return find_first_of(BasicStringView(s), pos);
     }
@@ -1001,13 +1240,13 @@ public:
         return rfind(ch, pos);
     }
 
-    [[nodiscard]] constexpr auto find_last_of(const CharT* s, size_type pos, size_type count) const
+    [[nodiscard]] constexpr auto find_last_of(const_pointer s, size_type pos, size_type count) const
         -> size_type
     {
         return find_last_of(BasicStringView(s, count), pos);
     }
 
-    [[nodiscard]] constexpr auto find_last_of(const CharT* s, size_type pos = npos) const noexcept -> size_type
+    [[nodiscard]] constexpr auto find_last_of(const_pointer s, size_type pos = npos) const noexcept -> size_type
     {
         return find_last_of(BasicStringView(s), pos);
     }
@@ -1094,13 +1333,13 @@ public:
         return npos;
     }
 
-    [[nodiscard]] constexpr auto find_first_not_of(const CharT* s, size_type pos, size_type count) const
+    [[nodiscard]] constexpr auto find_first_not_of(const_pointer s, size_type pos, size_type count) const
        noexcept -> size_type
     {
         return find_first_not_of(BasicStringView(s, count), pos);
     }
 
-    [[nodiscard]] constexpr auto find_first_not_of(const CharT* s, size_type pos = 0) const noexcept -> size_type
+    [[nodiscard]] constexpr auto find_first_not_of(const_pointer s, size_type pos = 0) const noexcept -> size_type
     {
         return find_first_not_of(BasicStringView(s), pos);
     }
@@ -1196,20 +1435,20 @@ public:
         return npos;
     }
 
-    [[nodiscard]] constexpr auto find_last_not_of(const CharT* s, size_type pos, size_type count) const
+    [[nodiscard]] constexpr auto find_last_not_of(const_pointer s, size_type pos, size_type count) const
         noexcept -> size_type
     {
         return find_last_not_of(BasicStringView(s, count), pos);
     }
 
-    [[nodiscard]] constexpr auto find_last_not_of(const CharT* s, size_type pos = npos) const
+    [[nodiscard]] constexpr auto find_last_not_of(const_pointer s, size_type pos = npos) const
         noexcept -> size_type
     {
         return find_last_not_of(BasicStringView(s), pos);
     }
 
 private:
-    const CharT* data_;     /*!< Pointer to character sequence */
+    const_pointer data_;     /*!< Pointer to character sequence */
     size_type size_;        /*!< Number of characters */
 
     /*!
@@ -1345,15 +1584,35 @@ using U32StringView = BasicStringView<char32_t>;
  *  DEDUCTION GUIDES [SWS_CORE_03140]
  *********************************************************************************************************************/
 
+/*!
+ * \brief Deduction guide for iterator pair
+ *
+ * \details Enables: BasicStringView sv(begin, end);
+ */
 template<typename It, typename End>
 BasicStringView(It, End) -> BasicStringView<typename std::iterator_traits<It>::value_type>;
 
+/*!
+ * \brief Deduction guide for C-style array
+ *
+ * \details Enables: BasicStringView sv("Hello");
+ */
 template<typename CharT, std::size_t N>
 BasicStringView(const CharT(&)[N]) -> BasicStringView<CharT>;
 
+/*!
+ * \brief Deduction guide for pointer
+ *
+ * \details Enables: BasicStringView sv(ptr);
+ */
 template<typename CharT>
 BasicStringView(const CharT*) -> BasicStringView<CharT>;
 
+/*!
+ * \brief Deduction guide for basic_string
+ *
+ * \details Enables: BasicStringView sv(str);
+ */
 template<typename CharT, typename Traits, typename Alloc>
 BasicStringView(const std::basic_string<CharT, Traits, Alloc>&) 
     -> BasicStringView<CharT, Traits>;
@@ -1933,11 +2192,16 @@ template<typename CharT>
 template<typename Container,
          typename = std::enable_if_t<detail::has_string_like_interface_v<Container>>>
 [[nodiscard]] constexpr auto MakeStringView(const Container& cont) noexcept
-    -> BasicStringView<typename std::remove_pointer_t<
-        decltype(std::data(std::declval<const Container&>()))>>
+    -> BasicStringView<
+         std::remove_cv_t<
+           std::remove_pointer_t<
+             decltype(std::data(std::declval<const Container&>()))>>>
 {
-    using CharT = std::remove_pointer_t<decltype(std::data(cont))>;
-    return BasicStringView<CharT>(cont);
+    using RawChar =
+        std::remove_cv_t<
+          std::remove_pointer_t<
+            decltype(std::data(cont))>>;
+    return BasicStringView<RawChar>(cont);
 }
 
 /**********************************************************************************************************************
