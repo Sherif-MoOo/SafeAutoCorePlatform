@@ -2,10 +2,6 @@
 # OpenAA: Open Source Adaptive AUTOSAR Project
 # Author: Sherif Mohamed
 #
-# This software is copyright protected and proprietary to Your
-# Company. You are granted only those rights as set out in the
-# license conditions. All other rights remain with Your Company.
-#
 # File description:
 # -----------------
 # CMake initial-cache file for OpenAA - QNX 8.0 aarch64 using QCC-12.
@@ -66,7 +62,7 @@ set(CMAKE_C_FLAGS_DEBUG_INIT "-O0 -g3" CACHE STRING "C Compiler Flags for Debug 
 #   -g: Includes debug symbols.
 #=======================================================================
 set(CMAKE_CXX_FLAGS_INIT "-Wall -Wextra -Wnon-virtual-dtor -Wconversion -Wold-style-cast -pedantic \
--Wshadow -Wno-error=deprecated-declarations -Wdouble-promotion -Wformat=2 -D_QNX_SOURCE -DDEBUG -g -fno-inline -fno-omit-frame-pointer" CACHE STRING "Initial C++ Compiler Flags for Debug Build")
+-Wshadow -Wdouble-promotion -Wformat=2 -D_QNX_SOURCE -DDEBUG -g -fno-inline -fno-omit-frame-pointer" CACHE STRING "Initial C++ Compiler Flags for Debug Build")
 
 # Debug build specific C++ flags.
 set(CMAKE_CXX_FLAGS_DEBUG_INIT "-O0 -g3" CACHE STRING "C++ Compiler Flags for Debug Build")

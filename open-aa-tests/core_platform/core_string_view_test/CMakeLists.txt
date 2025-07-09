@@ -9,7 +9,12 @@ CMake configuration for the core_platform tests.
 #****************************************************************************************************
 # Test Executable Definition
 #****************************************************************************************************
-set(CMAKE_CXX_STANDARD 20)
+if (CMAKE_SYSTEM_NAME STREQUAL "QNX"
+    AND CMAKE_SYSTEM_VERSION VERSION_GREATER_EQUAL "7.1.0")
+
+else()
+    set(CMAKE_CXX_STANDARD 20)
+endif()
 
 add_executable(core_string_view_test
     ara_core_string_view.cpp

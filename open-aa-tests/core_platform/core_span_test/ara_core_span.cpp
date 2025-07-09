@@ -56,6 +56,8 @@
 #include <concepts>                 // For C++20 concepts tests
 #endif
 
+#include "ara/core/string_view.h"  // For string view tests
+
 static constexpr std::string_view   kProcessNameView{"CoreSpanTest"};
 static constexpr std::uint8_t       kMaxProcessName{15};
 
@@ -466,6 +468,7 @@ void TestConstruction()
         
         std::cout << "Compile-time construction verified\n";
     }
+
 }
 
 /*!
@@ -710,7 +713,7 @@ void TestIterators()
         assert(std::is_sorted(s.begin(), s.end()));
         
         // Find
-        [[maybe_unused]] auto it = std::find(s.begin(), s.end(), 5);
+        [[maybe_unused]] auto it = ara::core::find(s.begin(), s.end(), 5);
         assert(it != s.end());
         assert(*it == 5);
         

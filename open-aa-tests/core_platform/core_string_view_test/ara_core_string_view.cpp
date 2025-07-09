@@ -589,7 +589,7 @@ void TestIterators()
         ara::core::StringView sv(str);
         
         // Find
-        [[maybe_unused]] auto it = std::find(sv.begin(), sv.end(), 'T');
+        [[maybe_unused]] auto it = ara::core::find(sv.begin(), sv.end(), 'T');
         assert(it != sv.end());
         assert(*it == 'T');
         
@@ -1716,16 +1716,19 @@ void TestHashSupport()
             "test", "Test", "tEst", "teSt", "tesT",
             "tests", "testing", "tested"
         };
-        
+
         std::hash<ara::core::StringView> hasher;
-        std::unordered_set<std::size_t> hashes;
-        
-        for (const auto& sv : similar) {
-            hashes.insert(hasher(sv));
+        std::vector<std::size_t> hashes;
+        hashes.reserve(similar.size());
+
+        for (auto const& sv : similar) {
+            hashes.push_back(hasher(sv));
         }
-        
-        // All should have different hashes (high probability)
-        assert(hashes.size() == similar.size());
+
+        std::sort(hashes.begin(), hashes.end());
+        [[maybe_unused]] auto it = std::unique(hashes.begin(), hashes.end());
+        assert(std::distance(hashes.begin(), it) == static_cast<std::ptrdiff_t>(similar.size()));
+
         
         std::cout << "Hash quality verified (no collisions in similar strings)\n";
     }

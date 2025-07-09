@@ -856,7 +856,7 @@ public:
         const size_type rlen = (std::min)(size_, v.size_);
         
         if (rlen > 0) {
-            const int ret = detail::constexpr_compare<CharT, Traits>(data_, v.data_, rlen);
+            const int ret = ara::core::char_compare<CharT, Traits>(data_, v.data_, rlen);
             if (ret != 0) return ret;
         }
         
@@ -911,7 +911,7 @@ public:
     [[nodiscard]] constexpr auto starts_with(BasicStringView sv) const noexcept -> bool
     {
         return size_ >= sv.size_ && 
-               (sv.empty() || detail::constexpr_compare<CharT, Traits>(data_, sv.data_, sv.size_) == 0);
+               (sv.empty() || ara::core::char_compare<CharT, Traits>(data_, sv.data_, sv.size_) == 0);
     }
 
     [[nodiscard]] constexpr auto starts_with(CharT ch) const noexcept -> bool
@@ -937,7 +937,7 @@ public:
     [[nodiscard]] constexpr auto ends_with(BasicStringView sv) const noexcept -> bool
     {
         return size_ >= sv.size_ && 
-               (sv.empty() || detail::constexpr_compare<CharT, Traits>(
+               (sv.empty() || ara::core::char_compare<CharT, Traits>(
                    data_ + size_ - sv.size_, sv.data_, sv.size_) == 0);
     }
 
@@ -1002,7 +1002,7 @@ public:
         }
         
         // Use optimized search
-        const auto result = detail::constexpr_search<CharT, Traits>(
+        const auto result = ara::core::char_search<CharT, Traits>(
             data_ + pos, data_ + size_,
             v.data_, v.data_ + v.size_
         );
@@ -1016,7 +1016,7 @@ public:
             return npos;
         }
         
-        const auto result = detail::constexpr_memchr<CharT, Traits>(
+        const auto result = ara::core::char_find<CharT, Traits>(
             data_ + pos, size_ - pos, ch
         );
         
@@ -1065,7 +1065,7 @@ public:
         } else {
             // Multi-character search
             for (size_type i = last + 1; i > 0; --i) {
-                if (detail::constexpr_compare<CharT, Traits>(
+                if (ara::core::char_compare<CharT, Traits>(
                         data_ + i - 1, v.data_, v.size_) == 0) {
                     return i - 1;
                 }
@@ -2338,13 +2338,19 @@ template<typename CharT, typename Traits>
 [[nodiscard]] constexpr auto trim(BasicStringView<CharT, Traits> sv) noexcept
     -> BasicStringView<CharT, Traits>
 {
-    constexpr CharT ws[] = {' ', '\t', '\n', '\r', '\f', '\v', '\0'};
-    auto start = sv.find_first_not_of(ws);
-    if (start == BasicStringView<CharT, Traits>::npos) {
-        return BasicStringView<CharT, Traits>();
-    }
-    auto end = sv.find_last_not_of(ws);
-    return sv.substr(start, end - start + 1);
+    constexpr auto is_ws = [](CharT c) noexcept {
+        return c == CharT{' '}  || c == CharT{'\t'} ||
+               c == CharT{'\n'} || c == CharT{'\r'} ||
+               c == CharT{'\f'} || c == CharT{'\v'};
+    };
+
+    std::size_t first = 0;
+    while (first < sv.size() && is_ws(sv[first]))  ++first;
+
+    std::size_t last  = sv.size();
+    while (last  > first && is_ws(sv[last - 1]))   --last;
+
+    return sv.substr(first, last - first);
 }
 
 /*!

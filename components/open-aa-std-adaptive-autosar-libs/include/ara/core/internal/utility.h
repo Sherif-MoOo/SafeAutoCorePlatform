@@ -3,6 +3,7 @@
  *  --------------------------------------------------------------------------------------------------------------------
  *  \verbatim
  *  OpenAA: Open Source Adaptive AUTOSAR Project (CXX_STANDARD 17)
+ *  Author: Sherif Mohamed
  *  \endverbatim
  *  --------------------------------------------------------------------------------------------------------------------
  *  FILE DESCRIPTION
@@ -148,9 +149,40 @@ inline std::mutex g_abortMutex{};
         return __builtin_is_constant_evaluated();         // GCC/Clang builtin in C++17
     #elif defined(_MSC_VER)
         return __is_constant_evaluated();                 // MSVC intrinsic
+    #elif defined(__GNUC__)
+        return __builtin_constant_p(0);                   // legacy GCC / QNX 7.x fallback
     #else
         return false;                                     // fallback: always run-time
     #endif
+}
+
+template<typename Ptr>
+[[nodiscard]] inline constexpr auto to_address(const Ptr& p) noexcept
+    -> decltype(std::pointer_traits<Ptr>::to_address(p));
+
+template<typename Raw>
+[[nodiscard]] inline constexpr auto to_address(Raw* p) noexcept -> Raw*;
+
+// definitions
+template<typename Raw>
+[[nodiscard]] inline constexpr auto to_address(Raw* p) noexcept -> Raw* {
+    return p;
+}
+
+template<typename Ptr>
+[[nodiscard]] inline constexpr auto to_address(const Ptr& p) noexcept
+    -> decltype(std::pointer_traits<Ptr>::to_address(p))
+{
+#if defined(__cpp_lib_to_address) && (__cpp_lib_to_address >= 201711L)
+    return std::to_address(p);
+#else
+    return std::pointer_traits<Ptr>::to_address(p);
+#endif
+}
+
+template<typename Ptr>
+[[nodiscard]] inline constexpr auto to_address(const Ptr& p) noexcept {
+    return ara::core::detail::to_address(p.operator->());
 }
 
 /***********************************************************************************************************************
@@ -218,194 +250,6 @@ inline constexpr bool is_tuple_like_v = is_tuple_like<T>::value;
 template<typename F, typename... Args>
 using invoke_result_t = decltype(std::declval<F>()(std::declval<Args>()...));
 
-/**********************************************************************************************************************
- *  TUPLE CONVERSION UTILITIES
- *********************************************************************************************************************/
-/*!
- * \brief  Implementation helper to convert a tuple-like type to std::tuple.
- *
- * \details Creates a tuple of values (not references) from a tuple-like object.
- *          This matches the behavior of std::tuple_cat which uses value semantics:
- *          - For lvalues: copies the elements
- *          - For rvalues: moves the elements
- *          - Always decays types (removes cv-qualifiers and references)
- *
- * \tparam Src The source tuple-like type.
- * \tparam I   Index sequence for unpacking.
- * \param  src The source tuple-like object.
- * \return     A std::tuple containing values (copies/moves) of the elements.
- *
- * \note Uses unqualified get for proper ADL lookup.
- */
-template<typename Src, std::size_t... I>
-[[nodiscard]] constexpr auto to_std_tuple_impl(Src&& src, std::index_sequence<I...>)
-#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-    noexcept(noexcept(std::make_tuple(get<I>(std::forward<Src>(src))...)))
-#else
-    noexcept
-#endif
-    -> decltype(std::make_tuple(get<I>(std::forward<Src>(src))...))
-{
-    // Using unqualified get for ADL - finds the best get via argument-dependent lookup
-    // std::make_tuple applies std::decay to each argument:
-    // - T& -> T (copy)
-    // - const T& -> T (copy)
-    // - T&& -> T (move)
-    // - const T&& -> T (move)
-    
-#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-    static_assert(noexcept(std::make_tuple(get<I>(std::forward<Src>(src))...)),
-        "\n[ERROR] detail::to_std_tuple_impl: Tuple construction must be noexcept when exceptions are disabled.\n");
-#endif
-    
-    return std::make_tuple(get<I>(std::forward<Src>(src))...);
-}
-
-/*!
- * \brief  Converts a tuple-like type to std::tuple.
- *
- * \details Converts any tuple-like type (e.g., ara::core::Array, std::array, std::pair)
- *          into a std::tuple with value semantics. This is designed to work with
- *          std::tuple_cat and similar utilities that expect value semantics.
- *
- * \tparam Src The source tuple-like type.
- * \param  src The source tuple-like object.
- * \return     A std::tuple containing values (copies/moves) of the elements.
- *
- * \pre The type std::remove_reference_t<Src> must satisfy is_tuple_like_v.
- */
-template<typename Src>
-[[nodiscard]] constexpr auto to_std_tuple(Src&& src)
-#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-    noexcept(noexcept(to_std_tuple_impl(
-        std::forward<Src>(src),
-        std::make_index_sequence<std::tuple_size_v<
-            std::remove_cv_t<std::remove_reference_t<Src>>>>{})))
-#else
-    noexcept
-#endif
-    -> decltype(to_std_tuple_impl(
-        std::forward<Src>(src),
-        std::make_index_sequence<std::tuple_size_v<
-            std::remove_cv_t<std::remove_reference_t<Src>>>>{}))
-{
-    static_assert(is_tuple_like_v<std::remove_reference_t<Src>>,
-        "\n[ERROR] detail::to_std_tuple: Type must be tuple-like (have tuple_size, tuple_element, and get).\n");
-    
-    constexpr std::size_t N = std::tuple_size_v<
-        std::remove_cv_t<std::remove_reference_t<Src>>>;
-    
-#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-    static_assert(noexcept(to_std_tuple_impl(
-        std::forward<Src>(src),
-        std::make_index_sequence<N>{})),
-        "\n[ERROR] detail::to_std_tuple: Conversion must be noexcept when exceptions are disabled.\n");
-#endif
-    
-    return to_std_tuple_impl(std::forward<Src>(src),
-                             std::make_index_sequence<N>{});
-}
-
-/**********************************************************************************************************************
- *  APPLY IMPLEMENTATION
- *********************************************************************************************************************/
-/*!
- * \brief  Implementation helper for apply function.
- *
- * \details Expands the tuple-like object and invokes the callable with its elements.
- *          Perfectly forwards the elements to preserve value categories when calling
- *          the function. Uses unqualified get for proper ADL lookup.
- *
- * \tparam F     The callable type.
- * \tparam Tuple The tuple-like type.
- * \tparam I     Index sequence for unpacking.
- * \param  f     The callable to invoke.
- * \param  tup   The tuple-like object containing arguments.
- * \return       The result of invoking f with the tuple elements.
- *
- * \warning The result of this function should not be discarded if the callable
- *          returns a value that needs to be handled.
- */
-template<typename F, typename Tuple, std::size_t... I>
-[[nodiscard]] constexpr auto apply_impl(F&& f, Tuple&& tup, std::index_sequence<I...>)
-#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-    noexcept(noexcept(std::forward<F>(f)(get<I>(std::forward<Tuple>(tup))...)))
-#else
-    noexcept
-#endif
-    -> invoke_result_t<F&&, decltype(get<I>(std::forward<Tuple>(tup)))...>
-{
-    // Using unqualified get for ADL - this allows user-defined types to provide
-    // their own get function that will be found via argument-dependent lookup
-    
-#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-    static_assert(noexcept(std::forward<F>(f)(get<I>(std::forward<Tuple>(tup))...)),
-        "\n[ERROR] detail::apply_impl: Callable invocation must be noexcept when exceptions are disabled.\n");
-#endif
-    
-    return std::forward<F>(f)(get<I>(std::forward<Tuple>(tup))...);
-}
-
-/**********************************************************************************************************************
- *  TO_ARRAY IMPLEMENTATION HELPERS
- *********************************************************************************************************************/
-/*!
- * \brief  Implementation helper for to_array with lvalue arrays.
- *
- * \details Creates an ara::core::Array by copying elements from a built-in array.
- *          This is used to implement ara::core::to_array for lvalue arrays.
- *
- * \tparam T The element type.
- * \tparam N The number of elements.
- * \tparam I Index sequence for unpacking.
- * \param  a The built-in array to copy from.
- * \return   An ara::core::Array containing copies of the elements.
- */
-template <typename T, std::size_t N, std::size_t... I>
-[[nodiscard]] constexpr auto to_array_impl(T (&a)[N], std::index_sequence<I...>)
-#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-    noexcept(std::is_nothrow_copy_constructible_v<T>)
-#else
-    noexcept
-#endif
-    -> ara::core::Array<std::remove_cv_t<T>, N>
-{
-#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-    static_assert(std::is_nothrow_copy_constructible_v<T>,
-        "\n[ERROR] detail::to_array_impl: Type T must be nothrow copy constructible when exceptions are disabled.\n");
-#endif
-    
-    return {{a[I]...}};
-}
-
-/*!
- * \brief  Implementation helper for to_array with rvalue arrays.
- *
- * \details Creates an ara::core::Array by moving elements from a built-in array.
- *          This is used to implement ara::core::to_array for rvalue arrays.
- *
- * \tparam T The element type.
- * \tparam N The number of elements.
- * \tparam I Index sequence for unpacking.
- * \param  a The built-in array to move from.
- * \return   An ara::core::Array containing moved elements.
- */
-template <typename T, std::size_t N, std::size_t... I>
-[[nodiscard]] constexpr auto to_array_impl(T (&&a)[N], std::index_sequence<I...>)
-#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-    noexcept(std::is_nothrow_move_constructible_v<T>)
-#else
-    noexcept
-#endif
-    -> ara::core::Array<std::remove_cv_t<T>, N>
-{
-#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-    static_assert(std::is_nothrow_move_constructible_v<T>,
-        "\n[ERROR] detail::to_array_impl: Type T must be nothrow move constructible when exceptions are disabled.\n");
-#endif
-    
-    return {{std::move(a[I])...}};
-}
 /*!
  * \brief Trait to detect whether an array of type T[N] can be list‑initialized
  *        with arguments of types Args... without narrowing conversions.
@@ -632,281 +476,6 @@ struct is_basic_string<std::basic_string<CharT, Traits, Alloc>> : std::true_type
 template<typename T>
 inline constexpr bool is_basic_string_v = is_basic_string<std::decay_t<T>>::value;
 
-/*!
- * \brief Performs a lexicographical comparison between two ranges.
- *
- * This function compares the elements in the ranges \c [first1,last1) and \c [first2,last2)
- * one by one:
- * - For each pair of corresponding elements, if the element from the first range is less than the element
- *   from the second range, the function returns \c true.
- * - If the element from the second range is less than the element from the first range, the function returns \c false.
- * - If the elements are equal, the comparison continues.
- * - When the end of one of the ranges is reached:
- *     - If the first range is exhausted but the second still has elements, the first range is considered
- *       lexicographically less and the function returns \c true.
- *     - Otherwise, it returns \c false.
- *
- * \tparam InputIt1 The type of the input iterator for the first range.
- * \tparam InputIt2 The type of the input iterator for the second range.
- * \param first1 An iterator pointing to the first element of the first range.
- * \param last1  An iterator pointing past the last element of the first range.
- * \param first2 An iterator pointing to the first element of the second range.
- * \param last2  An iterator pointing past the last element of the second range.
- * \return \c true if the first range is lexicographically less than the second range; \c false otherwise.
- *
- * \note The function is declared as \c constexpr so that if both the iterators and the element comparison
- *       are \c constexpr, the entire operation can be evaluated at compile time.
- */
-template<typename InputIt1, typename InputIt2>
-[[nodiscard]] constexpr bool constexpr_lexicographical_compare(InputIt1 first1, InputIt1 last1,
-                                                                InputIt2 first2, InputIt2 last2)
-#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-    noexcept(noexcept(*first1 < *first2) && noexcept(*first1 == *first2))
-#else
-    noexcept
-#endif
-{   
-
-#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-    static_assert(noexcept(*first1 < *first2) && noexcept(*first1 == *first2),
-        "\n[ERROR] in ara::core::constexpr_lexicographical_compare: "
-        "The element comparison must be noexcept when exceptions are disabled.\n");
-#endif
-
-    for (; (first1 != last1) && (first2 != last2); ++first1, ++first2) {
-        if (*first1 < *first2) return true;
-        if (*first2 < *first1) return false;
-    }
-    return (first1 == last1) && (first2 != last2);
-}
-
-/*!
- * \brief  Constexpr-compatible find implementation for C++17
- *
- * \tparam InputIt Iterator type
- * \tparam T Value type to find
- * \param first Beginning of the range to search
- * \param last End of the range to search
- * \param value Value to find
- * \return Iterator to the first element equal to value, or last if not found
- */
-template<typename InputIt, typename T>
-[[nodiscard]] constexpr InputIt constexpr_find(InputIt first, InputIt last, const T& value) {
-    for (; first != last; ++first) {
-        if (*first == value) {
-            return first;
-        }
-    }
-    return last;
-}
-
-/*!
- * \brief Optimized constexpr memchr for finding characters
- *
- * \details Uses compile-time loop unrolling when possible
- */
-template<typename CharT, typename Traits>
-constexpr const CharT* constexpr_memchr(const CharT* str, size_t count, CharT ch) noexcept {
-
-    if (count == 0) {
-        return nullptr;
-    }
-
-    if (!detail::is_constant_evaluated()) {
-        // Runtime: use optimized standard library
-        if constexpr (std::is_same_v<CharT, char> && is_default_char_traits_v<CharT, Traits>) {
-            return static_cast<const CharT*>(std::memchr(str, ch, count));
-        } else if constexpr (std::is_same_v<CharT, wchar_t> && is_default_char_traits_v<CharT, Traits>) {
-            return static_cast<const CharT*>(std::wmemchr(str, ch, count));
-        }
-    }
-    
-    // Compile-time or generic: manual search with unrolling
-    const CharT* end = str + count;
-    
-    // Unroll by 4 for better performance
-    while (str + 4 <= end) {
-        if (Traits::eq(str[0], ch)) return str;
-        if (Traits::eq(str[1], ch)) return str + 1;
-        if (Traits::eq(str[2], ch)) return str + 2;
-        if (Traits::eq(str[3], ch)) return str + 3;
-        str += 4;
-    }
-    
-    // Handle remaining elements
-    while (str < end) {
-        if (Traits::eq(*str, ch)) return str;
-        ++str;
-    }
-    
-    return nullptr;
-}
-
-/*!
- * \brief  Constexpr-compatible equal implementation
- *
- * \tparam InputIt1 First range iterator type
- * \tparam InputIt2 Second range iterator type
- * \param first1 Beginning of the first range
- * \param last1 End of the first range
- * \param first2 Beginning of the second range
- * \return true if all corresponding elements are equal, false otherwise
- */
-template<typename InputIt1, typename InputIt2>
-[[nodiscard]] constexpr bool constexpr_equal(InputIt1 first1, InputIt1 last1, InputIt2 first2) {
-    for (; first1 != last1; ++first1, ++first2) {
-        if (!(*first1 == *first2)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-/*!
- * \brief Constexpr strlen implementation for C++17
- *
- * \tparam CharT Character type
- * \param str Null-terminated string
- * \return Length of the string, excluding the null terminator
- */
-template<typename CharT>
-[[nodiscard]] constexpr auto constexpr_strlen(const CharT* str) noexcept -> std::size_t {
-    if (str == nullptr) return 0;              // or omit for stricter C semantics
-
-    if constexpr (std::is_same_v<CharT, char> &&
-                  __has_builtin(__builtin_strlen)) {
-        return __builtin_strlen(str);          // fast, constexpr-friendly path
-    } else {
-        std::size_t len = 0;
-        while (str[len] != CharT{}) ++len;
-        return len;
-    }
-}
-
- /*!
- * \brief Extract basename from a file path at compile time
- *
- * \param path Full file path
- * \return Pointer to the basename portion of the path
- *
- * \details Handles both forward and backward slashes as path separators
- */
-[[nodiscard]] constexpr auto constexpr_basename(const char* path) noexcept -> const char* {
-    if (path == nullptr) return "";
-
-    const char* last_separator = path;
-    const char* current = path;
-
-    while (*current != '\0') {
-        if (*current == '/' || *current == '\\') {
-            last_separator = current + 1;
-        }
-        ++current;
-    }
-
-    return last_separator;
-}
-
-/*!
- * \brief Constexpr char_traits::compare for C++17
- *
- * \tparam CharT Character type
- * \tparam Traits Character traits type
- * \param s1 First string to compare
- * \param s2 Second string to compare
- * \param count Number of characters to compare
- * \return Negative if s1 < s2, positive if s1 > s2, zero if equal
- * \details Uses memcmp when possible for better performance
- */
-template<typename CharT, typename Traits>
-[[nodiscard]] constexpr int constexpr_compare(const CharT* s1, const CharT* s2, size_t count) noexcept {
-    if (!detail::is_constant_evaluated() && count > 0) {
-        // Runtime: use optimized comparison
-        if constexpr (is_default_char_traits_v<CharT, Traits>) {
-            if constexpr (std::is_same_v<CharT, char>) {
-                return std::memcmp(s1, s2, count);
-            } else if constexpr (std::is_same_v<CharT, wchar_t>) {
-                return std::wmemcmp(s1, s2, count);
-            }
-        }
-    }
-    
-    // Compile-time or generic: use traits
-    return Traits::compare(s1, s2, count);
-}
-
-/*!
- * \brief Constexpr find implementation for character sequences
- *
- * \tparam CharT Character type
- * \tparam Traits Character traits type
- * \param str String to search in
- * \param count Length of the string
- * \param ch Character to find
- * \return Pointer to the first occurrence of ch, or nullptr if not found
- */
-template<typename CharT, typename Traits>
-[[nodiscard]] constexpr auto constexpr_find(const CharT* str, std::size_t count, CharT ch) noexcept -> const CharT* {
-    for (std::size_t i = 0; i < count; ++i) {
-        if (Traits::eq(str[i], ch)) {
-            return str + i;
-        }
-    }
-    return nullptr;
-}
-
-/*!
- * \brief Constexpr search implementation for substring search
- *
- * \tparam CharT Character type
- * \tparam Traits Character traits type
- * \param first Beginning of the string to search in
- * \param last End of the string to search in
- * \param s_first Beginning of the substring to find
- * \param s_last End of the substring to find
- * \return Pointer to the first occurrence of the substring, or last if not found
- * \details Simplified Boyer-Moore algorithm that works in constexpr context
- */
-template<typename CharT, typename Traits>
-[[nodiscard]] constexpr auto constexpr_search(
-    const CharT* first1, const CharT* last1,
-    const CharT* first2, const CharT* last2) noexcept -> const CharT* {
-    
-    const auto len1 = static_cast<size_t>(last1 - first1);
-    const auto len2 = static_cast<size_t>(last2 - first2);
-    
-    if (len2 == 0) return first1;
-    if (len2 > len1) return last1;
-    
-    // For small patterns, use simple search
-    if (len2 <= 4) {
-        const auto last_possible = last1 - len2 + 1;
-        for (auto it = first1; it < last_possible; ++it) {
-            if (Traits::compare(it, first2, len2) == 0) {
-                return it;
-            }
-        }
-        return last1;
-    }
-    
-    // For larger patterns, use optimized search with first/last char check
-    const CharT first_char = *first2;
-    const CharT last_char = *(last2 - 1);
-    const auto last_possible = last1 - len2 + 1;
-    
-    for (auto it = first1; it < last_possible; ++it) {
-        // Quick first and last character check
-        if (Traits::eq(*it, first_char) && Traits::eq(*(it + len2 - 1), last_char)) {
-            // Full comparison only if first and last match
-            if (Traits::compare(it, first2, len2) == 0) {
-                return it;
-            }
-        }
-    }
-    
-    return last1;
-}
-
 /**********************************************************************************************************************
  *  SPAN: IMPLEMENTATION DETAILS - TYPE TRAITS AND SFINAE HELPERS
  *********************************************************************************************************************/
@@ -1123,274 +692,69 @@ template<typename T, typename CharT>
 inline constexpr bool is_string_view_compatible_v =
     is_string_view_compatible_impl<T, CharT>::value;
 
-
-/**********************************************************************************************************************
- *  SECTION: Array Storage Base Classes
- *********************************************************************************************************************/
 /*!
-* \brief Base class for array storage.
-*
-* Splits out storage to handle partial specialization for \c N > 0 versus \c N == 0.
-*
-* \tparam T The type of elements.
-* \tparam N The number of elements in the array.
-* \tparam B A boolean indicating whether \c N > 0.
-*
-* \note [SWS_CORE_01201]
-*/
-template <typename T, std::size_t N, bool B = (N > 0)>
-struct ArrayStorage;
-
-/*!
- * \brief Primary template for Array storage when \c N > 0.
- *
- * Provides the actual storage for \c N elements of type \c T and supports direct brace‑initialization.
- *
- * \tparam T The element type.
- * \tparam N The number of elements in the array.
- *
- * \note [SWS_CORE_01201]
+ * \brief  Detect if type satisfies iterator requirements.
+ * \tparam T Type to test.
  */
-template <typename T, std::size_t N>
-struct ArrayStorage<T, N, true> {
-protected:
-    /*! \brief Actual storage for \c N elements of type \c T. */
-    alignas(T) T data_[N];
-
-public:
-    /*!
-     * \brief Variadic constructor to initialize \c data_ with up to \c N arguments using brace‑initialization.
-     *
-     * The constructor is constrained to accept at most \c N arguments, all of which must be convertible to \c T,
-     * and such that brace‑initialization does not cause narrowing conversions.
-     *
-     * \tparam Args The types of the constructor arguments.
-     * \param args The arguments to initialize the array.
-     *
-     * \note [SWS_CORE_01201], [SWS_CORE_01214], [SWS_CORE_01215], [SWS_CORE_01241]
-     */
-    template <typename... Args,
-              typename = std::enable_if_t<
-                  // Condition #1: Must not exceed N arguments
-                  (sizeof...(Args) <= N) &&
-                  // Condition #2: Each argument must be convertible to T
-                  (std::conjunction_v<std::is_convertible<Args, T>...>) &&
-                  // Condition #3: Brace-initialization does not cause narrowing
-                  (detail::is_brace_initializable_array_v<T, N, Args...>) &&
-                  // Condition #4: Prevent constructor from being selected when Args... is exactly Array<T, N>
-                  (!detail::is_single_same_array_v<Args...>) &&
-                  // Condition #5: Not empty parameter pack (use default constructor instead)
-                  (sizeof...(Args) > 0)
-              >>
-    constexpr ArrayStorage(Args&&... args)
-#ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-        noexcept(std::conjunction_v<std::is_nothrow_constructible<T, Args&&>...>)
-#else
-        noexcept
-#endif
-        : data_{std::forward<Args>(args)...} 
-    {
-#ifndef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-        static_assert(std::conjunction_v<std::is_nothrow_constructible<T, Args&&>...>,
-            "\n[ERROR] in ara::core::Array: The type T and args must be noexcept.\n");
-#endif  
-    }
-
-    // -----------------------------------------------------------------------------------
-    //  REJECTING CONSTRUCTOR (TOO MANY OR WRONG TYPES) [SWS_CORE_01241]
-    // -----------------------------------------------------------------------------------
-    /*!
-     * \brief Overload constructor that catches calls violating the above constraints.
-     *
-     * \tparam Args  Parameter pack that either exceeds N or has arguments not convertible to T.
-     * \note         This never actually constructs anything; it only fires `static_assert` errors.
-     *
-     * \note  [SWS_CORE_01241]
-     */
-    template <
-        typename... Args,
-        // Condition: either too many arguments OR not all convertible OR narrowing
-        typename = std::enable_if_t<
-            (!detail::is_single_same_array_v<Args...>) && 
-            ( (sizeof...(Args) > N) || 
-              (!std::conjunction_v<std::is_convertible<Args, T>...>) ||
-              (!detail::is_brace_initializable_array_v<T, N, Args...>) )
-        >,
-        int = 0
-    >
-    constexpr explicit ArrayStorage(Args&&...) noexcept
-    {
-        static_assert(sizeof...(Args) <= N,
-            "\n[ERROR] Too many arguments passed to Array<T,N> constructor!\n"
-            "        Up to N elements are allowed.\n");
-
-        static_assert(std::conjunction_v<std::is_convertible<Args, T>...>,
-            "\n[ERROR] One or more arguments cannot be converted to T.\n");
-
-        static_assert(detail::is_brace_initializable_array_v<T, N, Args...>,
-            "\n[ERROR] Brace-initialization would cause narrowing conversions.\n");
-    }
-
-    /*!
-     * \brief Default constructor for the storage.
-     */
-    constexpr ArrayStorage()
-     #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-        noexcept(std::is_nothrow_default_constructible_v<T>)
-     #else
-        noexcept
-     #endif
-        = default;
-
-    /*!
-     * \brief Defaulted copy constructor.
-     */
-    constexpr ArrayStorage(const ArrayStorage&)
-        #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-            noexcept(std::is_nothrow_copy_constructible_v<T>)
-        #else
-            noexcept
-        #endif
-            = default;
-
-    /*!
-     * \brief Defaulted move constructor.
-     */
-    constexpr ArrayStorage(ArrayStorage&&)
-        #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-            noexcept(std::is_nothrow_move_constructible_v<T>)
-        #else
-            noexcept
-        #endif
-            = default;
-
-    /*!
-     * \brief Defaulted copy assignment operator.
-     */
-    constexpr ArrayStorage& operator=(const ArrayStorage&)
-        #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-            noexcept(std::is_nothrow_copy_assignable_v<T>)
-        #else
-            noexcept
-        #endif
-            = default;
-
-    /*!
-     * \brief Defaulted move assignment operator.
-     */
-    constexpr ArrayStorage& operator=(ArrayStorage&&)
-        #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-            noexcept(std::is_nothrow_move_assignable_v<T>)
-        #else
-            noexcept
-        #endif
-            = default;
-
-    ~ArrayStorage()
-        #ifdef ENABLE_PLATFORM_CONDITIONAL_EXCEPTION
-            noexcept(std::is_nothrow_destructible_v<T>)
-        #else
-            noexcept
-        #endif
-        = default;
+template<typename T>
+struct is_iterator_impl {
+    template<typename U>
+    static auto test(int) -> decltype(
+        typename std::iterator_traits<U>::iterator_category{},
+        ++std::declval<U&>(),
+        *std::declval<U>(),
+        std::declval<U>() != std::declval<U>(),
+        std::true_type{}
+    );
+    
+    template<typename>
+    static auto test(...) -> std::false_type;
+    
+    using type = decltype(test<T>(0));
 };
+
+template<typename T>
+using is_iterator = typename is_iterator_impl<T>::type;
+
+template<typename T>
+inline constexpr bool is_iterator_v = is_iterator<T>::value;
+
+template<typename It>
+using iterator_category_t = typename std::iterator_traits<It>::iterator_category;
+
+template<typename It>
+using iterator_value_t = typename std::iterator_traits<It>::value_type;
+
+template<typename It>
+using iterator_reference_t = typename std::iterator_traits<It>::reference;
+
+template<typename It>
+constexpr bool is_input_iterator_v = std::is_base_of_v<std::input_iterator_tag, iterator_category_t<It>>;
+
+template<typename It>
+constexpr bool is_random_access_iterator_v = std::is_base_of_v<std::random_access_iterator_tag, iterator_category_t<It>>;
+
+// Check if two iterators have compatible value types for comparison
+template<typename It1, typename It2>
+constexpr bool has_compatible_value_types_v = std::is_same_v<
+    std::decay_t<iterator_value_t<It1>>,
+    std::decay_t<iterator_value_t<It2>>
+>;
 
 /*!
- * \brief Partial specialization for Array storage when \c N == 0.
- *
- * No actual storage is allocated for zero‑sized arrays.
- *
- * \tparam T The element type.
- * \tparam N The (zero) number of elements in the array.
- *
- * \note [SWS_CORE_01201]
+ * \brief  SFINAE-friendly iterator category detection.
+ * \tparam T Type to test for iterator category.
  */
-template <typename T, std::size_t N>
-struct ArrayStorage<T, N, false> {
-public:
-    /*!
-     * \brief Variadic constructor for \c N == 0.
-     *
-     * This constructor is enabled only when no arguments are provided.
-     *
-     * \tparam Args The types of constructor arguments (must be empty).
-     */
-    template <typename... Args,
-              typename = std::enable_if_t<(sizeof...(Args) == 0)>>
-    constexpr explicit ArrayStorage(Args&&...) noexcept { /* Do Nothing */ }
+template<typename T, typename = void>
+struct has_iterator_category : std::false_type {};
 
-    /*!
-     * \brief Default constructor for zero‑sized storage.
-     */
-    constexpr ArrayStorage() noexcept = default;
+template<typename T>
+struct has_iterator_category<T, std::void_t<
+    typename std::iterator_traits<T>::iterator_category
+>> : std::true_type {};
 
-    /*!
-     * \brief Defaulted copy constructor.
-     */
-    constexpr ArrayStorage(const ArrayStorage&) noexcept = default;
-
-    /*!
-     * \brief Defaulted move constructor.
-     */
-    constexpr ArrayStorage(ArrayStorage&&) noexcept = default;
-
-    /*!
-     * \brief Defaulted copy assignment operator.
-     */
-    constexpr ArrayStorage& operator=(const ArrayStorage&) noexcept = default;
-
-    /*!
-     * \brief Defaulted move assignment operator.
-     */
-    constexpr ArrayStorage& operator=(ArrayStorage&&) noexcept = default;
-
-    /*!
-     * \brief Defaulted destructor.
-     */
-    ~ArrayStorage() noexcept = default;
-};
-
-/***********************************************************************************************************************
- *  SPAN: STORAGE BASE CLASS
- ***********************************************************************************************************************/
-/*!
- * \brief  Storage optimization for static vs dynamic extent
- */
-template<typename ElementType, std::size_t Extent>
-class span_storage_base {
-protected:
-    ElementType* data_ = nullptr;
-    
-    constexpr span_storage_base() noexcept = default;
-    constexpr span_storage_base(ElementType* data, std::size_t) noexcept : data_(data) {}
-    
-    [[nodiscard]] constexpr std::size_t size() const noexcept { return Extent; }
-    constexpr void set_size(std::size_t) noexcept {}
-};
-
-template<typename ElementType>
-class span_storage_base<ElementType, dynamic_extent> {
-protected:
-    ElementType* data_ = nullptr;
-    std::size_t size_ = 0;
-    
-    constexpr span_storage_base() noexcept = default;
-    constexpr span_storage_base(ElementType* data, std::size_t size) noexcept 
-        : data_(data), size_(size) {}
-    
-    [[nodiscard]] constexpr std::size_t size() const noexcept { return size_; }
-    constexpr void set_size(std::size_t size) noexcept { size_ = size; }
-};
-
-/*!
- * \brief  Calculate subspan extent at compile time
- */
-template<std::size_t Extent, std::size_t Offset, std::size_t Count>
-struct subspan_extent {
-    static constexpr std::size_t value = 
-        Count != dynamic_extent ? Count :
-        (Extent != dynamic_extent ? Extent - Offset : dynamic_extent);
-};
+template<typename T>
+inline constexpr bool has_iterator_category_v = has_iterator_category<T>::value;
 
 } // namespace detail
 } // namespace core

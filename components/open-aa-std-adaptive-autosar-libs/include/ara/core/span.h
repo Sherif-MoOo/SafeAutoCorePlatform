@@ -56,6 +56,8 @@
 #include "ara/core/ranges.h"                        // For ranges support in span
 #include "ara/core/byte.h"                          // For ara::core::Byte type
 #include "ara/core/internal/utility.h"              // For utility functions and traits
+#include "ara/core/internal/storage/span_storage.h" // For array storage implementation
+#include "ara/core/iterator.h"                      // For iterator utilities
 #include "ara/core/internal/location_utils.h"       // For capturing file/line details
 #include "ara/core/internal/violation_handler.h"    // To trigger violations
 #include "ara/core/abort.h"                         // For direct abort on non-specified violations
@@ -98,13 +100,12 @@ private:
     using storage_type = detail::span_storage_base<ElementType, Extent>;
     using storage_type::data_;
     using storage_type::size;
-    using storage_type::set_size;
 
 public:
     // -----------------------------------------------------------------------------------
     // TYPE ALIASES [SWS_CORE_01911-01920]
     // -----------------------------------------------------------------------------------
-    using element_type           = ElementType;                        /*!< [SWS_CORE_01911] Type of elements */
+    using element_type          = ElementType;                         /*!< [SWS_CORE_01911] Type of elements */
     using value_type            = std::remove_cv_t<ElementType>;       /*!< [SWS_CORE_01912] Value type without cv-qualifiers */
     using size_type             = std::size_t;                         /*!< [SWS_CORE_01913] Type for sizes and indices */
     using difference_type       = std::ptrdiff_t;                      /*!< [SWS_CORE_01914] Type for pointer differences */
@@ -184,22 +185,36 @@ public:
     }
 
     /*!
-     * \brief Construct from iterator pair
+     * \brief Construct from pointer range
      *
-     * \param first Iterator to first element
-     * \param last Iterator past last element (wrapped with location info)
+     * \param first Pointer to first element
+     * \param last  Pointer past last element (wrapped with location info)
      *
      * \details
      * - [SWS_CORE_01943]: Range constructor
      * - Distance must equal Extent for static spans
-     * - Iterators must denote valid range (first <= last)
+     * - pointers must denote valid range (first <= last)
      * - Triggers violation if range is invalid or size mismatch
+     * \note Behavior is undefined if [first, last) is not valid range
+     *       or if ponters are not from the same array.
+     *       This is checked at runtime for dynamic extents,
+     *       but static extents assume compile-time safety.
      */
     constexpr Span(pointer first, const ara::core::internal::InputWithLocation<pointer>& last) noexcept
-        : Span{first, static_cast<size_type>(std::distance(first, last.input()))}
+        : storage_type{first, static_cast<size_type>(ara::core::distance(first, last.input()))}
     {
-        // Validate range order
-        if (detail::unlikely(last.input() < first)) {
+        
+        if (!first || !last.input()) {
+
+            if (!detail::is_constant_evaluated()) {
+                TriggerNullPointerViolation(last.info());
+            } else {
+                constexpr unsigned char _null_pointer_violation[1] = {};
+                [[maybe_unused]] const auto verify{_null_pointer_violation[1]};
+            }
+        }
+
+        if (first > last.input()) {
             if (!detail::is_constant_evaluated()) {
                 TriggerRangeViolation(last.info());
             } else {
@@ -208,12 +223,11 @@ public:
             }
         }
 
-        // Validate size matches static extent
         if constexpr (Extent != dynamic_extent) {
-            const auto cnt = static_cast<size_type>(std::distance(first, last.input()));
-            if (detail::unlikely(cnt != Extent)) {
+            const auto dist = static_cast<size_type>(ara::core::distance(first, last.input()));
+            if (detail::unlikely(dist != Extent)) {
                 if (!detail::is_constant_evaluated()) {
-                    TriggerSizeViolation(last.info(), cnt, Extent);
+                    TriggerSizeViolation(last.info(), dist, Extent);
                 } else {
                     constexpr unsigned char _illegal_count[1] = {};
                     [[maybe_unused]] const auto verify{_illegal_count[1]};
@@ -311,15 +325,19 @@ public:
      */
     template<typename It, typename End,
              typename = std::enable_if_t<
+                 !(std::is_same_v<std::decay_t<It>, pointer> &&
+                   std::is_same_v<std::decay_t<End>, pointer>) &&
                  !std::is_convertible_v<End, size_type> &&
+                 detail::is_iterator_v<It> &&
+                 detail::is_iterator_v<End> &&
                  std::is_convertible_v<typename std::iterator_traits<It>::pointer, pointer>>>
     constexpr Span(
             It  first,
             End last,
             const ara::core::internal::InputWithLocation<std::uint8_t> loc =
                   ara::core::internal::make_input_with_location<std::uint8_t>(0)) noexcept
-        : storage_type{std::to_address(first),
-                      static_cast<size_type>(std::distance(first, last))}
+        : storage_type{detail::to_address(first),
+                      static_cast<size_type>(ara::core::distance(first, last))}
     {
         // Range order check for random-access iterators
         if constexpr (std::is_same_v<typename std::iterator_traits<It>::iterator_category,
@@ -337,7 +355,7 @@ public:
 
         // Extent check for static spans
         if constexpr (Extent != dynamic_extent) {
-            const auto cnt = static_cast<size_type>(std::distance(first, last));
+            const auto cnt = static_cast<size_type>(ara::core::distance(first, last));
             if (detail::unlikely(cnt != Extent)) {
                 if (!detail::is_constant_evaluated()) {
                         TriggerSizeViolation(loc.info(), cnt, Extent);
@@ -1166,7 +1184,7 @@ public:
      */
     [[nodiscard]] constexpr bool contains(const element_type& value) const noexcept
     {
-        return detail::constexpr_find(begin(), end(), value) != end();
+        return ara::core::find(begin(), end(), value) != end();
     }
 
     /*!
@@ -1189,7 +1207,7 @@ public:
         if (size() < prefix.size()) {
             return false;
         }
-        return detail::constexpr_equal(prefix.begin(), prefix.end(), begin());
+        return ara::core::equal(prefix.begin(), prefix.end(), begin());
     }
 
     /*!
@@ -1212,7 +1230,7 @@ public:
         if (size() < suffix.size()) {
             return false;
         }
-        return detail::constexpr_equal(suffix.begin(), suffix.end(),
+        return ara::core::equal(suffix.begin(), suffix.end(),
                                        end() - static_cast<difference_type>(suffix.size()));
     }
 
@@ -1231,7 +1249,7 @@ public:
     [[nodiscard]] constexpr auto split(const element_type& delimiter) const noexcept
         -> std::pair<Span<element_type, dynamic_extent>, Span<element_type, dynamic_extent>>
     {
-        auto it = detail::constexpr_find(begin(), end(), delimiter);
+        auto it = ara::core::find(begin(), end(), delimiter);
         if (it == end()) {
             return {*this, Span<element_type, dynamic_extent>()};
         }
@@ -1360,49 +1378,132 @@ private:
 
 /**********************************************************************************************************************
  *  CLASS TEMPLATE ARGUMENT DEDUCTION GUIDES  [SWS_CORE_01953]
- *********************************************************************************************************************/
+ **********************************************************************************************************************/
 
-// C-array
+// -----------------------------------------------------------------------------------
+// POINTER-BASED CONSTRUCTORS (matching your implementation)
+// -----------------------------------------------------------------------------------
+
+// 1) Pointer + count with InputWithLocation
+template<typename T>
+Span(T*, const ara::core::internal::InputWithLocation<std::size_t>&) 
+    -> Span<T, dynamic_extent>;
+
+// 2) Two pointers with InputWithLocation  
+template<typename T>
+Span(T*, const ara::core::internal::InputWithLocation<T*>&) 
+    -> Span<T, dynamic_extent>;
+
+// -----------------------------------------------------------------------------------
+// ARRAY CONSTRUCTORS
+// -----------------------------------------------------------------------------------
+
+// 3) C-style arrays
 template<typename T, std::size_t N>
 Span(T (&)[N]) -> Span<T, N>;
 
-// std::array (mutable + const)
+// 4) std::array (non-const)
 template<typename T, std::size_t N>
 Span(std::array<T, N>&) -> Span<T, N>;
 
+// 5) std::array (const)
 template<typename T, std::size_t N>
 Span(const std::array<T, N>&) -> Span<const T, N>;
 
-// ara::core::Array (mutable + const)
+// 6) ara::core::Array (non-const)
 template<typename T, std::size_t N>
 Span(ara::core::Array<T, N>&) -> Span<T, N>;
 
+// 7) ara::core::Array (const)
 template<typename T, std::size_t N>
 Span(const ara::core::Array<T, N>&) -> Span<const T, N>;
 
-// Generic contiguous container (non-const)
-template<class C,
-         typename = std::enable_if_t<
-             detail::has_data_and_size_v<C> &&
-             !detail::is_span_v<std::decay_t<C>> &&
-             !detail::is_std_array_v<std::decay_t<C>> &&
-             !detail::is_ara_array_v<std::decay_t<C>> &&
-             !detail::is_c_array_v<std::decay_t<C>>>>
-Span(C&) -> Span<
-              std::remove_pointer_t<decltype(std::declval<C&>().data())>,
-              ara::core::dynamic_extent>;
+// -----------------------------------------------------------------------------------
+// ITERATOR CONSTRUCTORS
+// -----------------------------------------------------------------------------------
 
-// Generic contiguous container (const)
-template<class C,
+// 8) Iterator pair with optional InputWithLocation (defaulted parameter)
+template<typename It, typename End,
          typename = std::enable_if_t<
-             detail::has_data_and_size_v<const C> &&
-             !detail::is_span_v<std::decay_t<C>> &&
-             !detail::is_std_array_v<std::decay_t<C>> &&
-             !detail::is_ara_array_v<std::decay_t<C>> &&
-             !detail::is_c_array_v<std::decay_t<C>>>>
-Span(const C&) -> Span<
-                    const std::remove_pointer_t<decltype(std::declval<const C&>().data())>,
-                    ara::core::dynamic_extent>;
+             !(std::is_same_v<std::decay_t<It>,  typename Span<It,0>::pointer > &&
+               std::is_same_v<std::decay_t<End>, typename Span<End,0>::pointer >) &&
+             !std::is_convertible_v<End, typename Span<End,0>::size_type> &&
+             detail::is_iterator_v<It> &&
+             detail::is_iterator_v<End>>>
+Span(It, End, const ara::core::internal::InputWithLocation<std::uint8_t>& = 
+              ara::core::internal::make_input_with_location<std::uint8_t>(0))
+    -> Span<typename std::iterator_traits<It>::value_type, dynamic_extent>;
+
+// -----------------------------------------------------------------------------------
+// CONTAINER CONSTRUCTORS  
+// -----------------------------------------------------------------------------------
+
+// 9) Container (non-const) with optional InputWithLocation
+template<typename Container,
+         typename = std::enable_if_t<
+             !detail::is_span_v<std::decay_t<Container>> &&
+             !detail::is_std_array_v<std::decay_t<Container>> &&
+             !detail::is_ara_array_v<std::decay_t<Container>> &&
+             !detail::is_c_array_v<std::decay_t<Container>> &&
+             !detail::is_contiguous_range_v<Container> &&
+             !std::is_const_v<std::remove_reference_t<Container>> &&
+             detail::is_contiguous_container_v<Container>>>
+Span(Container&, const ara::core::internal::InputWithLocation<std::uint8_t>& =
+                 ara::core::internal::make_input_with_location<std::uint8_t>(0))
+    -> Span<std::remove_pointer_t<decltype(std::data(std::declval<Container&>()))>, 
+            dynamic_extent>;
+
+// 10) Container (const) with optional InputWithLocation
+template<typename Container,
+         typename = std::enable_if_t<
+             !detail::is_span_v<std::decay_t<Container>> &&
+             !detail::is_std_array_v<std::decay_t<Container>> &&
+             !detail::is_ara_array_v<std::decay_t<Container>> &&
+             !detail::is_c_array_v<std::decay_t<Container>> &&
+             !detail::is_contiguous_range_v<Container> &&
+             detail::is_contiguous_container_v<const Container>>>
+Span(const Container&, const ara::core::internal::InputWithLocation<std::uint8_t>& =
+                       ara::core::internal::make_input_with_location<std::uint8_t>(0))
+    -> Span<const std::remove_pointer_t<decltype(std::data(std::declval<const Container&>()))>,
+            dynamic_extent>;
+
+// -----------------------------------------------------------------------------------
+// RANGE CONSTRUCTORS
+// -----------------------------------------------------------------------------------
+
+// 11) Range with optional InputWithLocation
+template<typename Range,
+         typename = std::enable_if_t<
+             !detail::is_span_v<std::decay_t<Range>> &&
+             !detail::is_std_array_v<std::decay_t<Range>> &&
+             !detail::is_ara_array_v<std::decay_t<Range>> &&
+             !detail::is_c_array_v<std::decay_t<Range>> &&
+             !detail::is_contiguous_container_v<std::decay_t<Range>> &&
+             detail::is_contiguous_range_v<std::decay_t<Range>>>>
+Span(Range&&, const ara::core::internal::InputWithLocation<std::uint8_t>& =
+              ara::core::internal::make_input_with_location<std::uint8_t>(0))
+    -> Span<std::remove_pointer_t<decltype(std::data(std::declval<Range&>()))>, 
+            dynamic_extent>;
+
+// -----------------------------------------------------------------------------------
+// SPAN CONVERSION CONSTRUCTORS
+// -----------------------------------------------------------------------------------
+
+// 12) Converting constructor with optional InputWithLocation
+template<typename U, std::size_t N>
+Span(const Span<U, N>&, const ara::core::internal::InputWithLocation<std::uint8_t>& =
+                        ara::core::internal::make_input_with_location<std::uint8_t>(0))
+    -> Span<U, N>;
+
+// -----------------------------------------------------------------------------------
+// C++26 FEATURES
+// -----------------------------------------------------------------------------------
+
+// 13) std::initializer_list with optional InputWithLocation
+template<typename T>
+Span(std::initializer_list<T>, const ara::core::internal::InputWithLocation<std::uint8_t>& =
+                                ara::core::internal::make_input_with_location<std::uint8_t>(0))
+    -> Span<const T, dynamic_extent>;
 
 /**********************************************************************************************************************
  *  NON-MEMBER FUNCTIONS [SWS_CORE_01980-01994]
@@ -1583,7 +1684,7 @@ template<typename T1, std::size_t E1, typename T2, std::size_t E2>
 [[nodiscard]] constexpr bool operator==(Span<T1, E1> lhs, Span<T2, E2> rhs) noexcept
 {
     return lhs.size() == rhs.size() && 
-           detail::constexpr_equal(lhs.begin(), lhs.end(), rhs.begin());
+           ara::core::equal(lhs.begin(), lhs.end(), rhs.begin());
 }
 
 template<typename T1, std::size_t E1, typename T2, std::size_t E2>
@@ -1595,7 +1696,7 @@ template<typename T1, std::size_t E1, typename T2, std::size_t E2>
 template<typename T1, std::size_t E1, typename T2, std::size_t E2>
 [[nodiscard]] constexpr bool operator<(Span<T1, E1> lhs, Span<T2, E2> rhs) noexcept
 {
-    return detail::constexpr_lexicographical_compare(lhs.begin(), lhs.end(), 
+    return ara::core::lexicographical_compare(lhs.begin(), lhs.end(), 
                                                      rhs.begin(), rhs.end());
 }
 
@@ -1914,6 +2015,10 @@ static_assert(range_span.size() == 5, "Range construction must work");
 
 // C++26 enhanced features verification
 static_assert(test_span.contains(3), "Contains must work in constexpr");
+
+constexpr char txt[] = "Hello";
+constexpr Span CTAD(txt);
+
 
 } // span_test namespace
 

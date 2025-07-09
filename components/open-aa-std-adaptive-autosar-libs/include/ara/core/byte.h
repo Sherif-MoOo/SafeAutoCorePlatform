@@ -164,7 +164,7 @@ public:
     template <typename T,
               typename = std::enable_if_t<!std::is_integral_v<T>>,
               int = 0>
-    constexpr explicit Byte([[maybe_unused]] T t) noexcept
+    constexpr explicit Byte(T /*unused*/) noexcept
     {
         static_assert(std::is_integral_v<T>,
             "\n[ERROR] Cannot construct ara::core::Byte from non-integral type!\n"

@@ -43,6 +43,7 @@
 #include <type_traits>      // For SFINAE and type checking
 
 #include "ara/core/internal/utility.h"  // Utility functions and traits
+#include "ara/core/algorithm.h"         // For constexpr algorithms
 
 /**********************************************************************************************************************
  *  COMPILER FEATURE DETECTION
@@ -150,8 +151,8 @@ public:
     }
 
     [[nodiscard]] constexpr auto basename() const noexcept -> std::string_view {
-        const char* base = ::ara::core::detail::constexpr_basename(file_);
-        return std::string_view(base, ::ara::core::detail::constexpr_strlen(base));
+        const char* base = ::ara::core::basename(file_);
+        return std::string_view(base, ::ara::core::strlen(base));
     }
 
     [[nodiscard]] constexpr auto is_valid() const noexcept -> bool { return line_ != 0; }
