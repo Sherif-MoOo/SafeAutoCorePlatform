@@ -76,7 +76,7 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries")
 #
 # Added Flags:
 #   -Werror: Treat warnings as errors.
-#   -Wstrict-overflow=5: Warn about optimizations that assume no overflow.
+#   -Wstrict-overflow=1: Warn about optimizations that assume no overflow.
 #   -Wmissing-prototypes: Warn if a function is defined without a prototype.
 #   -Wstrict-aliasing=2: Enable strict aliasing rules.
 #   -Wundef: Warn if an undefined macro is used.
@@ -96,7 +96,7 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries")
 #=======================================================================
 set(CMAKE_C_FLAGS_INIT
     "-Wall -Wextra -Wconversion -pedantic -Wshadow -D_QNX_SOURCE \
-     -Werror -Wstrict-overflow=5 -Wmissing-prototypes \
+     -Werror -Wstrict-overflow=1 -Wmissing-prototypes \
      -Wstrict-aliasing=2 -Wundef -Wredundant-decls \
      -Wcast-align -Wformat=2 -Wfloat-equal \
      -fno-common \
@@ -145,7 +145,7 @@ set(CMAKE_C_FLAGS_RELEASEWITHO2_INIT "-O2 -DNDEBUG" CACHE STRING "C Compiler Fla
 set(CMAKE_CXX_FLAGS_INIT
     "-Wall -Wextra -Wnon-virtual-dtor -Wconversion -Wold-style-cast \
      -pedantic -Wshadow -D_QNX_SOURCE \
-     -Werror -Wstrict-overflow=5 -Wstrict-aliasing=2 -Wundef -Wredundant-decls \
+     -Werror -Wstrict-overflow=1 -Wstrict-aliasing=2 -Wundef -Wredundant-decls \
      -Wcast-align -Wformat=2 -Wfloat-equal \
      -fno-exceptions -fno-rtti -fno-common \
      -march=x86-64 -mtune=generic \

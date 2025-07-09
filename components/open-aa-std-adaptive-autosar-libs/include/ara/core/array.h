@@ -45,15 +45,15 @@
  * [SWS_CORE_01241]: fill uses type traits for noexcept checks
  * [SWS_CORE_00040]: we do not throw exceptions – we do custom violation handling
  */
-#include <tuple>                                    // For std::tuple_size / tuple_element declarations
-#include <cstring>                                  // For std::memcpy, std::memset
-#include <iterator>                                 // For std::reverse_iterator
+#include <tuple>                                      // For std::tuple_size / tuple_element declarations
+#include <cstring>                                    // For std::memcpy, std::memset
+#include <iterator>                                   // For std::reverse_iterator
 
-#include "ara/core/internal/utility.h"              // For utility functions and traits
-#include "ara/core/algorithm.h"                     // For algorithm utilities
-#include "ara/core/internal/location_utils.h"       // For capturing file/line details
-#include "ara/core/internal/violation_handler.h"    // To Trigger the violation
-
+#include "ara/core/internal/utility.h"                // For utility functions and traits
+#include "ara/core/algorithm.h"                       // For algorithm utilities
+#include "ara/core/internal/location_utils.h"         // For capturing file/line details
+#include "ara/core/internal/violation_handler.h"      // To Trigger the violation
+#include "ara/core/internal/storage/array_storage.h"  // For array storage implementation
 
 /**********************************************************************************************************************
  *  TUPLE: INTERFACE SPECIALISATIONS
@@ -1199,7 +1199,7 @@ template <typename T, std::size_t N>
         return std::memcmp(lhs.data(), rhs.data(), N) < 0;
     }
 
-    return detail::constexpr_lexicographical_compare(lhs.begin(), lhs.end(),
+    return ara::core::lexicographical_compare(lhs.begin(), lhs.end(),
                                                      rhs.begin(), rhs.end());
 }
 
@@ -1228,7 +1228,7 @@ template <typename T, std::size_t N>
         "\n[ERROR] in ara::core::Array: The type T's operator< must be marked 'noexcept' when exceptions are disabled.\n");
 #endif
 
-    return detail::constexpr_lexicographical_compare(lhs.begin(), lhs.end(),
+    return ara::core::lexicographical_compare(lhs.begin(), lhs.end(),
                                                      rhs.begin(), rhs.end());
 }
 
@@ -1671,6 +1671,9 @@ constexpr auto swap(Array<T, N>& /*lhs*/, Array<U, M>& /*rhs*/) noexcept
 // ─────────────────────────────────────────────────────────────────────────────
 static_assert(sizeof(Array<int, 4>) == 4 * sizeof(int),
     "Array<int,4> size must equal 4 * sizeof(int)");
+
+static_assert(sizeof(Array<long long, 0>) == 1,
+    "Array<long long,0> size must equal 1 (empty class rule)");
 
 static_assert(std::is_standard_layout_v<Array<int, 4>>,
     "Array<int,4> should have standard layout");

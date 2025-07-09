@@ -33,6 +33,7 @@
 #include <sys/prctl.h>
 #endif
 //#include "ara/core/string_view.h"        // For ara::core::StringView
+#include "ara/core/iterator.h"       // For iterator utilities
 #include "ara/core/array.h" // The custom Array implementation header
 #include <cstdint>          // For std::uint8_t
 #include <iostream>         // For std::cout (demonstrations)

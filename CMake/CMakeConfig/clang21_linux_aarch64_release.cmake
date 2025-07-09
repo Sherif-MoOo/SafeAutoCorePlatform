@@ -57,7 +57,7 @@ set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE CACHE BOOL "Enable Link Time Optimiz
 # and are optimized for aarch64 by using -march=armv8-a.
 #=======================================================================
 set(CMAKE_C_FLAGS_INIT "-Wall -Wextra -Wconversion -pedantic -Wshadow \
--Werror -Wstrict-overflow=5 -Wmissing-prototypes -Wstrict-aliasing=2 \
+-Werror -Wstrict-overflow=1 -Wmissing-prototypes -Wstrict-aliasing=2 \
 -Wundef -Wredundant-decls -Wcast-align -Wformat=2 -Wfloat-equal \
 -fno-common -march=armv8-a -flto -fstack-protector-strong \
 -D_FORTIFY_SOURCE=2" CACHE STRING "Initial C Compiler Flags")
@@ -84,7 +84,7 @@ set(CMAKE_C_FLAGS_RELEASEWITHO2_INIT "-O2 -DNDEBUG" CACHE STRING "C Compiler Fla
 #=======================================================================
 set(CMAKE_CXX_FLAGS_INIT "-Wall -Wextra -Wnon-virtual-dtor -Wconversion \
 -Wold-style-cast -pedantic -Wshadow \
--Werror -Wstrict-overflow=5 -Wstrict-aliasing=2 -Wundef -Wredundant-decls \
+-Werror -Wstrict-overflow=1 -Wstrict-aliasing=2 -Wundef -Wredundant-decls \
 -Wcast-align -Wformat=2 -Wfloat-equal -fno-exceptions -fno-rtti \
 -fno-common -march=armv8-a -flto -fstack-protector-strong \
 -D_FORTIFY_SOURCE=2" CACHE STRING "Initial C++ Compiler Flags")

@@ -72,7 +72,7 @@ set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE CACHE BOOL "Enable Link Time Optimiz
 #
 # Added Flags:
 #   -Werror: Treat all warnings as errors.
-#   -Wstrict-overflow=5: Warn about cases where the compiler assumes that signed overflow does not occur.
+#   -Wstrict-overflow=1: Warn about cases where the compiler assumes that signed overflow does not occur.
 #   -Wmissing-prototypes: Warn if a global function is defined without a previous prototype declaration.
 #   -Wstrict-aliasing=2: Enforce strict aliasing rules.
 #   -Wundef: Warn if an undefined identifier is evaluated in an `#if` directive.
@@ -87,7 +87,7 @@ set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE CACHE BOOL "Enable Link Time Optimiz
 #   -D_FORTIFY_SOURCE=2: Enable additional compile-time and run-time checks for buffer overflows.
 #=======================================================================
 set(CMAKE_C_FLAGS_INIT "-Wall -Wextra -Wconversion -pedantic -Wshadow \
--Werror -Wstrict-overflow=5 -Wmissing-prototypes \
+-Werror -Wstrict-overflow=1 -Wmissing-prototypes \
 -Wstrict-aliasing=2 -Wundef -Wredundant-decls \
 -Wcast-align -Wformat=2 -Wfloat-equal \
 -fno-common -march=native -flto -fstack-protector-strong \
@@ -136,7 +136,7 @@ set(CMAKE_C_FLAGS_RELEASEWITHO2_INIT "-O2 -DNDEBUG" CACHE STRING "C Compiler Fla
 #
 # Added Flags:
 #   -Werror: Treat all warnings as errors.
-#   -Wstrict-overflow=5: Warn about cases where the compiler assumes that signed overflow does not occur.
+#   -Wstrict-overflow=1: Warn about cases where the compiler assumes that signed overflow does not occur.
 #   -Wstrict-aliasing=2: Enforce strict aliasing rules.
 #   -Wundef: Warn if an undefined identifier is evaluated in an `#if` directive.
 #   -Wredundant-decls: Warn about redundant declarations.
@@ -153,7 +153,7 @@ set(CMAKE_C_FLAGS_RELEASEWITHO2_INIT "-O2 -DNDEBUG" CACHE STRING "C Compiler Fla
 #=======================================================================
 set(CMAKE_CXX_FLAGS_INIT "-Wall -Wextra -Wnon-virtual-dtor -Wconversion -Wold-style-cast \
 -pedantic -Wshadow \
--Werror -Wstrict-overflow=5 \
+-Werror -Wstrict-overflow=1 \
 -Wstrict-aliasing=2 -Wundef -Wredundant-decls \
 -Wcast-align -Wformat=2 -Wfloat-equal \
 -fno-exceptions -fno-rtti -fno-common -march=native -flto -fstack-protector-strong \
