@@ -11,7 +11,7 @@
  *  \file       utility.h
  *  \brief      Internal utilities for compile-time.
  *
- *  \details    This file defines helper functions and traits.
+ *  \details    This file defines helper functions and traits optimized for C++17.
  ***********************************************************************************************************************/
 #ifndef ARA_CORE_INTERNAL_UTILITY_H_
 #define ARA_CORE_INTERNAL_UTILITY_H_
@@ -22,16 +22,25 @@
 #include <cstddef>                                  // For std::size_t, std::ptrdiff_t
 #include <string>                                   // for std::basic_string
 #include <string_view>                              // for std::basic_string_view
-#include <string>                                   // for std::basic_string
-#include <string_view>                              // for std::basic_string_view
 #include <cstring>                                  // For std::memcpy, std::memmove, std::memcmp
-/**********************************************************************************************************************
- *  SECTION: Forward Declaration
- *********************************************************************************************************************/
-namespace ara::core {
+#include <array>                                    // For std::array
+#include <limits>                                   // For std::numeric_limits
+#include <iterator>                                 // For std::iterator_traits
+#include <tuple>                                    // For std::tuple_size
+#include <functional>                               // For std::invoke (C++17)
 
 /**********************************************************************************************************************
- *  CONSTANTS
+ *  NAMESPACE: ara::core
+ *********************************************************************************************************************/
+/*!
+ * \brief  The ara::core namespace, within which our AUTOSAR Adaptive Platform
+ *         data types and utilities reside.
+ */
+namespace ara {
+namespace core {
+
+/**********************************************************************************************************************
+ *  SECTION: Constants and Forward Declarations
  *********************************************************************************************************************/
 /*!
  * \brief  A constant of type std::size_t denoting that the span has dynamic extent
@@ -75,19 +84,6 @@ template <std::size_t I, typename T, std::size_t N>
 template <std::size_t I, typename T, std::size_t N>
 [[nodiscard]] constexpr auto get(ara::core::Array<T,N>&&) noexcept -> T&&;
 
-} // namespace ara::core
-
-
-/**********************************************************************************************************************
- *  NAMESPACE: ara::core
- *********************************************************************************************************************/
-/*!
- * \brief  The ara::core namespace, within which our AUTOSAR Adaptive Platform
- *         data types and utilities reside.
- */
-namespace ara {
-namespace core {
-
 /**********************************************************************************************************************
  *  SECTION: Internal Utilities
  *********************************************************************************************************************/
@@ -102,11 +98,11 @@ namespace core {
  */
 namespace detail {
 
+/**********************************************************************************************************************
+ *  SUBSECTION: Abort Handler Storage & Synchronization
+ *********************************************************************************************************************/
 using AbortHandler = auto (*)() noexcept -> void;
 
-/***********************************************************************************************************************
- *  INTERNAL: STORAGE & SYNCHRONIZATION FOR ABORT HANDLERS
-***********************************************************************************************************************/
 /* Maximum number of AbortHandlers supported. */
 inline constexpr std::size_t kMaxAbortHandlers{8U};
 
@@ -127,9 +123,9 @@ inline std::size_t g_abortHandlerCount{0U};
  */
 inline std::mutex g_abortMutex{};
 
-/***********************************************************************************************************************
- *  INTERNAL: IS_CONSTANT_EVALUATED
- ***********************************************************************************************************************/
+/**********************************************************************************************************************
+ *  SUBSECTION: Compile-Time Evaluation Detection
+ *********************************************************************************************************************/
 /*!
  * \brief  Helper function to determine if the current context is a constant evaluation.
  *
@@ -143,19 +139,28 @@ inline std::mutex g_abortMutex{};
  */
 [[nodiscard]] inline constexpr auto is_constant_evaluated() noexcept -> bool {
     #if defined(__cpp_lib_is_constant_evaluated) \
-        && (__cpp_lib_is_constant_evaluated >= 202002L)
+        && (__cpp_lib_is_constant_evaluated >= 201811L)
         return std::is_constant_evaluated();              // C++20 standard API
     #elif defined(__has_builtin) && __has_builtin(__builtin_is_constant_evaluated)
         return __builtin_is_constant_evaluated();         // GCC/Clang builtin in C++17
-    #elif defined(_MSC_VER)
-        return __is_constant_evaluated();                 // MSVC intrinsic
-    #elif defined(__GNUC__)
-        return __builtin_constant_p(0);                   // legacy GCC / QNX 7.x fallback
+    #elif defined(_MSC_VER) && (_MSC_VER >= 1925)
+        return __builtin_is_constant_evaluated();         // MSVC 2019+ builtin
+    #elif defined(_MSC_VER) && (_MSC_VER >= 1911)
+        return __is_constant_evaluated();                 // MSVC 2017 intrinsic
+    #elif defined(__GNUC__) && (__GNUC__ >= 6)
+        return __builtin_constant_p(0);                   // GCC 6+ / QNX 7.x fallback
+    #elif defined(__clang__) && (__clang_major__ >= 9)
+        return __builtin_constant_p(0);                   // Clang 9+ fallback
+    #elif defined(__INTEL_COMPILER) && (__INTEL_COMPILER >= 1900)
+        return __builtin_constant_p(0);                   // Intel compiler fallback
     #else
         return false;                                     // fallback: always run-time
     #endif
 }
 
+/**********************************************************************************************************************
+ *  SUBSECTION: Pointer Utilities
+ *********************************************************************************************************************/
 template<typename Ptr>
 [[nodiscard]] inline constexpr auto to_address(const Ptr& p) noexcept
     -> decltype(std::pointer_traits<Ptr>::to_address(p));
@@ -166,12 +171,24 @@ template<typename Raw>
 // definitions
 template<typename Raw>
 [[nodiscard]] inline constexpr auto to_address(Raw* p) noexcept -> Raw* {
+    static_assert(!std::is_function_v<Raw>, 
+                  "to_address cannot be used with function pointers");
     return p;
 }
 
+// Check if pointer_traits has to_address member
+template<typename Ptr, typename = void>
+struct has_pointer_traits_to_address : std::false_type {};
+
+template<typename Ptr>
+struct has_pointer_traits_to_address<Ptr, 
+    std::void_t<decltype(std::pointer_traits<Ptr>::to_address(std::declval<const Ptr&>()))>
+> : std::true_type {};
+
 template<typename Ptr>
 [[nodiscard]] inline constexpr auto to_address(const Ptr& p) noexcept
-    -> decltype(std::pointer_traits<Ptr>::to_address(p))
+    -> std::enable_if_t<has_pointer_traits_to_address<Ptr>::value,
+                       decltype(std::pointer_traits<Ptr>::to_address(p))>
 {
 #if defined(__cpp_lib_to_address) && (__cpp_lib_to_address >= 201711L)
     return std::to_address(p);
@@ -181,16 +198,23 @@ template<typename Ptr>
 }
 
 template<typename Ptr>
-[[nodiscard]] inline constexpr auto to_address(const Ptr& p) noexcept {
+[[nodiscard]] inline constexpr auto to_address(const Ptr& p) noexcept
+    -> std::enable_if_t<!has_pointer_traits_to_address<Ptr>::value,
+                       decltype(ara::core::detail::to_address(p.operator->()))> {
     return ara::core::detail::to_address(p.operator->());
 }
 
-/***********************************************************************************************************************
- *  BRANCH PREDICTION HINTS
- ***********************************************************************************************************************/
+/**********************************************************************************************************************
+ *  SUBSECTION: Branch Prediction Hints
+ *********************************************************************************************************************/
 [[nodiscard]] inline constexpr auto likely(bool x) noexcept -> bool{
 #if defined(__has_builtin) && __has_builtin(__builtin_expect)
     return __builtin_expect(!!x, 1);
+#elif defined(__GNUC__) && (__GNUC__ >= 3)
+    return __builtin_expect(!!x, 1);
+#elif defined(_MSC_VER) && defined(__cpp_attributes) && (__cpp_attributes >= 201803L)
+    // MSVC doesn't have builtin_expect but we can still return the value
+    return x;
 #else
     return x;
 #endif
@@ -199,14 +223,56 @@ template<typename Ptr>
 [[nodiscard]] inline constexpr bool unlikely(bool x) noexcept {
 #if defined(__has_builtin) && __has_builtin(__builtin_expect)
     return __builtin_expect(!!x, 0);
+#elif defined(__GNUC__) && (__GNUC__ >= 3)
+    return __builtin_expect(!!x, 0);
+#elif defined(_MSC_VER) && defined(__cpp_attributes) && (__cpp_attributes >= 201803L)
+    // MSVC doesn't have builtin_expect but we can still return the value
+    return x;
 #else
     return x;
 #endif
 }
 
-/***********************************************************************************************************************
- *  INTERNAL: IS_TUPLE_LIKE
- ***********************************************************************************************************************/
+/**********************************************************************************************************************
+ *  SUBSECTION: Core Type Traits Utilities
+ *********************************************************************************************************************/
+/*!
+ * \brief  void_t helper for detection idiom
+ */
+template<typename...>
+using void_t = void;
+
+/*!
+ * \brief  Remove cv-qualifiers and reference
+ */
+#if __cplusplus >= 202002L
+template<typename T> using remove_cvref_t = std::remove_cvref_t<T>;
+#else
+template<typename T>
+using remove_cvref_t =
+    typename std::remove_cv<typename std::remove_reference<T>::type>::type;
+#endif
+
+/*!
+ * \brief  Type identity metafunction
+ */
+template<typename T>
+struct type_identity {
+    using type = T;
+};
+
+template<typename T>
+using type_identity_t = typename type_identity<T>::type;
+
+/*!
+ * \brief  Always-false helper for static_asserts in dependent contexts
+ */
+template<typename...>
+inline constexpr bool dependent_false_v = false;
+
+/**********************************************************************************************************************
+ *  SUBSECTION: Tuple-Like Detection
+ *********************************************************************************************************************/
 /*!
  * \brief  Trait to detect if a type is tuple-like.
  *
@@ -239,7 +305,7 @@ template<typename T>
 inline constexpr bool is_tuple_like_v = is_tuple_like<T>::value;
 
 /**********************************************************************************************************************
- *  INVOKE RESULT HELPER (for better SFINAE)
+ *  SUBSECTION: Invocation and Result Detection
  *********************************************************************************************************************/
 /*!
  * \brief  Helper to safely detect the result of invoking a callable.
@@ -250,6 +316,34 @@ inline constexpr bool is_tuple_like_v = is_tuple_like<T>::value;
 template<typename F, typename... Args>
 using invoke_result_t = decltype(std::declval<F>()(std::declval<Args>()...));
 
+/*!
+ * \brief  Detection idiom helpers
+ */
+template<typename Default, typename AlwaysVoid, template<typename...> class Op, typename... Args>
+struct detector {
+    using value_t = std::false_type;
+    using type = Default;
+};
+
+template<typename Default, template<typename...> class Op, typename... Args>
+struct detector<Default, std::void_t<Op<Args...>>, Op, Args...> {
+    using value_t = std::true_type;
+    using type = Op<Args...>;
+};
+
+// Detection aliases
+template<template<typename...> class Op, typename... Args>
+using is_detected = typename detector<void, void, Op, Args...>::value_t;
+
+template<template<typename...> class Op, typename... Args>
+inline constexpr bool is_detected_v = is_detected<Op, Args...>::value;
+
+template<template<typename...> class Op, typename... Args>
+using detected_t = typename detector<void, void, Op, Args...>::type;
+
+/**********************************************************************************************************************
+ *  SUBSECTION: Array Initialization Traits
+ *********************************************************************************************************************/
 /*!
  * \brief Trait to detect whether an array of type T[N] can be list‑initialized
  *        with arguments of types Args... without narrowing conversions.
@@ -324,8 +418,9 @@ template <typename T, std::size_t N, typename... Args>
 inline constexpr bool is_brace_initializable_array_v =
     is_brace_initializable_array<T, N, Args...>::value;
 
-
-
+/**********************************************************************************************************************
+ *  SUBSECTION: Array Type Detection
+ *********************************************************************************************************************/
 /*!
  * \brief Primary helper trait to detect if a type is an \c ara::core::Array.
  *
@@ -385,6 +480,9 @@ struct is_single_same_array
 template <typename... Args>
 inline constexpr bool is_single_same_array_v = is_single_same_array<Args...>::value;
 
+/**********************************************************************************************************************
+ *  SUBSECTION: Type Property Detection
+ *********************************************************************************************************************/
 /*!
  * \brief  Trait to detect if a type has bitwise equality.
  *
@@ -399,7 +497,10 @@ struct has_bitwise_equality
         std::is_trivially_copyable<T>,
         std::is_standard_layout<T>,
         std::negation<std::is_floating_point<T>>,
-        std::negation<std::is_same<T, bool>>
+        std::negation<std::is_same<T, bool>>,
+        std::negation<std::is_pointer<T>>,                    // Pointers may have padding
+        std::negation<std::is_member_pointer<T>>,             // Member pointers too
+        std::negation<std::is_null_pointer<T>>                // nullptr_t has special rules
       > {};
 
 /*! \brief Variable template for has_bitwise_equality.
@@ -427,7 +528,10 @@ struct byte_comparable
           std::is_trivially_copyable_v<T> &&
           std::is_standard_layout_v<T>   &&
           std::is_unsigned_v<T>          &&
-          sizeof(T) == 1
+          sizeof(T) == 1                 &&
+          !std::is_same_v<T, bool>       &&                   // bool has implementation-defined representation
+          !std::is_enum_v<T>             &&                   // enums may have different underlying types
+          std::is_integral_v<T>                               // must be integral type
       > {};
 
 /*! \brief Variable template for byte_comparable.
@@ -441,7 +545,9 @@ struct byte_comparable
 template<typename T>
 inline constexpr bool byte_comparable_v = byte_comparable<T>::value;
 
-
+/**********************************************************************************************************************
+ *  SUBSECTION: String Traits
+ *********************************************************************************************************************/
 template<typename CharT, typename = void>
 struct default_traits
 {
@@ -459,7 +565,9 @@ inline constexpr bool is_default_char_traits_v =
 
 template<typename T>
 using is_real_pointer = std::bool_constant<
-    std::is_pointer_v<std::remove_reference_t<T>>>;
+    std::is_pointer_v<std::remove_reference_t<T>> &&
+    !std::is_member_pointer_v<std::remove_reference_t<T>>
+>;
 
 template<typename T>
 inline constexpr bool is_real_pointer_v = is_real_pointer<T>::value;
@@ -477,23 +585,8 @@ template<typename T>
 inline constexpr bool is_basic_string_v = is_basic_string<std::decay_t<T>>::value;
 
 /**********************************************************************************************************************
- *  SPAN: IMPLEMENTATION DETAILS - TYPE TRAITS AND SFINAE HELPERS
+ *  SUBSECTION: Array and Container Detection
  *********************************************************************************************************************/
- 
-/*!
- * \brief  void_t helper for detection idiom
- */
-template<typename...>
-using void_t = void;
-
-
-#if __cplusplus >= 202002L
-template<typename T> using remove_cvref_t = std::remove_cvref_t<T>;
-#else
-template<typename T>
-using remove_cvref_t =
-    typename std::remove_cv<typename std::remove_reference<T>::type>::type;
-#endif
 /*!
  * \brief  Detection helper for C-style arrays
  */
@@ -501,7 +594,16 @@ template<typename T>
 struct is_c_array : std::false_type {};
 
 template<typename T, std::size_t N>
-struct is_c_array<T[N]> : std::true_type {};
+struct is_c_array<T[N]> : std::true_type {
+    static constexpr std::size_t size = N;
+    using element_type = T;
+};
+
+template<typename T>
+struct is_c_array<T[]> : std::true_type {
+    static constexpr std::size_t size = 0;  // Unknown bound
+    using element_type = T;
+};
 
 template<typename T>
 inline constexpr bool is_c_array_v = is_c_array<T>::value;
@@ -513,7 +615,10 @@ template<typename T>
 struct is_std_array : std::false_type {};
 
 template<typename T, std::size_t N>
-struct is_std_array<std::array<T, N>> : std::true_type {};
+struct is_std_array<std::array<T, N>> : std::true_type {
+    static constexpr std::size_t size = N;
+    using element_type = T;
+};
 
 template<typename T>
 inline constexpr bool is_std_array_v = is_std_array<T>::value;
@@ -525,7 +630,10 @@ template<typename T>
 struct is_ara_array : std::false_type {};
 
 template<typename T, std::size_t N>
-struct is_ara_array<ara::core::Array<T, N>> : std::true_type {};
+struct is_ara_array<ara::core::Array<T, N>> : std::true_type {
+    static constexpr std::size_t size = N;
+    using element_type = T;
+};
 
 template<typename T>
 inline constexpr bool is_ara_array_v = is_ara_array<T>::value;
@@ -537,11 +645,17 @@ template<typename T>
 struct is_span : std::false_type {};
 
 template<typename T, std::size_t E>
-struct is_span<Span<T, E>> : std::true_type {};
+struct is_span<Span<T, E>> : std::true_type {
+    static constexpr std::size_t extent = E;
+    using element_type = T;
+};
 
 template<typename T>
 inline constexpr bool is_span_v = is_span<T>::value;
 
+/**********************************************************************************************************************
+ *  SUBSECTION: Container and Range Detection
+ *********************************************************************************************************************/
 /*!
  * \brief  Check if type has contiguous storage (data() and size() members)
  */
@@ -549,10 +663,12 @@ template<typename T, typename = void>
 struct has_data_and_size : std::false_type {};
 
 template<typename T>
-struct has_data_and_size<T, void_t<
+struct has_data_and_size<T, std::void_t<
     decltype(std::declval<T&>().data()),
     decltype(std::declval<T&>().size()),
-    std::enable_if_t<std::is_pointer_v<decltype(std::declval<T&>().data())>>
+    std::enable_if_t<std::is_pointer_v<decltype(std::declval<T&>().data())>>,
+    std::enable_if_t<std::is_integral_v<decltype(std::declval<T&>().size())>>,
+    std::enable_if_t<!std::is_const_v<decltype(std::declval<T&>().size())>>  // size() should return non-const
 >> : std::true_type {};
 
 template<typename T>
@@ -565,15 +681,20 @@ template<typename T, typename = void>
 struct is_range : std::false_type {};
 
 template<typename T>
-struct is_range<T, void_t<
+struct is_range<T, std::void_t<
     decltype(std::begin(std::declval<T&>())),
-    decltype(std::end(std::declval<T&>()))
+    decltype(std::end(std::declval<T&>())),
+    // Additional checks for proper range
+    std::enable_if_t<std::is_same_v<
+        decltype(std::begin(std::declval<T&>())),
+        decltype(std::end(std::declval<T&>()))
+    >>
 >> : std::true_type {};
 
 template<typename T>
 inline constexpr bool is_range_v = is_range<T>::value;
 
-template<typename, typename = void>
+template<typename T, typename = void>
 struct has_member_pointer : std::false_type { };
 
 template<typename T>
@@ -583,10 +704,10 @@ struct has_member_pointer<T, std::void_t<typename std::decay_t<T>::pointer>>
 template<typename T>
 inline constexpr bool has_member_pointer_v = has_member_pointer<T>::value;
 
-/**********************************************************************************************************************
- *  detail::is_contiguous_container_v   (owning, STL-style container)
- *      – requires  data() / size() *and* a  “pointer”  typedef
- *********************************************************************************************************************/
+/*!
+ * \brief  Detect contiguous containers (owning, STL-style container)
+ *         Requires data() / size() *and* a "pointer" typedef
+ */
 template<typename T, typename = void>
 struct is_contiguous_container : std::false_type { };
 
@@ -598,17 +719,20 @@ struct is_contiguous_container<T, std::void_t<
         std::is_pointer_v<decltype(std::declval<T&>().data())>>,
     std::enable_if_t<
         std::is_integral_v<decltype(std::declval<T&>().size())>>,
-    std::enable_if_t<has_member_pointer_v<T>>       /* <- NEW requirement */
+    std::enable_if_t<has_member_pointer_v<T>>,      /* has pointer typedef */
+    // Additional safety checks
+    std::enable_if_t<!std::is_pointer_v<std::remove_cv_t<std::remove_reference_t<T>>>>,  // Not a pointer itself
+    std::enable_if_t<!is_c_array_v<std::remove_cv_t<std::remove_reference_t<T>>>>        // Not a C array
 >> : std::true_type { };
 
 template<typename T>
 inline constexpr bool is_contiguous_container_v =
     is_contiguous_container<std::remove_cv_t<std::remove_reference_t<T>>>::value;
 
-/**********************************************************************************************************************
- *  detail::is_contiguous_range_v   (view / subrange / span / string_view …)
- *      – contiguous range  *without* a “pointer” typedef (so it’s NOT a container)
- *********************************************************************************************************************/
+/*!
+ * \brief  Detect contiguous ranges (view / subrange / span / string_view …)
+ *         contiguous range *without* a "pointer" typedef (so it's NOT a container)
+ */
 template<typename T, typename = void>
 struct is_contiguous_range : std::false_type { };
 
@@ -622,7 +746,12 @@ struct is_contiguous_range<T, std::void_t<
     std::enable_if_t<
         std::is_pointer_v<decltype(std::data(std::declval<T&>()))>>,
     std::enable_if_t<
-        std::is_integral_v<decltype(std::size(std::declval<T&>()))>>
+        std::is_integral_v<decltype(std::size(std::declval<T&>()))>>,
+    // Additional check for proper range
+    std::enable_if_t<std::is_same_v<
+        std::remove_cv_t<decltype(*std::begin(std::declval<T&>()))>,
+        std::remove_cv_t<decltype(*std::data(std::declval<T&>()))>
+    >>
 >> : std::true_type { };
 
 template<typename T>
@@ -642,12 +771,9 @@ struct is_element_type_compatible<From*, To> : std::bool_constant<
 template<typename From, typename To>
 inline constexpr bool is_element_type_compatible_v = is_element_type_compatible<From, To>::value;
 
-/*!
- * \brief  Always-false helper for static_asserts in dependent contexts
- */
-template<typename...>
-inline constexpr bool dependent_false_v = false;
-
+/**********************************************************************************************************************
+ *  SUBSECTION: String View Compatibility
+ *********************************************************************************************************************/
 /*!
  * \brief  Detect whether \c T provides \c data() and \c size() that are both noexcept.
  *
@@ -660,7 +786,11 @@ template<typename T>
 struct has_string_like_interface<T,
     std::void_t<
         decltype(std::data(std::declval<const T&>())),
-        decltype(std::size(std::declval<const T&>()))
+        decltype(std::size(std::declval<const T&>())),
+        // Check that data() returns a pointer
+        std::enable_if_t<std::is_pointer_v<decltype(std::data(std::declval<const T&>()))>>,
+        // Check that size() returns an integral type
+        std::enable_if_t<std::is_integral_v<decltype(std::size(std::declval<const T&>()))>>
     >
 > : std::true_type {};
 
@@ -685,13 +815,17 @@ struct is_string_view_compatible_impl<T, CharT, true>
           std::is_convertible_v<
               decltype(std::data(std::declval<const T&>())),
               const CharT*
-          >
+          > &&
+          !std::is_same_v<std::decay_t<T>, const CharT*>  // Exclude C-strings
       > {};
 
 template<typename T, typename CharT>
 inline constexpr bool is_string_view_compatible_v =
     is_string_view_compatible_impl<T, CharT>::value;
 
+/**********************************************************************************************************************
+ *  SUBSECTION: Iterator Detection and Classification
+ *********************************************************************************************************************/
 /*!
  * \brief  Detect if type satisfies iterator requirements.
  * \tparam T Type to test.
@@ -719,6 +853,7 @@ using is_iterator = typename is_iterator_impl<T>::type;
 template<typename T>
 inline constexpr bool is_iterator_v = is_iterator<T>::value;
 
+// Helper aliases for iterator traits
 template<typename It>
 using iterator_category_t = typename std::iterator_traits<It>::iterator_category;
 
@@ -729,17 +864,46 @@ template<typename It>
 using iterator_reference_t = typename std::iterator_traits<It>::reference;
 
 template<typename It>
-constexpr bool is_input_iterator_v = std::is_base_of_v<std::input_iterator_tag, iterator_category_t<It>>;
+using iterator_pointer_t = typename std::iterator_traits<It>::pointer;
 
 template<typename It>
-constexpr bool is_random_access_iterator_v = std::is_base_of_v<std::random_access_iterator_tag, iterator_category_t<It>>;
+using iterator_difference_t = typename std::iterator_traits<It>::difference_type;
+
+// Iterator category detection
+template<typename It>
+constexpr bool is_input_iterator_v = 
+    is_iterator_v<It> && 
+    std::is_base_of_v<std::input_iterator_tag, iterator_category_t<It>>;
+
+template<typename It>
+constexpr bool is_output_iterator_v = 
+    is_iterator_v<It> && 
+    std::is_base_of_v<std::output_iterator_tag, iterator_category_t<It>>;
+
+template<typename It>
+constexpr bool is_forward_iterator_v = 
+    is_iterator_v<It> && 
+    std::is_base_of_v<std::forward_iterator_tag, iterator_category_t<It>>;
+
+template<typename It>
+constexpr bool is_bidirectional_iterator_v = 
+    is_iterator_v<It> && 
+    std::is_base_of_v<std::bidirectional_iterator_tag, iterator_category_t<It>>;
+
+template<typename It>
+constexpr bool is_random_access_iterator_v = 
+    is_iterator_v<It> && 
+    std::is_base_of_v<std::random_access_iterator_tag, iterator_category_t<It>>;
 
 // Check if two iterators have compatible value types for comparison
 template<typename It1, typename It2>
-constexpr bool has_compatible_value_types_v = std::is_same_v<
-    std::decay_t<iterator_value_t<It1>>,
-    std::decay_t<iterator_value_t<It2>>
->;
+constexpr bool has_compatible_value_types_v = 
+    is_iterator_v<It1> && 
+    is_iterator_v<It2> &&
+    std::is_same_v<
+        std::decay_t<iterator_value_t<It1>>,
+        std::decay_t<iterator_value_t<It2>>
+    >;
 
 /*!
  * \brief  SFINAE-friendly iterator category detection.
@@ -755,6 +919,21 @@ struct has_iterator_category<T, std::void_t<
 
 template<typename T>
 inline constexpr bool has_iterator_category_v = has_iterator_category<T>::value;
+
+/**********************************************************************************************************************
+ *  SUBSECTION: Type Completeness Detection
+ *********************************************************************************************************************/
+/*!
+ * \brief  Check if type is complete
+ */
+template<typename T, typename = void>
+struct is_complete : std::false_type {};
+
+template<typename T>
+struct is_complete<T, std::void_t<decltype(sizeof(T))>> : std::true_type {};
+
+template<typename T>
+inline constexpr bool is_complete_v = is_complete<T>::value;
 
 } // namespace detail
 } // namespace core
