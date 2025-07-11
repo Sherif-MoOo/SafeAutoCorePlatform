@@ -1,8 +1,47 @@
-# OpenAA: SafeAuto Core Platform CXX_STANDARD 17 Project
+## OpenAA: SafeAuto Core Platform CXX_STANDARD 17 Project
 
-This is a **modular** and **scalable** open‑source safe deterministic automotive middleware using **CXX_STANDARD 17**.
-The project leverages **CMake** for build configuration, enabling straightforward integration, testing, and future expansion.
-Designed for Eclipse SDV compatibility, Adaptive AUTOSAR‑style runtimes, and future‑proof automotive architectures.
+**Safe, Deterministic Automotive Middleware**
+
+The OpenAA project provides a modular, scalable, and open-source deterministic automotive middleware leveraging **CXX_STANDARD 17**. Designed for compatibility with Eclipse SDV and Adaptive AUTOSAR runtimes, it ensures robust integration, testing, and future expansion through a comprehensive **CMake**-based build system.
+
+### Key Features
+
+- **Safety-Critical Core:** Specifically designed for automotive safety-critical standards.
+
+- **Safe Deterministic Standard Types:** Implements standard library types and functionalities with deterministic behavior suitable for safety-critical platforms, accompanied by comprehensive exception specifications, aligned with Eclipse SDV and AUTOSAR.
+
+- **Backported Modern C++ Features:** Important features from recent C++ versions are backported to C++17, enabling modern, expressive, and safe programming paradigms.
+
+- **Compile-Time and Runtime Violation Handling:**
+  - **Compile-time violations:** Immediate compilation errors if safety constraints are violated.
+  - **Runtime violations:**
+    - Invokes a violation handler that logs the violating process, file location, function name, and reason for the violation or corruption.
+    - Immediately terminates the offending process using `std::abort()`.
+
+**Example of runtime violation handling (Array bounds check):**
+
+`Process aborted via ara::core::Abort: [App vlt][FATAL]: Violation detected in CoreArrayTest at file-> ara_core_array.cpp, function-> TestViolationHandling: line-> 729: Array access out of range: Tried to access 3 in array of size 3.`
+
+- **Location Information Wrapper:** Violations are encapsulated using a lightweight template class `InputWithLocation<ValueType>` to precisely identify error contexts.
+
+- **Error Handling Pattern:** Revocable errors are managed using a robust Result class pattern that clearly encapsulates either a valid value or detailed error information.
+
+- **Comprehensive Testing**: Extensive tests ensure reliability and correctness.
+
+- **Conditional Exception Specifications:** Exception safety is clearly specified, allowing exceptions conditionally; otherwise, compilation errors are enforced.
+
+- **Constexpr Support:** Extensive compile-time evaluation support through use of `constexpr`.
+
+### Compielr Configurations
+
+- **Compiler Options:** Comprehensive and carefully selected compiler options managed through CMake for optimal safety and performance.
+
+### Operating System Interface
+
+- Lightweight OS abstraction leveraging CRTP (Curiously Recurring Template Pattern) interfaces for both Linux and QNX environments.
+
+---
+
  
  ---
  
@@ -34,17 +73,6 @@ Designed for Eclipse SDV compatibility, Adaptive AUTOSAR‑style runtimes, and f
  
 ---
 
-## Key Features
-
-- **Modular Architecture**: Easily add or remove components as needed.
-- **Scalable Design**: Suitable for both small-scale applications and large automotive systems.
-- **Comprehensive Testing**: Extensive tests ensure reliability and correctness.
-- **Cross‑Platform Support**: Build and run on Linux (Ubuntu 22.04, Ubuntu 24.04) and QNX with various architectures.
-- **Modern CXX_STANDARD 17 Implementation**: Leverages inline variables, constexpr where possible, robust error handling, and other modern features.
-- **Multiple Compiler Support**: Use GCC 11, GCC 13 (including cross-compilation for AArch64), and QNX QCC.
-
----
-
 ## Repository Structure
 
 The repository is organized as follows:
@@ -70,19 +98,19 @@ The repository is organized as follows:
 ### 1. open-aa-platform-os-abstraction-libs
 Provides OS abstraction layers to facilitate cross‑platform development.
 
-- **Interface Layer**: Abstract interfaces for process management (e.g., `process_factory.h`, `process_interaction.h`).
-- **Linux Implementation**: Concrete implementations for Linux (`process.cpp` under the Linux folder).
-- **QNX Implementation**: Concrete implementations for QNX (`process.cpp` under the QNX folder).
+- Interface Layer: Abstract interfaces for process management using CRTP design, ensuring static polymorphism without runtime overhead (process_interaction.h).
+- Linux Implementation: Concrete implementations for Linux (process.cpp under the Linux folder).
+- QNX Implementation: Concrete implementations for QNX (process.cpp under the QNX folder).
 
 ### 2. open-aa-std-adaptive-autosar-libs
-Contains core utilities and internal mechanisms essential for Adaptive AUTOSAR:
+Contains core utilities and internal mechanisms essential for standard functionalities e.g:
 
 - **ara::core::Array**: A fixed‑size array container with enhanced functionality.
 - **ara::core::Abort**: API for explicitly aborting operations when violations occur.
 - **Internal Utilities**: Helpers for location handling and violation management (e.g., `location_utils.h`, `violation_handler.h`).
 
 ### 3. open-aa-example-apps
-Demonstrates how to use the Adaptive AUTOSAR libraries via sample applications.
+Demonstrates how to use the platform libraries via sample applications.
 
 - **demo/app**: A sample application illustrating integration through a `demo_manager`.
 
@@ -177,12 +205,18 @@ $ ./build.sh [OPTIONS]
 - **`-h, --help`**: Show help message and exit.
 - **`-c, --clean`**: Remove existing build and install directories.
 - **`-t, --build-type`**: Build type (`Debug` or `Release`). Default: `Release`.
-- **`-b, --build-target`**: Build target (e.g., `gcc11_linux_x86_64`, `gcc11_linux_aarch64`, `gcc13_linux_x86_64`, `gcc13_linux_aarch64`, `qcc12_qnx800_aarch64`, `qcc12_qnx800_x86_64`).
-- **`-s, --sdp-path`**: Path to `qnxsdp-env.sh` for QNX builds.
-- **`-j, --jobs`**: Number of parallel jobs.
-- **`-e, --exception-safety`**: Choose exception safety mode:
-    - `conditional` (default): Defines `ENABLE_PLATFORM_CONDITIONAL_EXCEPTION`
-    - `safe`: Does not define the macro (safe mode)
+- **`-b, --build-target`**: Build target (e.g., gcc11_linux_x86_64, gcc11_linux_aarch64, gcc13_linux_x86_64, gcc13_linux_aarch64, clang21_linux_x86_64, clang21_linux_aarch64,  qcc8_qnx710_aarch64, qcc8_qnx710_x86_64, qcc12_qnx800_aarch64, qcc12_qnx800_x86_64).
+- **`--qnx710-sdp`**: Path to QNX 7.10 SDP environment script for QNX builds.
+- **`--qnx800-sdp`**: Path to QNX 8.0  SDP environment script for QNX builds.
+- **`-j, --jobs`**: Number of parallel jobs (default: auto-detect).
+- **`-e, --exception-safety`**: Exception safety mode (conditional or safe). Default: conditional.
+- **`--all-targets`**: Build all supported targets.
+- **`--all-configs`**: Build all configurations (Debug and Release).
+- **`-v, --verbose`**: Enable verbose output.
+- **`--dry-run`**: Show what would be executed without actually performing the operations.
+- **`--log-level`**: Set log level (TRACE, DEBUG, INFO, WARN, ERROR). Default: INFO.
+- **`--log-file`**: Write logs to the specified file.
+- **`--log-json:`**: Use JSON format for log file.
 
 ### Example Commands
 
@@ -193,7 +227,7 @@ $ ./build.sh --clean -b gcc11_linux_x86_64 -t Release -j 8
 
 **2. Build for QNX aarch64 (Debug) with safe exception mode:**
 ```bash
-$ ./build.sh -b qcc12_qnx800_aarch64 -t Debug -s /path/to/qnxsdp-env.sh -e safe -j 4
+$  ./build.sh -b qcc12_qnx800_aarch64 -t Debug --qnx800-sdp /path/to/qnxsdp-env.sh -e safe -j 4
 ```
 
 **3. Build for GCC 11 Linux aarch64 (Release) with conditional exceptions:**
@@ -211,6 +245,11 @@ $ ./build.sh --clean -b gcc13_linux_x86_64 -t Release -j 8
 $ ./build.sh --clean -b gcc13_linux_aarch64 -t Release -j 1
 ```
 
+**6. Build all targets with all configurations**
+```bash
+$ ./build.sh --all-targets --all-configs --qnx710-sdp /path/to/qnx710 --qnx800-sdp /path/to/
+```
+
 ---
 
 ## Build Targets
@@ -223,6 +262,8 @@ $ ./build.sh --clean -b gcc13_linux_aarch64 -t Release -j 1
 | `gcc13_linux_aarch64`     | GCC   13  | Linux    | aarch64      | Debug/Release  |
 | `clang21_linux_x86_64`    | CLANG 21  | Linux    | x86_64       | Debug/Release  |
 | `clang21_linux_aarch64`   | CLANG 21  | Linux    | aarch64      | Debug/Release  |
+| `qcc8_qnx710_aarch64`     | QCC   8   | QNX 7.1  | aarch64le    | Debug/Release  |
+| `qcc8_qnx710_x86_64`      | QCC   8   | QNX 7.1  | x86_64       | Debug/Release  |
 | `qcc12_qnx800_aarch64`    | QCC   12  | QNX 8.0  | aarch64le    | Debug/Release  |
 | `qcc12_qnx800_x86_64`     | QCC   12  | QNX 8.0  | x86_64       | Debug/Release  |
 
