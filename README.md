@@ -32,7 +32,7 @@ The OpenAA project provides a modular, scalable, and open-source deterministic a
 
 - **Constexpr Support:** Extensive compile-time evaluation support through use of `constexpr`.
 
-### Compielr Configurations
+### Compiler Configurations
 
 - **Compiler Options:** Comprehensive and carefully selected compiler options managed through CMake for optimal safety and performance.
 
