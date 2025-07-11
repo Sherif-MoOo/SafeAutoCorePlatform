@@ -247,7 +247,7 @@ $ ./build.sh --clean -b gcc13_linux_aarch64 -t Release -j 1
 
 **6. Build all targets with all configurations**
 ```bash
-$ ./build.sh --all-targets --all-configs --qnx710-sdp /path/to/qnx710 --qnx800-sdp /path/to/
+$ ./build.sh --all-targets --all-configs  --exception-safety safe --qnx710-sdp /path/to/qnx710 --qnx800-sdp /path/to/qnx800
 ```
 
 ---
