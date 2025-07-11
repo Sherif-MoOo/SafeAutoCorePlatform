@@ -836,8 +836,8 @@ struct is_iterator_impl {
     static auto test(int) -> decltype(
         typename std::iterator_traits<U>::iterator_category{},
         ++std::declval<U&>(),
-        *std::declval<U>(),
-        std::declval<U>() != std::declval<U>(),
+        static_cast<void>(*std::declval<U>()),
+        static_cast<void>(std::declval<U>() != std::declval<U>()), 
         std::true_type{}
     );
     
