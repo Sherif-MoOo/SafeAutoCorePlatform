@@ -6,7 +6,6 @@
 #
 #  File description:
 #  -----------------
-#  Enterprise-grade build script for AdaptiveAutosarCpp17 with advanced
 #  logging, security hardening, cross-platform support, and modular design.
 #
 #  Features:
@@ -38,7 +37,7 @@ shopt -s nullglob
 
 # Script metadata
 readonly SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly BUILD_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_VERSION="2.0.0"
 readonly SCRIPT_PID="$$"
 
@@ -394,23 +393,50 @@ format_duration() {
     fi
 }
 
+_capture_to_log_until() {
+    local _lvl="$1" ; shift
+    local _stop="$1" ; shift
+    local _logging=1
+    while IFS='' read -r _line; do
+        if ((_logging)); then
+            log "${_lvl}" "${_line}"
+            [[ "${_line}" == *"${_stop}"* ]] && _logging=0   # flip the switch
+        else
+            printf '%s\n' "${_line}"        # plain pass-through
+        fi
+    done
+}
+
+_exec_and_log_until() {
+    local _lvl="$1" ; local _stop="$2" ; shift 2
+    "${@}" 2>&1 | _capture_to_log_until "${_lvl}" "${_stop}"
+    return ${PIPESTATUS[0]}
+}
+
 # Run command with error checking and timing
 run_command() {
+
+    local stop_pattern=""
+    if [[ "$1" == --until=* ]]; then
+        stop_pattern="${1#--until=}"
+        shift
+    fi
+
     local cmd=("$@")
-    local start_time
-    local end_time
-    local duration
-    local status
-    
+    local start_time end_time duration status
+
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY RUN] Would execute: ${cmd[*]}"
         return 0
     fi
-    
+
     log DEBUG "Executing: ${cmd[*]}"
     start_time=$(date +%s)
-    
-    if [[ "$VERBOSE" == "true" ]]; then
+
+    if [[ -n "$stop_pattern" ]]; then
+        _exec_and_log_until DEBUG "$stop_pattern" "${cmd[@]}"
+        status=$?
+    elif [[ "$VERBOSE" == "true" ]]; then
         "${cmd[@]}"
         status=$?
     else
@@ -447,6 +473,31 @@ create_directory() {
 # ------------------------------------------------------------------------------
 # 9) QNX Environment Management
 # ------------------------------------------------------------------------------
+_capture_to_log() {
+    local _lvl="$1" ; shift
+    while IFS='' read -r _line; do
+        # Skip empty lines to reduce noise — remove this if you really want them
+        [[ -n "$_line" ]] && log "${_lvl}" "${_line}"
+    done
+}
+
+# Wrapper that keeps the real exit-status of a piped command (PIPESTATUS[0])
+_exec_and_log() {
+    # first arg is log-level, rest is the command
+    local _lvl="$1"; shift
+    "${@}" 2>&1 | _capture_to_log "${_lvl}"
+    return ${PIPESTATUS[0]}
+}
+
+# Capture output to log file with logging level
+source_with_logging() {
+    local _lvl="$1" ; shift
+    local _script="$1" ; shift   # keep a clean variable name
+    # shellcheck disable=SC1090
+    { source "${_script}" "$@"; } \
+        > >(_capture_to_log "${_lvl}") 2>&1
+}
+
 # Setup QNX environment based on target
 setup_qnx_environment() {
     local target="$1"
@@ -475,14 +526,14 @@ setup_qnx_environment() {
     fi
     
     # Validate SDP script exists
-    if ! validate_file "$sdp_path" "QNX SDP script"; then
+    if ! validate_file "$sdp_path/qnxsdp-env.sh" "QNX SDP script"; then
         return "$EXIT_INVALID_ARGUMENT"
     fi
     
     # Source the SDP environment
-    log DEBUG "Sourcing QNX SDP: $sdp_path"
+    log DEBUG "Sourcing QNX SDP: $sdp_path/qnxsdp-env.sh"
     # shellcheck disable=SC1090
-    source "$sdp_path"
+    source_with_logging INFO "$sdp_path/qnxsdp-env.sh"
     
     # Verify QNX environment is properly set
     if [[ -z "${QNX_HOST:-}" ]] || [[ -z "${QNX_TARGET:-}" ]]; then
@@ -529,8 +580,8 @@ get_config_file() {
 # Clean build directories
 clean_build() {
     local preset_name="$1"
-    local build_dir="$SCRIPT_DIR/build/$preset_name"
-    local install_dir="$SCRIPT_DIR/install/$preset_name"
+    local build_dir="$BUILD_SCRIPT_DIR/build/$preset_name"
+    local install_dir="$BUILD_SCRIPT_DIR/install/$preset_name"
     
     if [[ -d "$build_dir" ]]; then
         log INFO "Removing build directory: $build_dir"
@@ -570,16 +621,17 @@ configure_project() {
     cmake_args+=(--preset "$preset_name")
     
     # Execute configuration
-    run_command "${cmake_args[@]}"
+    run_command --until="-- Detecting CXX compile features - done" \
+                        "${cmake_args[@]}"
 }
 
 # Build project
 build_project() {
     local preset_name="$1"
     local num_jobs="$2"
-    local build_dir="$SCRIPT_DIR/build/$preset_name"
+    local build_dir="$BUILD_SCRIPT_DIR/build/$preset_name"
     
-    log INFO "Building project: $preset_name (jobs: $num_jobs)"
+    log DEBUG "Building project: $preset_name (jobs: $num_jobs)"
     
     # Monitor system resources during build
     if command -v free &>/dev/null; then
@@ -609,8 +661,8 @@ build_project() {
 # Install project
 install_project() {
     local preset_name="$1"
-    local build_dir="$SCRIPT_DIR/build/$preset_name"
-    local install_dir="$SCRIPT_DIR/install/$preset_name"
+    local build_dir="$BUILD_SCRIPT_DIR/build/$preset_name"
+    local install_dir="$BUILD_SCRIPT_DIR/install/$preset_name"
     
     log INFO "Installing project: $preset_name"
     log DEBUG "Install directory: $install_dir"
@@ -897,7 +949,7 @@ main() {
     log INFO "Host: $(hostname)"
     log INFO "OS: $(detect_os)"
     log INFO "CPU cores: $(get_cpu_count)"
-    log DEBUG "Script directory: $SCRIPT_DIR"
+    log DEBUG "Script directory: $BUILD_SCRIPT_DIR"
     
     # Setup signal handlers
     setup_signals

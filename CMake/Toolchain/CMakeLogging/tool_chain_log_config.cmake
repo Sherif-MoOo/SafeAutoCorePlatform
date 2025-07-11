@@ -105,9 +105,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "QNX")
   if(CMAKE_CXX_COMPILER_TARGET)
     log_info("CXX_COMPILER_TARGET = ${CMAKE_CXX_COMPILER_TARGET}")
   endif()
+  if(CMAKE_SYSTEM_VERSION)
+    log_info("Target Version      = ${CMAKE_SYSTEM_VERSION}")
+  endif()
 
 else()
-  log_decorator("====== Target-compiling for LINUX/OTHER ======================")
+  log_decorator("====== Target-compiling for LINUX ============================")
 
   if(CMAKE_SYSTEM_NAME)
     log_info("PLATFORM_TARGET     = ${CMAKE_SYSTEM_NAME}")
@@ -115,7 +118,13 @@ else()
   if(CMAKE_SYSTEM_PROCESSOR)
     log_info("Target arch         = ${CMAKE_SYSTEM_PROCESSOR}")
   endif()
+
+  if(CMAKE_SYSTEM_VERSION)
+    log_info("Target Version      = ${CMAKE_SYSTEM_VERSION}")
+  endif()
 endif()
+
+log_decorator("-------------------------------------------------------------")
 
 # ------------------------------------------------------------------------------
 # 4) General CMake info
@@ -123,14 +132,10 @@ endif()
 log_decorator("================ GENERAL CONFIG =============================")
 log_info("CMAKE_TOOLCHAIN_FILE  : ${CMAKE_TOOLCHAIN_FILE}")
 log_info("CMAKE_VERBOSE_MAKEFILE: ${CMAKE_VERBOSE_MAKEFILE}")
-log_decorator("-------------------------------------------------------------")
 log_info("CMAKE_VERSION         : ${CMAKE_VERSION}")
 log_info("CMAKE_BUILD_TYPE      : ${CMAKE_BUILD_TYPE}")
 log_info("CMAKE_SYSTEM_NAME     : ${CMAKE_SYSTEM_NAME}")
 
-# ------------------------------------------------------------------------------
-# 4a) Fallback logic for compiler versions (if empty)
-# ------------------------------------------------------------------------------
 if(NOT DEFINED CMAKE_C_COMPILER_VERSION OR "${CMAKE_C_COMPILER_VERSION}" STREQUAL "")
   execute_process(
     COMMAND "${CMAKE_C_COMPILER}" --version
@@ -163,11 +168,19 @@ if(NOT DEFINED CMAKE_CXX_COMPILER_VERSION OR "${CMAKE_CXX_COMPILER_VERSION}" STR
   endif()
 endif()
 
+if(CMAKE_C_COMPILER_ID)
+  log_info("C Compiler ID         : ${CMAKE_C_COMPILER_ID}")
+endif()
+
 if(CMAKE_C_COMPILER)
   log_info("C Compiler used       : ${CMAKE_C_COMPILER}")
 endif()
 if(CMAKE_C_COMPILER_VERSION)
   log_info("C Compiler version    : ${CMAKE_C_COMPILER_VERSION}")
+endif()
+
+if(CMAKE_CXX_COMPILER_ID)
+  log_info("C++ Compiler ID       : ${CMAKE_CXX_COMPILER_ID}")
 endif()
 
 if(CMAKE_CXX_COMPILER)
@@ -185,6 +198,7 @@ if(CMAKE_CXX_STANDARD)
   log_info("CXX Standard used     : ${CMAKE_CXX_STANDARD}")
 endif()
 
+log_decorator("-------------------------------------------------------------")
 # ------------------------------------------------------------------------------
 # 5) _INIT Variables from the -C file
 # ------------------------------------------------------------------------------
@@ -258,28 +272,7 @@ macro(log_option var)
   endif()
 endmacro()
 
-# Example project options to log:
-log_option("ENABLE_PROFILING")
-log_option("ENABLE_STRICT")
-log_option("ENABLE_SANITIZER")
-log_option("ENABLE_SANITIZER_RECOVER")
-log_option("ENABLE_COMPILE_TIME_TRACE")
-log_option("ENABLE_SYNTAX_ONLY")
-log_option("RUN_CLANG_TIDY_ENABLE")
-log_option("BUILD_TESTS")
-log_option("ENABLE_DOXYGEN")
-log_option("ENABLE_EXCEPTIONS")
-log_option("ENABLE_RTTI")
-log_option("ENABLE_CCACHE")
-log_option("ENABLE_SCCACHE")
-log_option("DEBUG_LEVEL")
-log_option("OPTIMIZATION_LEVEL")
-log_option("ENABLE_SPLIT_DWARF")
-log_option("BUILD_TEST2020")
-log_option("VERBOSE_TOOLCHAIN_LOG")
-log_option("CACHE_ALL_FLAG_VARS")
-log_option("ENABLE_COLOR")
-log_option("SET_LINKER")
+log_option("ENABLE_PLATFORM_CONDITIONAL_EXCEPTION")
 
 log_decorator("-------------------------------------------------------------")
 
@@ -289,18 +282,10 @@ log_decorator("-------------------------------------------------------------")
 log_decorator("================ EXCEPTION SAFETY MODE =======================")
 
 # Log the EXCEPTION_SAFETY_MODE variable
-if(DEFINED EXCEPTION_SAFETY_MODE)
-  log_info("EXCEPTION_SAFETY_MODE: ${EXCEPTION_SAFETY_MODE}")
+if(DEFINED ENABLE_PLATFORM_CONDITIONAL_EXCEPTION AND ENABLE_PLATFORM_CONDITIONAL_EXCEPTION)
+  log_info("Conditional Exception Safety Mode is ON")
 else()
-  log_info("EXCEPTION_SAFETY_MODE: (not defined)")
-endif()
-
-# Check if ENABLE_PLATFORM_CONDITIONAL_EXCEPTION is defined in CMAKE_CXX_FLAGS
-string(FIND "${CMAKE_CXX_FLAGS}" "-DENABLE_PLATFORM_CONDITIONAL_EXCEPTION=1" macro_pos)
-if(macro_pos GREATER_EQUAL 0)
-  log_info("ENABLE_PLATFORM_CONDITIONAL_EXCEPTION is defined as 1")
-else()
-  log_info("ENABLE_PLATFORM_CONDITIONAL_EXCEPTION is NOT defined")
+  log_info("Strict Exception Safety Mode is ON")
 endif()
 
 log_decorator("-------------------------------------------------------------")
@@ -318,15 +303,66 @@ if(VERBOSE_TOOLCHAIN_LOG)
   log_decorator("-------------------------------------------------------------")
 endif()
 
+function(_get_config_value var default_value out_var)
+  if(DEFINED ${var} AND NOT "${${var}}" STREQUAL "")
+    set(${out_var} "${${var}}" PARENT_SCOPE)
+  else()
+    set(${out_var} "${default_value}" PARENT_SCOPE)
+  endif()
+endfunction()
+
+# Get values with defaults
+_get_config_value(CMAKE_BUILD_TYPE "<not set>" _build_type_display)
+_get_config_value(CMAKE_SYSTEM_NAME "<native>" _system_name_display)
+_get_config_value(CMAKE_CXX_COMPILER_ID "<unknown>" _compiler_id_display)
+_get_config_value(CMAKE_CXX_STANDARD "<not set>" _cxx_standard_display)
+_get_config_value(BUILD_SHARED_LIBS "OFF" _shared_libs_display)
+_get_config_value(CMAKE_POSITION_INDEPENDENT_CODE "OFF" _pic_display)
+
+function(_format_table_value value out_var)
+  string(LENGTH "${value}" value_len)
+  if(value_len GREATER 38)
+    string(SUBSTRING "${value}" 0 35 truncated)
+    set(formatted "${truncated}...")
+  else()
+    set(formatted "${value}")
+    # Pad with spaces
+    math(EXPR pad_len "38 - ${value_len}")
+    if(pad_len GREATER 0)
+      # string(REPEAT) requires CMake 3.15+, use a loop for compatibility
+      set(padding "")
+      foreach(i RANGE 1 ${pad_len})
+        set(padding "${padding} ")
+      endforeach()
+      set(formatted "${formatted}${padding}")
+    endif()
+  endif()
+  set(${out_var} "${formatted}" PARENT_SCOPE)
+endfunction()
+
+_format_table_value("${_build_type_display}" _fmt_build_type)
+_format_table_value("${_system_name_display}" _fmt_system)
+_format_table_value("${_compiler_id_display}" _fmt_compiler)
+_format_table_value("${_cxx_standard_display}" _fmt_standard)
+_format_table_value("${_shared_libs_display}" _fmt_shared)
+_format_table_value("${_pic_display}" _fmt_pic)
+
+
 # ------------------------------------------------------------------------------
 # 10) Summary Report
 # ------------------------------------------------------------------------------
 log_decorator("=================== BUILD SUMMARY ===========================")
 
-log_info("Build Type          : ${CMAKE_BUILD_TYPE}")
-log_info("C Compiler          : ${CMAKE_C_COMPILER} (${CMAKE_C_COMPILER_VERSION})")
-log_info("C++ Compiler        : ${CMAKE_CXX_COMPILER} (${CMAKE_CXX_COMPILER_VERSION})")
-log_info("Build Shared Libs   : ${BUILD_SHARED_LIBS}")
-log_info("Optimization Flags  : ${CMAKE_C_FLAGS_RELEASE} ${CMAKE_CXX_FLAGS_RELEASE}")
+# Create summary table
+log_info("┌─────────────────────┬────────────────────────────────────────┐")
+log_info("│ Configuration       │ Value                                  │")
+log_info("├─────────────────────┼────────────────────────────────────────┤")
+log_info("│ Build Type          │ ${_fmt_build_type} │")
+log_info("│ Target System       │ ${_fmt_system} │")
+log_info("│ Compiler            │ ${_fmt_compiler} │")
+log_info("│ C++ Standard        │ ${_fmt_standard} │")
+log_info("│ Shared Libraries    │ ${_fmt_shared} │")
+log_info("│ Position Indep Code │ ${_fmt_pic} │")
+log_info("└─────────────────────┴────────────────────────────────────────┘")
 
 log_decorator("=============================================================")
