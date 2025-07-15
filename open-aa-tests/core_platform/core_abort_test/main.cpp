@@ -28,7 +28,6 @@ static constexpr std::uint8_t       kMaxProcessName{15};
 // Forward declaration of a function defined in another translation unit.
 ara::core::AbortHandler SetHandlerFromOtherTU() noexcept;
 
- 
 namespace core_abort_test {
 namespace sighandle {
  
@@ -206,7 +205,7 @@ void TestCrossTU()
     // Call the function from cross_tu.cpp to set a unique handler.
     // That function sets the global handler to CrossTUHandler and returns the previous handler.
     // Since no handler was installed before, it should return nullptr.
-    (void)SetHandlerFromOtherTU();
+    SetHandlerFromOtherTU();
     
     // Now, in main.cpp, retrieve the current handler by calling SetAbortHandler(nullptr).
     // This call will remove the currently installed handler and return it.

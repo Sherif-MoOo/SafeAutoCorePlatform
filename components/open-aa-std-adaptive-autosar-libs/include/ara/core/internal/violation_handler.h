@@ -95,7 +95,7 @@ public:
              */
             constexpr ArrayKey() noexcept {
                 // This constructor is intentionally left empty.
-            };
+            }
             /*!
              * \brief  Grants friendship to the ara::core::Array class to allow exclusive access.
              *
@@ -124,7 +124,7 @@ public:
              */
             constexpr ByteKey() noexcept {
                 // This constructor is intentionally left empty.
-            };
+            }
             /*!
              * \brief  Grants friendship to the ara::core::Byte class to allow exclusive access.
              *
@@ -154,7 +154,7 @@ public:
              */
             constexpr SpanKey() noexcept {
                 // This constructor is intentionally left empty.
-            };
+            }
             /*!
              * \brief  Grants friendship to the ara::core::Span class to allow exclusive access.
              *
@@ -189,7 +189,7 @@ public:
              */
             constexpr StringViewKey() noexcept {
                 // This constructor is intentionally left empty.
-            };
+            }
 
             /*!
              * \brief  Grants friendship to the ara::core::StringView class to allow exclusive access.

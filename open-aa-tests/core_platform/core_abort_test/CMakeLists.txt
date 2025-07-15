@@ -29,6 +29,8 @@ target_link_libraries(core_abort_test
         ara::core::string_view
 )
 
+set_target_properties(core_abort_test PROPERTIES UNITY_BUILD OFF)
+
 #****************************************************************************************************
 # Installation Configuration
 #****************************************************************************************************

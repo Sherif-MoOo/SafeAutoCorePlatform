@@ -50,6 +50,7 @@
 #include <type_traits>              // For type trait checks
 #include <memory>                   // For unique_ptr tests
 #include <numeric>                  // For std::iota
+#include <cmath>
 
 #if __cplusplus >= 202002L
 #include <ranges>                   // For C++20 ranges tests
@@ -78,7 +79,11 @@ public:
     PerfTimer() : start_(Clock::now()) {}
     
     [[nodiscard]] auto elapsed() const -> double {
-        return Duration(Clock::now() - start_).count();
+        using namespace std::chrono;
+        // 1. cast the difference to integral microseconds
+        auto us = duration_cast<microseconds>(Clock::now() - start_).count();
+        // 2. convert to double for the public API
+        return static_cast<double>(us);
     }
     
     void reset() { start_ = Clock::now(); }
@@ -1077,6 +1082,11 @@ void TestSizeAndCapacity()
     }
 }
 
+namespace {
+    constexpr int kSplitArray[] = {10, 20, 30, 40, 50};
+    constexpr int kInitListArr[] = {1,2,3,4,5};
+}
+
 /*!
  * \brief Test #7: C++26 Features
  */
@@ -1180,8 +1190,7 @@ void TestCpp26Features()
 
     PrintSubTest("Compile-time C++26 Features");
     {
-        static constexpr int arr[] = {10, 20, 30, 40, 50};
-        constexpr ara::core::Span<const int> s(arr);
+        constexpr ara::core::Span<const int> s(kSplitArray);  
         
         // contains
         static_assert(s.contains(30), "Constexpr contains failed");
@@ -1262,9 +1271,8 @@ void TestInitializerListSupport()
     PrintSubTest("Compile-time Initializer List");
     {
         // Works in C++17 with some limitations
-        static constexpr int arr[] = {1, 2, 3, 4, 5};
-        constexpr ara::core::Span<const int> s(arr, 5);
-        
+        constexpr ara::core::Span<const int> s(kInitListArr, 5);
+
         static_assert(s.size() == 5, "Constexpr size failed");
         static_assert(s[2] == 3, "Constexpr access failed");
         
@@ -1342,8 +1350,8 @@ void TestRangesSupport()
         ara::core::Span<int> s(arr);
         
         // Transform
-        auto doubled = ara::core::ranges::transform(s, [](int x) { return x * 2; });
-        
+        auto doubled = ara::core::ranges::transform(s, [](int x) noexcept -> int { return x * 2; });
+
         std::cout << "Custom transform (doubled): ";
         for (auto val : doubled) {
             std::cout << val << " ";
@@ -1351,8 +1359,8 @@ void TestRangesSupport()
         std::cout << "\n";
         
         // Filter
-        auto evens = ara::core::ranges::filter(s, [](int x) { return x % 2 == 0; });
-        
+        auto evens = ara::core::ranges::filter(s, [](int x) noexcept -> bool { return x % 2 == 0; });
+
         std::cout << "Custom filter (evens): ";
         for (int val : evens) {
             std::cout << val << " ";
@@ -1494,6 +1502,24 @@ void TestFactoryFunctions()
     }
 }
 
+template <typename T>
+constexpr T constexpr_abs(T x) {
+    return x < T(0) ? -x : x;
+}
+
+template <typename T>
+constexpr bool almost_equal(T a, T b, T abs_epsilon = std::numeric_limits<T>::epsilon(),
+                            T rel_epsilon = std::numeric_limits<T>::epsilon()) {
+    static_assert(std::numeric_limits<T>::is_iec559, "Requires IEEE-754 float/double");
+    T diff = constexpr_abs(a - b);
+    if (diff <= abs_epsilon) {
+        return true; // small absolute difference
+    }
+    // Otherwise use relative error
+    T largest = (constexpr_abs(a) > constexpr_abs(b)) ? constexpr_abs(a) : constexpr_abs(b);
+    return diff <= largest * rel_epsilon;
+}
+
 /*!
  * \brief Test #11: Byte Representation
  */
@@ -1564,26 +1590,32 @@ void TestByteRepresentation()
         std::cout << "Static extent preservation verified\n";
     }
 
-    PrintSubTest("Working with Structures");
+    PrintSubTest("Working with Structures - Safe Read");
     {
         struct Point {
             float x, y, z;
         };
-        
+
         Point points[] = {{1.0f, 2.0f, 3.0f}, {4.0f, 5.0f, 6.0f}};
         ara::core::Span<Point> s(points);
-        
+
         auto bytes = ara::core::as_bytes(s);
         assert(bytes.size() == 2 * sizeof(Point));
-        
-        // Read as different type (careful with alignment!)
-        auto floats = ara::core::Span<const float>(
-            reinterpret_cast<const float*>(bytes.data()),
-            bytes.size() / sizeof(float)
-        );
-        
-        assert(floats.size() == 6);
-        
+
+        // Read floats safely using memcpy
+        std::vector<float> float_values;
+        float_values.reserve(bytes.size() / sizeof(float));
+
+        for (std::size_t i = 0; i < bytes.size(); i += sizeof(float)) {
+            float value;
+            std::memcpy(&value, bytes.data() + i, sizeof(float));
+            float_values.push_back(value);
+        }
+
+        assert(float_values.size() == 6);
+        assert(almost_equal(float_values[0], 1.0f));
+        assert(almost_equal(float_values[1], 2.0f));
+
         std::cout << "Structure byte representation verified\n";
     }
 }

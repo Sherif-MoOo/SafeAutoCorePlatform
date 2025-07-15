@@ -306,7 +306,7 @@ inline auto mix16B(const uint8_t* input, const uint8_t* secret, uint64_t seed) n
             uint32_t const combined = c1 + (static_cast<uint32_t>(c2) << 8) + 
                                      (static_cast<uint32_t>(c3) << 16) + 
                                      (static_cast<uint32_t>(len) << 24);
-            uint64_t const bitflip = static_cast<uint64_t>(xxh3_detail::read32(xxh3_detail::kSecret) ^ seed);
+            uint64_t const bitflip = xxh3_detail::read32(xxh3_detail::kSecret) ^ seed;
             uint64_t const keyed = static_cast<uint64_t>(combined) ^ bitflip;
             return xxh3_detail::avalanche(keyed * xxh3_detail::PRIME64_1);
         }

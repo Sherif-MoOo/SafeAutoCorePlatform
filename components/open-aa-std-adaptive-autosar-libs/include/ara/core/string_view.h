@@ -295,15 +295,10 @@ public:
      */
     template<size_t N>
     constexpr BasicStringView(const ara::core::Array<CharT, N>& arr) noexcept
-        : data_{arr.data()}
+        : data_{arr.data()},
+          size_{strlen(arr.data())}  // Use strlen to find actual length
     {
-        // Find actual string length (up to first null)
-        size_type actual_len = 0;
-        for (size_type i = 0; i < N; ++i) {
-            if (arr[i] == CharT{}) break;
-            ++actual_len;
-        }
-        size_ = actual_len;
+
     }
 
     /*!
@@ -1863,7 +1858,7 @@ private:
         static const char seed_anchor = 0;
         
         return golden_ratio ^ 
-               static_cast<uint64_t>(reinterpret_cast<std::uintptr_t>(&seed_anchor));
+               reinterpret_cast<std::uintptr_t>(&seed_anchor);
     }
     
     /*!
@@ -1992,7 +1987,7 @@ public:
             const uint32_t folded = hi ^ lo;
             
             // Additional mixing for 32-bit result
-            return static_cast<std::size_t>(mix_bits(folded));
+            return mix_bits(folded);
         }
     }
     
@@ -2286,14 +2281,16 @@ private:
         using reference         = const value_type&;
 
         /* construction ------------------------------------------------------*/
-        constexpr iterator() noexcept : done_{ true } {}          // default --> end()
+        constexpr iterator() noexcept
+          : remaining_{}, current_{}, delim_{ CharT{} }, done_{ true }
+        {}
 
-        constexpr iterator( string_view_type s, CharT d ) noexcept
-            : remaining_{ s }, delim_{ d }
+        constexpr iterator(string_view_type s, CharT d) noexcept
+          : remaining_{ s }, current_{}, delim_{ d }, done_{ false }
         {
-            next();                                              // position on first token
+            next();
         }
-
+        
         /* dereference -------------------------------------------------------*/
         [[nodiscard]] constexpr reference operator*()  const noexcept { return current_; }
         [[nodiscard]] constexpr pointer   operator->() const noexcept { return &current_; }

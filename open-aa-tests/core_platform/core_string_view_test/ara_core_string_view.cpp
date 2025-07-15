@@ -66,6 +66,24 @@ static constexpr std::uint8_t       kMaxProcessName{15};
 
 using namespace ara::core::literals::string_view_literals;
 
+/* --------------------------------------------------------------------------
+ *  String-view compile-time data kept at TU scope so that it is initialised
+ *  during constant-initialisation (allowed in C++17) instead of inside a
+ *  function body (not allowed before C++20 if the object’s address is taken).
+ * --------------------------------------------------------------------------*/
+namespace
+{
+    /* used by TestConstruction() */
+    constexpr char kCompileTimeStr[]  = "Compile Time";
+
+    /* used by TestStringOperations() */
+    constexpr char kConstexprOpsStr[] = "Constexpr String";
+
+    /* used by TestSearchingOperations(), TestCpp26Features(), … */
+    constexpr char kSearchStr[]       = "Compile time search";
+    constexpr char kCpp26Str[]        = "Compile time C++26";
+}
+
 /**********************************************************************************************************************
  *  UTILITY FUNCTIONS
  *********************************************************************************************************************/
@@ -83,7 +101,11 @@ public:
     PerfTimer() : start_(Clock::now()) {}
     
     [[nodiscard]] auto elapsed() const -> double {
-        return Duration(Clock::now() - start_).count();
+        using namespace std::chrono;
+        // 1. cast the difference to integral microseconds
+        auto us = duration_cast<microseconds>(Clock::now() - start_).count();
+        // 2. convert to double for the public API
+        return static_cast<double>(us);
     }
     
     void reset() { start_ = Clock::now(); }
@@ -359,9 +381,9 @@ void TestConstruction()
 
     PrintSubTest("Compile-time Construction");
     {
-        static constexpr const char cstr[] = "Compile Time";
-        constexpr ara::core::StringView sv1(cstr);
-        constexpr ara::core::StringView sv2(cstr, 7); // "Compile"
+        constexpr ara::core::StringView sv1(kCompileTimeStr,
+                                            sizeof(kCompileTimeStr) - 1);
+        constexpr ara::core::StringView sv2(kCompileTimeStr, 7);   // "Compile"
         
         static_assert(sv1.size() == 12, "Constexpr size failed");
         static_assert(sv1[0] == 'C', "Constexpr element access failed");
@@ -774,8 +796,8 @@ void TestStringOperations()
 
     PrintSubTest("Compile-time String Operations");
     {
-        static constexpr const char str[] = "Constexpr String";
-        constexpr ara::core::StringView sv(str);
+        constexpr ara::core::StringView sv(kConstexprOpsStr,
+                                            sizeof(kConstexprOpsStr) - 1);
         
         // substr
         constexpr auto sub = sv.substr(10, 6);
@@ -931,9 +953,9 @@ void TestSearchingOperations()
 
     PrintSubTest("Compile-time Searching");
     {
-        static constexpr const char str[] = "Compile time search";
-        constexpr ara::core::StringView sv(str);
-        
+        constexpr ara::core::StringView sv(kSearchStr,
+                                            sizeof(kSearchStr) - 1);
+
         // find
         static_assert(sv.find('t') == 8, "Constexpr find char failed");
         static_assert(sv.find("time") == 8, "Constexpr find string failed");
@@ -1141,9 +1163,9 @@ void TestCpp26Features()
 
     PrintSubTest("Compile-time C++26 Features");
     {
-        static constexpr const char str[] = "Compile time C++26";
-        constexpr ara::core::StringView sv(str);
-        
+        constexpr ara::core::StringView sv(kCpp26Str,
+                                            sizeof(kCpp26Str) - 1);
+
         // starts_with
         static_assert(sv.starts_with("Compile"), "Constexpr starts_with failed");
         static_assert(sv.starts_with('C'), "Constexpr starts_with char failed");
@@ -1604,7 +1626,7 @@ void TestRangesSupport()
         assert(words[2] == "Support");
         
         // Transform to uppercase
-        auto to_upper = [](char c) -> char { 
+        auto to_upper = [](char c) noexcept -> char { 
             return static_cast<char>(std::toupper(static_cast<unsigned char>(c))); 
         };
         auto upper_view = ara::core::ranges::transform(sv, to_upper);

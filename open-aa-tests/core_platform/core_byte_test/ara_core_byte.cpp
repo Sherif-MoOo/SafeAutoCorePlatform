@@ -67,7 +67,11 @@ public:
     PerfTimer() : start_(Clock::now()) {}
     
     [[nodiscard]] auto elapsed() const -> double {
-        return Duration(Clock::now() - start_).count();
+        using namespace std::chrono;
+        // 1. cast the difference to integral microseconds
+        auto us = duration_cast<microseconds>(Clock::now() - start_).count();
+        // 2. convert to double for the public API
+        return static_cast<double>(us);
     }
     
     void reset() { start_ = Clock::now(); }

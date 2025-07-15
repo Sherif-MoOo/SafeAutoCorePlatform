@@ -167,9 +167,13 @@ auto DemoManager::RunManager() noexcept -> std::uint8_t
 
         /* Compute remaining time in the cycle */
         auto elapsed_time   = std::chrono::steady_clock::now() - start_time;
-        auto remaining_time = std::chrono::milliseconds(kRunningCycle) - elapsed_time;
+        using namespace std::chrono;
+        using namespace std::chrono_literals; 
+        
+        constexpr auto kRunningPeriod = kRunningCycle * 1ms;
+        auto           remaining_time = kRunningPeriod - elapsed_time;
 
-        if (remaining_time > std::chrono::milliseconds(0)) {
+        if (remaining_time > std::chrono::milliseconds::zero()) {
             /* Wait until next tick *or* until the shutdown flag is published */
             thread_running = !shutdown_notifier_.wait_for(
                 lock,

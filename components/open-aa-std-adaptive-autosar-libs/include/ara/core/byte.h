@@ -332,8 +332,8 @@ public:
             }
         }
         value_ = static_cast<underlying_type>(
-            static_cast<underlying_type>(value_ << (static_cast<unsigned>(shift) & 0x7u))
-        );
+            value_ << (static_cast<unsigned>(shift) & 0x7u));
+            
         return *this;
     }
 
@@ -384,8 +384,8 @@ public:
         }
 
         value_ = static_cast<underlying_type>(
-            static_cast<underlying_type>(value_ >> (static_cast<unsigned>(shift) & 0x7u))
-        );
+            value_ >> (static_cast<unsigned>(shift) & 0x7u));
+            
         return *this;
     }
 
