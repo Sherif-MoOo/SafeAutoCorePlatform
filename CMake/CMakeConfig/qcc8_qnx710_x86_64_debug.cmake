@@ -403,7 +403,6 @@ string(APPEND OPENAA_C_FLAGS_DEBUG " -Wswitch-bool")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Wswitch-unreachable")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Wdate-time")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Wtrampolines")
-string(APPEND OPENAA_C_FLAGS_DEBUG " -Wplacement-new=2")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Wstrict-overflow=1")
 
 
@@ -562,10 +561,6 @@ string(APPEND OPENAA_C_FLAGS_DEBUG " -Wstrict-overflow=1")
 # -Wtrampolines: Trampoline function warnings
 #   • Example: Function pointer to a trampoline function
 #   • Safety: Prevents misuse of function pointers
-#
-# -Wplacement-new=2: Placement new warnings
-#   • Example: new (ptr) MyClass(); → warning if ptr not aligned
-#   • Safety: Ensures proper memory alignment
 #
 # -WStrict-overflow=1: Strict aliasing assumptions
 #   • Example: int x=5; if(x+1>5) { /* x is not modified */ }
@@ -732,6 +727,7 @@ string(APPEND OPENAA_CXX_FLAGS_DEBUG " -Wdelete-non-virtual-dtor")
 string(APPEND OPENAA_CXX_FLAGS_DEBUG " -Woverloaded-virtual")
 string(APPEND OPENAA_CXX_FLAGS_DEBUG " -Wsuggest-override")
 string(APPEND OPENAA_CXX_FLAGS_DEBUG " -Wnon-virtual-dtor")
+string(APPEND OPENAA_CXX_FLAGS_DEBUG " -Wplacement-new=2")
 string(APPEND OPENAA_CXX_FLAGS_DEBUG " -Wold-style-cast")
 string(APPEND OPENAA_CXX_FLAGS_DEBUG " -Wuseless-cast")
 string(APPEND OPENAA_CXX_FLAGS_DEBUG " -Wsign-promo")
@@ -768,6 +764,10 @@ string(APPEND OPENAA_CXX_FLAGS_DEBUG " -Wnoexcept")
 #   • Example: class Base { void f(); }; → add virtual ~Base()
 #   • Fix: Add virtual destructor to base class
 #   • Note: C++11 requires virtual destructors for polymorphic classes
+#
+# -Wplacement-new=2: Placement new warnings
+#   • Example: new (ptr) MyClass(); → warning if ptr not aligned
+#   • Safety: Ensures proper memory alignment
 #
 # -Wnon-virtual-dtor: Polymorphic class needs virtual dtor
 #   • Safety: Prevents slicing, memory leaks
