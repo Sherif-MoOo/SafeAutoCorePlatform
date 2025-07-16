@@ -378,7 +378,6 @@ string(APPEND OPENAA_C_FLAGS_DEBUG " -Wdate-time")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Wtrampolines")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Wplacement-new=2")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Wstrict-overflow=1")
-string(APPEND OPENAA_C_FLAGS_DEBUG " -Wtraditional-conversion")
 
 
 # Warning flag details (ZERO runtime impact):
@@ -560,6 +559,33 @@ string(APPEND OPENAA_C_FLAGS_DEBUG " -Wstrict-prototypes")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Wbad-function-cast")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Wold-style-definition")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Wmissing-declarations")
+string(APPEND OPENAA_C_FLAGS_DEBUG " -Wtraditional-conversion")
+
+# C-specific warning details:
+# -Wmissing-prototypes: Function needs prototype
+#   • Example: int func() {} → warning (add prototype)
+#   • Safety: Ensures callers/implementation match
+#
+# -Wstrict-prototypes: Prototype must list parameters
+#   • Example: int func(); → warning (use int func(void))
+#   • C: Empty parens mean "any args" not "no args"
+#
+# -Wbad-function-cast: Function pointer cast issues
+#   • Example: int (*f)() = (int (*)())0x1234; → warning
+#   • Safety: Prevents invalid function pointer casts
+#
+# -Wold-style-definition: No K&R definitions
+#   • Example: int func(x) int x; {} → warning
+#   • Modern: Use int func(int x) {}
+#
+# -Wmissing-declarations: Global needs declaration
+#   • Example: int func() {} → warning if no prior declaration
+#   • Catches: Spelling mismatches, missing headers
+#
+# -Wtraditional-conversion: Traditional C conversion warnings
+#   • Example: int x=5; float y=x; → warning (C99 requires explicit cast)
+#   • Safety: Prevents implicit conversions that may lose precision
+#   • Performance: Zero overhead (compile-time only)
 
 # ╔════════════════════════════════════════════════════════════════════╗
 # ║                    RUNTIME HARDENING FLAGS                         ║

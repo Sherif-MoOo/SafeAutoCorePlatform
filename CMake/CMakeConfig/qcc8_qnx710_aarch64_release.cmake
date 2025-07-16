@@ -513,7 +513,6 @@ string(APPEND OPENAA_C_FLAGS " -Wdate-time")
 string(APPEND OPENAA_C_FLAGS " -Wtrampolines")
 string(APPEND OPENAA_C_FLAGS " -Wplacement-new=2")
 string(APPEND OPENAA_C_FLAGS " -Wstrict-overflow=1")
-string(APPEND OPENAA_C_FLAGS " -Wtraditional-conversion")
 
 
 # Warning flag details (ZERO runtime impact):
@@ -676,11 +675,6 @@ string(APPEND OPENAA_C_FLAGS " -Wtraditional-conversion")
 #   • Example: int x=5; if(x+1>5) { /* x is not modified */ }
 #   • Performance: Allows more aggressive optimizations
 #   • Safety: Ensures no undefined behavior from aliasing
-#
-# -Wtraditional-conversion: Traditional C conversion warnings
-#   • Example: int x=5; float y=x; → warning (C99 requires explicit cast)
-#   • Safety: Prevents implicit conversions that may lose precision
-#   • Performance: Zero overhead (compile-time only)
 
 # C-specific warnings
 string(APPEND OPENAA_C_FLAGS " -Wnested-externs")
@@ -690,6 +684,7 @@ string(APPEND OPENAA_C_FLAGS " -Wstrict-prototypes")
 string(APPEND OPENAA_C_FLAGS " -Wbad-function-cast")
 string(APPEND OPENAA_C_FLAGS " -Wold-style-definition")
 string(APPEND OPENAA_C_FLAGS " -Wmissing-declarations")
+string(APPEND OPENAA_C_FLAGS " -Wtraditional-conversion")
 
 # C-specific warning details:
 # -Wmissing-prototypes: Function needs prototype
@@ -711,6 +706,12 @@ string(APPEND OPENAA_C_FLAGS " -Wmissing-declarations")
 # -Wmissing-declarations: Global needs declaration
 #   • Example: int func() {} → warning if no prior declaration
 #   • Catches: Spelling mismatches, missing headers
+#
+# -Wtraditional-conversion: Traditional C conversion warnings
+#   • Example: int x=5; float y=x; → warning (C99 requires explicit cast)
+#   • Safety: Prevents implicit conversions that may lose precision
+#   • Performance: Zero overhead (compile-time only)
+
 
 # ╔════════════════════════════════════════════════════════════════════╗
 # ║                 PROCESSOR-SPECIFIC TUNING                          ║
