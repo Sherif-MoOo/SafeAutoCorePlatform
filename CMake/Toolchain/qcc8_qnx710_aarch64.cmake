@@ -29,13 +29,11 @@ if((NOT DEFINED ENV{QNX_HOST}) OR (NOT DEFINED ENV{QNX_TARGET}))
 $ source /path/to/qnxsdp-env.sh\n")
 endif()
 
-# ---------------------------------------------------------------------------
+#==========================================================================================
 # Import environment -> cache vars (MUST precede any use of QNX_HOST/QNX_TARGET)
-# ---------------------------------------------------------------------------
+#==========================================================================================
 set(QNX_HOST   "$ENV{QNX_HOST}"   CACHE PATH "QNX SDP host directory"   FORCE)
 set(QNX_TARGET "$ENV{QNX_TARGET}" CACHE PATH "QNX SDP target directory" FORCE)
-message(STATUS "QNX_HOST   = ${QNX_HOST}")
-message(STATUS "QNX_TARGET = ${QNX_TARGET}")
 
 #==========================================================================================
 # System Properties

@@ -32,6 +32,12 @@ $ source /path/to/qnxsdp-env.sh\n")
 endif()
 
 #==========================================================================================
+# Import environment -> cache vars (MUST precede any use of QNX_HOST/QNX_TARGET)
+#==========================================================================================
+set(QNX_HOST   "$ENV{QNX_HOST}"   CACHE PATH "QNX SDP host directory"   FORCE)
+set(QNX_TARGET "$ENV{QNX_TARGET}" CACHE PATH "QNX SDP target directory" FORCE)
+
+#==========================================================================================
 # System Properties
 # ------------------
 # Defines the system version, name, and target processor architecture. This is critical
@@ -62,26 +68,73 @@ set(CMAKE_C_COMPILER   qcc)
 set(CMAKE_CXX_COMPILER q++)
 set(CMAKE_C_COMPILER_TARGET   "12.2.0,gcc_ntox86_64")
 set(CMAKE_CXX_COMPILER_TARGET "12.2.0,gcc_ntox86_64_cxx")
-set(CMAKE_ASM_COMPILER        ${CMAKE_C_COMPILER}            CACHE FILEPATH "" FORCE)
-set(CMAKE_ASM_COMPILER_TARGET ${CMAKE_C_COMPILER_TARGET}     CACHE STRING   "" FORCE)
+
+# Use qcc front-end for ASM as well (common for QNX)
+set(CMAKE_ASM_COMPILER        ${CMAKE_C_COMPILER}        CACHE FILEPATH "" FORCE)
+set(CMAKE_ASM_COMPILER_TARGET ${CMAKE_C_COMPILER_TARGET} CACHE STRING   "" FORCE)
 
 #==========================================================================================
-# Toolchain Utilities
-# -------------------
-# Define paths for nm, objdump, ar, ranlib and enable LTO.
+# Toolchain Utilities (host-side cross tools that produce target objects)
+# TOOL ROLES (quick ref):
+#   • CMAKE_MAKE_PROGRAM : Build driver (GNU make from QNX host; optional but explicit).
+#   • CMAKE_AR           : Create/update static archives (.a).
+#   • CMAKE_RANLIB       : Generate archive symbol index (ranlib table) for fast linking.
+#   • CMAKE_NM           : List/inspect symbols (used by tooling, diagnostics, LTO steps).
+#   • CMAKE_OBJCOPY      : Copy/transform objects; strip sections; binary extraction.
+#   • CMAKE_OBJDUMP      : Disassemble / dump ELF headers & reloc info (debug builds).
+#   • CMAKE_LINKER       : Low-level linker (usually invoked by qcc, but exposed for edge cases).
+#   • CMAKE_STRIP        : Remove symbols/debug info from target binaries when size matters.
 #==========================================================================================
-find_program(CMAKE_NM   nm HINTS $ENV{QNX_HOST}/usr/bin)
-find_program(CMAKE_OBJDUMP objdump HINTS $ENV{QNX_HOST}/usr/bin)
+set(_QNX_ARCH "x86_64")
+set(_QNX_BIN  "${QNX_HOST}/usr/bin")
 
-# Use QNX archiver and ranlib if available
-find_program(CMAKE_AR    ar HINTS $ENV{QNX_HOST}/usr/bin)
-find_program(CMAKE_RANLIB ranlib HINTS $ENV{QNX_HOST}/usr/bin)
+set(CMAKE_MAKE_PROGRAM "${_QNX_BIN}/make"                        CACHE FILEPATH "QNX make Program"    FORCE)
+set(CMAKE_AR           "${_QNX_BIN}/nto${_QNX_ARCH}-ar"          CACHE FILEPATH "QNX ar Program"      FORCE)
+set(CMAKE_RANLIB       "${_QNX_BIN}/nto${_QNX_ARCH}-ranlib"      CACHE FILEPATH "QNX ranlib Program"  FORCE)
+set(CMAKE_NM           "${_QNX_BIN}/nto${_QNX_ARCH}-nm"          CACHE FILEPATH "QNX nm Program"      FORCE)
+set(CMAKE_OBJCOPY      "${_QNX_BIN}/nto${_QNX_ARCH}-objcopy"     CACHE FILEPATH "QNX objcopy Program" FORCE)
+set(CMAKE_OBJDUMP      "${_QNX_BIN}/nto${_QNX_ARCH}-objdump"     CACHE FILEPATH "QNX objdump Program" FORCE)
+set(CMAKE_LINKER       "${_QNX_BIN}/nto${_QNX_ARCH}-ld"          CACHE FILEPATH "QNX linker Program"  FORCE)
+set(CMAKE_STRIP        "${_QNX_BIN}/nto${_QNX_ARCH}-strip"       CACHE FILEPATH "QNX strip Program"   FORCE)
 
-# Disable response files for object files if CMake version >= 3.23
+#==========================================================================================
+# FATAL VALIDATION OF TOOL PATHS
+#==========================================================================================
+set(_QNX_MISSING_TOOLS "")
+foreach(_t MAKE_PROGRAM AR RANLIB NM OBJCOPY OBJDUMP LINKER STRIP)
+    set(_tool_path "${CMAKE_${_t}}")
+    if(NOT _tool_path)
+        string(APPEND _QNX_MISSING_TOOLS "  - CMAKE_${_t} is empty (expected QNX host tool)\n")
+    elseif(NOT EXISTS "${_tool_path}")
+        string(APPEND _QNX_MISSING_TOOLS "  - ${_tool_path} (CMAKE_${_t}) does NOT exist.\n")
+    elseif(IS_DIRECTORY "${_tool_path}")
+        string(APPEND _QNX_MISSING_TOOLS "  - ${_tool_path} is a directory (CMAKE_${_t}).\n")
+    endif()
+endforeach()
+
+if(_QNX_MISSING_TOOLS)
+    message(FATAL_ERROR
+        "QNX toolchain verification failed.\n"
+        "Missing/invalid host-side cross tools:\n"
+        "${_QNX_MISSING_TOOLS}\n"
+        "Environment:\n"
+        "  QNX_HOST   = ${QNX_HOST}\n"
+        "  QNX_TARGET = ${QNX_TARGET}\n"
+        "Arch prefix: _QNX_ARCH='${_QNX_ARCH}'\n"
+        "Did you source the correct qnxsdp-env.sh? Wrong arch?\n"
+    )
+endif()
+unset(_QNX_MISSING_TOOLS)
+
+#==========================================================================================
+# Response file suppression (optional)
+#==========================================================================================
 if(CMAKE_VERSION GREATER_EQUAL 3.23)
     set(CMAKE_C_USE_RESPONSE_FILE_FOR_OBJECTS FALSE)
     set(CMAKE_CXX_USE_RESPONSE_FILE_FOR_OBJECTS FALSE)
 endif()
 
-# Set the system root to QNX target
-set(CMAKE_SYSROOT $ENV{QNX_TARGET})
+#==========================================================================================
+# Sysroot
+#==========================================================================================
+set(CMAKE_SYSROOT "${QNX_TARGET}")
