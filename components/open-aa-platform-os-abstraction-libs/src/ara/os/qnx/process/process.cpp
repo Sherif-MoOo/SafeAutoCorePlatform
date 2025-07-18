@@ -21,48 +21,47 @@
 #include <unistd.h>     // For readlink()
 #include <cstring>      // For std::strncpy, std::strlen, std::strrchr
 #include <cstddef>      // For std::size_t
+#include <fcntl.h>
+#include <sys/param.h>   // PATH_MAX on QNX
 
 namespace ara {
 namespace os {
 namespace qnx {
 namespace process {
 
-auto ProcessQnxImpl::GetProcessNameImpl(char* buffer,
-                                        std::size_t bufferSize) const noexcept
-    -> ara::os::interface::process::ErrorCode
+auto ProcessQnxImpl::GetProcessNameImpl(char*             buffer,
+                                        std::size_t       bufferSize) const noexcept
+        -> ara::os::interface::process::ErrorCode
 {
     using ErrorCode = ara::os::interface::process::ErrorCode;
 
-    // 1. Validate input parameters.
-    if (buffer == nullptr) {
-        return ErrorCode::NullBuffer;
-    }
-    if (bufferSize == 0) {
+    if (buffer == nullptr)      { return ErrorCode::NullBuffer;      }
+    if (bufferSize == 0U)       { return ErrorCode::BufferTooSmall;  }
+
+    constexpr char kExeFilePath[] = "/proc/self/exefile";
+
+    constexpr std::size_t kTmpSize = PATH_MAX;
+    char                  tmp[kTmpSize]   = {0};
+
+    int fd = ::open(kExeFilePath, O_RDONLY);
+    if (fd == -1)                 { return ErrorCode::RetrievalFailed; }
+
+    ssize_t n = ::read(fd, tmp, kTmpSize - 1);
+    ::close(fd);
+
+    if (n <= 0)                   { return ErrorCode::RetrievalFailed; }
+    tmp[static_cast<std::size_t>(n)] = '\0';
+
+    const char* base = std::strrchr(tmp, '/');
+    base = (base ? base + 1 : tmp);
+
+    std::size_t nameLen = std::strlen(base);
+    if (nameLen + 1U > bufferSize) {
         return ErrorCode::BufferTooSmall;
     }
 
-    // 2. Read the symbolic link "/proc/self/exefile".
-    constexpr std::size_t tempBufferSize = 1024;
-    char tempBuffer[tempBufferSize] = {0};
-    ssize_t len = readlink("/proc/self/exefile", tempBuffer, tempBufferSize - 1);
-    if (len < 0) {
-        return ErrorCode::RetrievalFailed;
-    }
-    tempBuffer[len] = '\0';  // Ensure null termination.
-
-    // 3. Extract the basename from the full path.
-    const char* baseName = std::strrchr(tempBuffer, '/');
-    baseName = (baseName != nullptr) ? (baseName + 1) : tempBuffer;
-
-    // 4. Determine the length of the basename.
-    std::size_t nameLength = std::strlen(baseName);
-    if (nameLength + 1 > bufferSize) {
-        return ErrorCode::BufferTooSmall;
-    }
-
-    // 5. Copy the basename safely into the provided buffer.
-    std::strncpy(buffer, baseName, bufferSize - 1);
-    buffer[bufferSize - 1] = '\0';  // Guarantee null termination.
+    std::memcpy(buffer, base, nameLen);
+    buffer[nameLen] = '\0';
 
     return ErrorCode::Success;
 }
