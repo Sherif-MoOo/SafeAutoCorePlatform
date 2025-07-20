@@ -332,7 +332,7 @@ public:
             }
         }
         value_ = static_cast<underlying_type>(
-            value_ << (static_cast<unsigned>(shift) & 0x7u));
+            value_ << (static_cast<unsigned>(shift)));
             
         return *this;
     }
@@ -384,7 +384,7 @@ public:
         }
 
         value_ = static_cast<underlying_type>(
-            value_ >> (static_cast<unsigned>(shift) & 0x7u));
+            value_ >> (static_cast<unsigned>(shift)));
             
         return *this;
     }
@@ -755,7 +755,7 @@ private:
         }
     }
     return Byte{static_cast<std::uint8_t>(
-        static_cast<std::uint8_t>(b) << (static_cast<unsigned>(shift) & 0x7u))};
+        static_cast<std::uint8_t>(b) << (static_cast<unsigned>(shift)))};
 }
 
 /*!
@@ -804,7 +804,7 @@ template <typename T,
         }
     }
     return Byte{static_cast<std::uint8_t>(
-        static_cast<std::uint8_t>(b) >> (static_cast<unsigned>(shift) & 0x7u))};
+        static_cast<std::uint8_t>(b) >> (static_cast<unsigned>(shift)))};
 }
 
 /*!
@@ -1176,6 +1176,9 @@ private:
     }
 
 public:
+
+    parse_byte() = delete;
+
     static constexpr std::uint16_t raw = compute();
 
     /* one assert per failure-code – evaluated exactly once per literal -----*/
