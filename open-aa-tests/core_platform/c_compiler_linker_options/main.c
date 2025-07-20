@@ -25,7 +25,6 @@
  *              The program echoes stdin, emits a 5000 ms tick, shows background
  *              random status, and terminates gracefully on SIGINT/SIGTERM.
  **********************************************************************************************************************/
-#define _GNU_SOURCE            /* GNU & POSIX‑2008 goodies (safe on QNX) */
 #define _POSIX_C_SOURCE 200809L /* exposes sigaction, O_CLOEXEC, CLOCK_* … */
 
 /**********************************************************************************************************************

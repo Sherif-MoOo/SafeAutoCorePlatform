@@ -545,6 +545,13 @@ public:
      * - Validates size compatibility
      *
      * \note Only available for const element types as initializer_list is immutable
+     * \note good compiler options could catch it
+     * e.g: ara::core::Span<const int> s1 = {1, 2, 3, 4, 5};
+     *  error: may be used uninitialized [-Werror=maybe-uninitialized]
+     *  for (int val : s1) {
+     * e.g: ara::core::Span<const int, 3> s1 = {10, 20, 30};
+     * error: is used uninitialized [-Werror=uninitialized]
+        for (int val : s1) {
      */
     template<
         typename U = element_type,

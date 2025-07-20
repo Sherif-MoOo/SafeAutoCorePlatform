@@ -373,6 +373,9 @@ private:
     [[nodiscard]] static auto test(...) noexcept -> std::false_type;
 
 public:
+    /* Delete the default constructor to prevent instantiation */
+    is_brace_initializable_array() = delete;
+
     /* Integral constant type: std::true_type or std::false_type */
     using type = decltype(test<T[N]>(0));
 

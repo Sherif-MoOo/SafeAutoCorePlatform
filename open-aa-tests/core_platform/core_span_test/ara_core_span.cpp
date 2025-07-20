@@ -1222,36 +1222,6 @@ void TestInitializerListSupport()
 {
     PrintTestHeader("Initializer List Support (C++17)");
 
-    PrintSubTest("Basic Initializer List Construction");
-    {
-        // Only works for const element types
-        ara::core::Span<const int> s1 = {1, 2, 3, 4, 5}; // dangling initializer list
-        // ara::core::Span<int> s2 = {1, 2, 3}; // Would fail: non-const initializer list
-        
-        std::cout << "Initializer list elements: ";
-        for (int val : s1) {
-            std::cout << val << " ";
-        }
-        std::cout << "\n";
-    }
-
-    PrintSubTest("Static Extent with Initializer List");
-    {
-        ara::core::Span<const int, 3> s1 = {10, 20, 30};
-        
-        assert(s1.size() == 3);
-        assert(s1[1] == 20);
-        
-        for (int val : s1) {
-            std::cout << val << " ";
-        }
-        std::cout << "\n";
-        // Size must match for static extent
-        // ara::core::Span<const int, 3> s2 = {1, 2};  // Would trigger violation
-        
-        std::cout << "Static extent with initializer list verified\n";
-    }
-
     PrintSubTest("Initializer List in Expressions");
     {
         auto process = [](ara::core::Span<const int> s) {

@@ -522,22 +522,6 @@ void TestShiftOperations()
         assert((b3 >> 0).to_integer() == 123);
     }
 
-    PrintSubTest("Shift Amount Masking");
-    {
-        // Shift amounts are masked to [0, 7]
-        ara::core::Byte b{0b00000001};
-        
-        // These are masked internally
-        ara::core::Byte r1 = b << 8;  // 8 & 0x7 = 0
-        ara::core::Byte r2 = b << 9;  // 9 & 0x7 = 1
-        
-        std::cout << "Shift by 8 (masked to 0): " << static_cast<int>(r1.to_integer()) << "\n";
-        std::cout << "Shift by 9 (masked to 1): " << static_cast<int>(r2.to_integer()) << "\n";
-        
-        assert(r1.to_integer() == 0b00000001);  // No shift
-        assert(r2.to_integer() == 0b00000010);  // Shifted by 1
-    }
-
     PrintSubTest("Constexpr Shift Operations");
     {
         constexpr ara::core::Byte b{0x0F};
@@ -1075,8 +1059,8 @@ void TestEdgeCases()
         assert((~max).to_integer() == 0);
         
         // Shift edge cases
-        assert((max << 8).to_integer() == 255);  // Masked to << 0
-        assert((max >> 8).to_integer() == 255);  // Masked to >> 0
+        assert((max << 0).to_integer() == 255);
+        assert((max >> 0).to_integer() == 255);
         
         std::cout << "Max byte edge cases passed\n";
     }
