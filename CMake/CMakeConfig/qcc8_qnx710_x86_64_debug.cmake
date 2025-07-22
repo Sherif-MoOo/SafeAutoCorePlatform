@@ -164,22 +164,16 @@ string(APPEND OPENAA_C_FLAGS_DEBUG " -fno-optimize-sibling-calls")
 #   • Debugging: Every call visible in backtrace
 
 # ╔════════════════════════════════════════════════════════════════════╗
-# ║     QNX / POSIX FEATURE-TEST MACRO (HEADER-VISIBILITY CONTROL)    ║
+# ║     QNX / POSIX FEATURE-TEST MACRO (HEADER-VISIBILITY CONTROL)     ║
 # ╚════════════════════════════════════════════════════════════════════╝
 
 string(APPEND OPENAA_C_FLAGS_DEBUG " -D_QNX_SOURCE")
-string(APPEND OPENAA_C_FLAGS_DEBUG " -D_GNU_SOURCE")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -D_FORTIFY_SOURCE=2")
 
 # Feature macro details:
 # -D_QNX_SOURCE: Enable all QNX-specific features
 #   • Same as release build - needed for QNX APIs
 #   • Exposes: MsgSend, ChannelCreate, etc.
-#
-# -D_GNU_SOURCE: Enable GNU extensions
-#   • Purpose: Additional debugging helpers
-#   • Enables: backtrace(), dladdr(), etc.
-#   • Example: Better stack trace symbolication
 #
 # -D_FORTIFY_SOURCE=2: Runtime security checks
 #   • Protection: Buffer overflow detection
@@ -623,7 +617,6 @@ string(APPEND OPENAA_C_FLAGS_DEBUG " -fpie")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Wl,-z,relro")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Wl,-z,now")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Wl,-z,noexecstack")
-string(APPEND OPENAA_C_FLAGS_DEBUG " -Wl,-z,separate-code")
 
 # Runtime hardening details:
 # -fpie: Position Independent Executable
@@ -643,10 +636,7 @@ string(APPEND OPENAA_C_FLAGS_DEBUG " -Wl,-z,separate-code")
 # -Wl,-z,noexecstack: No executable stack
 #   • Security: W^X enforcement
 #   • Required: Modern security standard
-#
-# -Wl,-z,separate-code: Separate code/data
-#   • Security: Code never writable
-#   • Debug: Clear segment separation
+
 
 # ╔════════════════════════════════════════════════════════════════════╗
 # ║                    PROCESSOR-SPECIFIC DEBUG SETTINGS               ║
@@ -828,7 +818,6 @@ string(APPEND OPENAA_EXEC_LINKER_FLAGS_DEBUG " -pie")
 string(APPEND OPENAA_EXEC_LINKER_FLAGS_DEBUG " -Wl,-z,relro")
 string(APPEND OPENAA_EXEC_LINKER_FLAGS_DEBUG " -Wl,-z,now")
 string(APPEND OPENAA_EXEC_LINKER_FLAGS_DEBUG " -Wl,-z,noexecstack")
-string(APPEND OPENAA_EXEC_LINKER_FLAGS_DEBUG " -Wl,-z,separate-code")
 string(APPEND OPENAA_EXEC_LINKER_FLAGS_DEBUG " -Wl,-z,defs")
 
 # Debug-specific linker flags
@@ -908,13 +897,6 @@ endfunction()
 
 # Validate debug configuration
 validate_debug_safety()
-
-#=======================================================================
-# Debug Build Environment Setup
-#=======================================================================
-
-# Core dump settings
-set(CMAKE_ENABLE_EXPORTS ON CACHE BOOL "Enable symbol exports for debugging")
 
 #=======================================================================
 # Summary and Usage
