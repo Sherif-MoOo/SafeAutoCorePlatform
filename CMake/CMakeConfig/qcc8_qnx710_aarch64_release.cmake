@@ -1015,6 +1015,8 @@ string(APPEND OPENAA_EXEC_LINKER_FLAGS " -Wl,-z,now")
 string(APPEND OPENAA_EXEC_LINKER_FLAGS " -Wl,-z,noexecstack")
 string(APPEND OPENAA_EXEC_LINKER_FLAGS " -Wl,-z,separate-code")
 string(APPEND OPENAA_EXEC_LINKER_FLAGS " -Wl,-z,defs")
+string(APPEND OPENAA_EXEC_LINKER_FLAGS " -static")
+string(APPEND OPENAA_EXEC_LINKER_FLAGS " -Wl,-Bstatic")
 
 set(CMAKE_EXE_LINKER_FLAGS_INIT "${OPENAA_EXEC_LINKER_FLAGS}" CACHE STRING "Executable linker flags")
 

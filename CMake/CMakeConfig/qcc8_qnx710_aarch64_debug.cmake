@@ -329,19 +329,6 @@ string(APPEND OPENAA_C_FLAGS " -D_FORTIFY_SOURCE=2")
 #   • Catches: Buffer overflows, format string attacks
 
 # ╔════════════════════════════════════════════════════════════════════╗
-# ║       HARDWARE SECURITY FEATURES (ARM64 Cortex-A76)                ║
-# ╚════════════════════════════════════════════════════════════════════╝
-
-string(APPEND OPENAA_C_FLAGS " -mharden-sls=all")
-
-# Hardware security details:
-# -mharden-sls=all: Straight Line Speculation
-#   • Mitigates: Spectre-BTB attacks
-#   • Inserts: SB (speculation barrier) instructions
-#   • Coverage: After RET, indirect jumps
-#   • Overhead: 2-5% performance
-
-# ╔════════════════════════════════════════════════════════════════════╗
 # ║                    WARNING FLAGS (MAXIMUM)                         ║
 # ╚════════════════════════════════════════════════════════════════════╝
 
