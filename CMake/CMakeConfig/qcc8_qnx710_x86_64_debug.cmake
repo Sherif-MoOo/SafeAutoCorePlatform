@@ -370,6 +370,7 @@ string(APPEND OPENAA_C_FLAGS_DEBUG " -msse4.2")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Wall")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Wextra")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Werror")
+string(APPEND OPENAA_C_FLAGS_DEBUG " -Wpedantic")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Winit-self")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Walloc-zero")
 string(APPEND OPENAA_C_FLAGS_DEBUG " -Wformat-signedness")
@@ -418,6 +419,11 @@ string(APPEND OPENAA_C_FLAGS_DEBUG " -Wstrict-overflow=1")
 # -Werror: Warnings as errors
 #   • Purpose: Force fixing all issues
 #   • CI/CD: Prevents warning accumulation
+#
+# -Wpedantic: Strict ISO C compliance
+#   • Catches: Non-standard extensions
+#   • Example: GNU statement expressions
+#   • ISO 26262: Ensures portable code
 #
 # -Winit-self: Uninitialized self-assignment
 #   • Example: int x=x; → warning
