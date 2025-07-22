@@ -438,7 +438,7 @@ string(APPEND OPENAA_C_FLAGS " -frandom-seed=${DETERMINISTIC_BUILD_SEED}")
 string(APPEND OPENAA_C_FLAGS " -fno-delete-null-pointer-checks")
 string(APPEND OPENAA_C_FLAGS " -fstack-clash-protection")
 string(APPEND OPENAA_C_FLAGS " -fcf-protection=none")
-string(APPEND OPENAA_C_FLAGS " -fpie")
+string(APPEND OPENAA_C_FLAGS " -fno-pie")
 
 # Minimal safety feature details:
 # -frandom-seed=${DETERMINISTIC_BUILD_SEED}: Reproducible builds
@@ -465,11 +465,10 @@ string(APPEND OPENAA_C_FLAGS " -fpie")
 #   • Purpose: Explicitly disable x86-only feature
 #   • ARM64: No effect, but prevents warnings
 #
-# -fpie: Position Independent Executable
-#   • Purpose: Enable ASLR (Address Space Layout Randomization)
-#   • Example: Program loaded at random address each run
-#   • ARM64 overhead: <1% (PC-relative addressing)
-#   • Security: Prevents hardcoded address exploits
+# -fno-pie: Disable PIE for performance
+#   • Performance: Slightly faster startup
+#   • Use: When ASLR not required
+#   • QNX 8.0: Default is non-PIE
 
 # ╔════════════════════════════════════════════════════════════════════╗
 # ║                    WARNING FLAGS (Zero Overhead)                   ║
@@ -1010,7 +1009,7 @@ string(APPEND OPENAA_EXEC_LINKER_FLAGS " -Wl,--as-needed")
 string(APPEND OPENAA_EXEC_LINKER_FLAGS " -Wl,--hash-style=gnu")
 string(APPEND OPENAA_EXEC_LINKER_FLAGS " -Wl,--sort-common=descending")
 string(APPEND OPENAA_EXEC_LINKER_FLAGS " -Wl,--build-id=sha1")
-string(APPEND OPENAA_EXEC_LINKER_FLAGS " -pie")
+string(APPEND OPENAA_EXEC_LINKER_FLAGS " -Wl,-no-pie")
 string(APPEND OPENAA_EXEC_LINKER_FLAGS " -Wl,-z,relro")
 string(APPEND OPENAA_EXEC_LINKER_FLAGS " -Wl,-z,now")
 string(APPEND OPENAA_EXEC_LINKER_FLAGS " -Wl,-z,noexecstack")
@@ -1046,9 +1045,10 @@ set(CMAKE_EXE_LINKER_FLAGS_INIT "${OPENAA_EXEC_LINKER_FLAGS}" CACHE STRING "Exec
 #   • Debug: Maps crashes to exact binary
 #   • Size: 20-byte .note.gnu.build-id section
 #
-# -pie: Position Independent Executable
-#   • Security: Full ASLR randomization
-#   • ARM64: Near-zero overhead (PC-relative)
+# -no-pie: Disable PIE for performance
+#   • Performance: Slightly faster startup
+#   • Use: When ASLR not required
+#   • QNX 8.0: Default is non-PIE
 #
 # -Wl,-z,relro: Read-Only Relocations
 #   • Security: GOT/PLT read-only after startup

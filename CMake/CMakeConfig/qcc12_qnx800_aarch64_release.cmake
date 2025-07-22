@@ -517,7 +517,7 @@ string(APPEND OPENAA_C_FLAGS " -frandom-seed=${DETERMINISTIC_BUILD_SEED}")
 string(APPEND OPENAA_C_FLAGS " -fno-delete-null-pointer-checks")
 string(APPEND OPENAA_C_FLAGS " -fstack-clash-protection")
 string(APPEND OPENAA_C_FLAGS " -fcf-protection=none")
-string(APPEND OPENAA_C_FLAGS  " -fno-pie")
+string(APPEND OPENAA_C_FLAGS " -fno-pie")
 string(APPEND OPENAA_C_FLAGS " -ftrivial-auto-var-init=zero")
 
 # Minimal safety feature details (Enhanced in GCC 12):
