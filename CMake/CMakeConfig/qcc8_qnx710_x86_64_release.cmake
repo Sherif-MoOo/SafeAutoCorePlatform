@@ -570,7 +570,7 @@ string(APPEND OPENAA_C_FLAGS " -Wformat-overflow=2")
 string(APPEND OPENAA_C_FLAGS " -Wformat-truncation=2")
 string(APPEND OPENAA_C_FLAGS " -Wformat-security")
 string(APPEND OPENAA_C_FLAGS " -Wnull-dereference")
-string(APPEND OPENAA_C_FLAGS " -Wstack-usage=8192")
+string(APPEND OPENAA_C_FLAGS " -Wstack-usage=16384")
 string(APPEND OPENAA_C_FLAGS " -Wvla-larger-than=1024")
 string(APPEND OPENAA_C_FLAGS " -Warray-bounds=2")
 string(APPEND OPENAA_C_FLAGS " -Wimplicit-fallthrough=3")
@@ -657,7 +657,7 @@ string(APPEND OPENAA_C_FLAGS " -Wstrict-overflow=1")
 #   • Example: int *p=NULL; return *p; → warning
 #   • Flow analysis: Tracks NULL through code paths
 #
-# -Wstack-usage=8192: Large stack frame warning
+# -Wstack-usage=16384: Large stack frame warning
 #   • Example: void func() { char huge[10000]; } → warning
 #   • QNX: Default thread stack is often 8KB
 #

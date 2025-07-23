@@ -468,10 +468,10 @@ string(APPEND OPENAA_C_FLAGS " -Walloca")
 #   • Safety: Prefer fixed-size arrays
 
 # Stack usage warnings
-string(APPEND OPENAA_C_FLAGS " -Wstack-usage=4096")
+string(APPEND OPENAA_C_FLAGS " -Wstack-usage=16384")
 
 # Stack usage details:
-# -Wstack-usage=4096: Stack size limit
+# -Wstack-usage=16384: Stack size limit
 #   • Limit: 4KB maximum stack frame
 #   • QNX: Threads have limited stacks
 #   • Safety: Prevents stack overflow

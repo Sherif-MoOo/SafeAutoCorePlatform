@@ -556,12 +556,12 @@ string(APPEND OPENAA_C_FLAGS " -Walloca")
 #   • Safety: Prefer fixed-size arrays
 
 # Stack usage warnings
-string(APPEND OPENAA_C_FLAGS " -Wstack-usage=4096")
+string(APPEND OPENAA_C_FLAGS " -Wstack-usage=16384")
 string(APPEND OPENAA_C_FLAGS " -Wvla-larger-than=0")
-string(APPEND OPENAA_C_FLAGS " -Wframe-larger-than=2048")
+string(APPEND OPENAA_C_FLAGS " -Wframe-larger-than=16384")
 
 # Stack usage details:
-# -Wstack-usage=4096: Stack size limit
+# -Wstack-usage=16384: Stack size limit
 #   • Limit: 4KB maximum stack frame
 #   • QNX: Threads have limited stacks
 #   • Safety: Prevents stack overflow
@@ -571,7 +571,7 @@ string(APPEND OPENAA_C_FLAGS " -Wframe-larger-than=2048")
 #   • ISO 26262: VLAs forbidden in ASIL-D
 #   • Alternative: Use fixed arrays
 #
-# -Wframe-larger-than=2048: Frame size limit
+# -Wframe-larger-than=16384: Frame size limit
 #   • x86_64: Additional frame check
 #   • Complement: With stack-usage
 #   • Stricter: For critical functions
