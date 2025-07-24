@@ -173,37 +173,37 @@
       }
     },
     {
-      "name": "clang21_linux_x86_64_release",
+      "name": "clang20_linux_x86_64_release",
       "inherits": "base_unix_makefiles",
-      "description": "Release build using clang21 for Linux x86_64",
-      "toolchainFile": "${sourceDir}/CMake/Toolchain/clang21_linux_x86_64.cmake",
+      "description": "Release build using clang20 for Linux x86_64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/clang20_linux_x86_64.cmake",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
     },
     {
-      "name": "clang21_linux_x86_64_debug",
+      "name": "clang20_linux_x86_64_debug",
       "inherits": "base_unix_makefiles",
-      "description": "Debug build using clang21 for Linux x86_64",
-      "toolchainFile": "${sourceDir}/CMake/Toolchain/clang21_linux_x86_64.cmake",
+      "description": "Debug build using clang20 for Linux x86_64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/clang20_linux_x86_64.cmake",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
       }
     },
     {
-      "name": "clang21_linux_aarch64_release",
+      "name": "clang20_linux_aarch64_release",
       "inherits": "base_unix_makefiles",
-      "description": "Release build using clang21 for Linux aarch64",
-      "toolchainFile": "${sourceDir}/CMake/Toolchain/clang21_linux_aarch64.cmake",
+      "description": "Release build using clang20 for Linux aarch64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/clang20_linux_aarch64.cmake",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
     },
     {
-      "name": "clang21_linux_aarch64_debug",
+      "name": "clang20_linux_aarch64_debug",
       "inherits": "base_unix_makefiles",
-      "description": "Debug build using clang21 for Linux aarch64",
-      "toolchainFile": "${sourceDir}/CMake/Toolchain/clang21_linux_aarch64.cmake",
+      "description": "Debug build using clang20 for Linux aarch64",
+      "toolchainFile": "${sourceDir}/CMake/Toolchain/clang20_linux_aarch64.cmake",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
       }

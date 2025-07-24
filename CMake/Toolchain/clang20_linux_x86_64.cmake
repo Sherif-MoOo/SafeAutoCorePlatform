@@ -5,20 +5,20 @@
 # CMake Toolchain File
 # --------------------
 # Purpose:
-#   This file configures the CMake build system to use clang/clang++ version 21 compilers
+#   This file configures the CMake build system to use clang/clang++ version 20 compilers
 #   specifically targeting Linux x86_64 architectures. It also sets up various
 #   build tools and utilities required during the build process, ensuring
 #   compatibility and proper configuration.
 #
 # Key Features:
-#   - Configures the Clang 21 toolchain for C and C++.
+#   - Configures the Clang 20 toolchain for C and C++.
 #   - Specifies tools for archiving, linking, and inspecting object files.
 #   - Configures `find` behavior for locating libraries, includes, and programs.
 #
 # Target Environment:
 #   - Operating System: Linux
 #   - Architecture: x86_64
-#   - Compiler: Clang/Clang++ version 21
+#   - Compiler: Clang/Clang++ version 20
 #==========================================================================================]
 
 #==========================================================================================
@@ -60,9 +60,9 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)   # Search includes only in the root
 # Specifies the C and C++ compilers to be used. Explicitly setting the clang version
 # ensures consistency, especially in environments with multiple compiler versions.
 #==========================================================================================
-set(CMAKE_C_COMPILER   clang-21)       # C compiler (Clang version 21)
-set(CMAKE_CXX_COMPILER clang++-21)     # C++ compiler (Clang++ version 21)
-set(CMAKE_ASM_COMPILER clang-21)       # ASM compiler (Clang version 21)
+set(CMAKE_C_COMPILER   clang-20)       # C compiler (Clang version 20)
+set(CMAKE_CXX_COMPILER clang++-20)     # C++ compiler (Clang++ version 20)
+set(CMAKE_ASM_COMPILER clang-20)       # ASM compiler (Clang version 20)
 
 #==========================================================================================
 # Archiver and Ranlib Settings
@@ -70,8 +70,8 @@ set(CMAKE_ASM_COMPILER clang-21)       # ASM compiler (Clang version 21)
 # Specifies the tools for creating and indexing static library archives. These tools
 # are crucial for managing `.a` files and ensuring fast linking during the build process.
 #==========================================================================================
-set(CMAKE_AR     llvm-ar-21     CACHE FILEPATH "Archiver for creating static libraries")
-set(CMAKE_RANLIB llvm-ranlib-21 CACHE FILEPATH "Ranlib for indexing static libraries")
+set(CMAKE_AR     llvm-ar-20     CACHE FILEPATH "Archiver for creating static libraries")
+set(CMAKE_RANLIB llvm-ranlib-20 CACHE FILEPATH "Ranlib for indexing static libraries")
 
 #==========================================================================================
 # Utility Tools
@@ -79,9 +79,9 @@ set(CMAKE_RANLIB llvm-ranlib-21 CACHE FILEPATH "Ranlib for indexing static libra
 # Specifies additional tools used for inspecting, copying, and dumping object files.
 # These tools are helpful for debugging and analyzing compiled code.
 #==========================================================================================
-set(CMAKE_NM      llvm-nm-21      CACHE FILEPATH "Tool for listing symbols in object files")
-set(CMAKE_OBJCOPY llvm-objcopy-21 CACHE FILEPATH "Tool for copying and translating object files")
-set(CMAKE_OBJDUMP llvm-objdump-21 CACHE FILEPATH "Tool for displaying object file details")
+set(CMAKE_NM      llvm-nm-20      CACHE FILEPATH "Tool for listing symbols in object files")
+set(CMAKE_OBJCOPY llvm-objcopy-20 CACHE FILEPATH "Tool for copying and translating object files")
+set(CMAKE_OBJDUMP llvm-objdump-20 CACHE FILEPATH "Tool for displaying object file details")
 
 #==========================================================================================
 # Clang-Specific Tools for LTO (Link-Time Optimization)
@@ -90,7 +90,7 @@ set(CMAKE_OBJDUMP llvm-objdump-21 CACHE FILEPATH "Tool for displaying object fil
 # advanced optimization techniques like Link-Time Optimization (LTO), ensuring compatibility
 # with Clang's intermediate representations.
 #==========================================================================================
-set(CMAKE_C_COMPILER_AR       llvm-ar-21     CACHE FILEPATH "Clang-specific archiver for C")
-set(CMAKE_C_COMPILER_RANLIB   llvm-ranlib-21 CACHE FILEPATH "Clang-specific ranlib for C")
-set(CMAKE_CXX_COMPILER_AR     llvm-ar-21     CACHE FILEPATH "Clang-specific archiver for C++")
-set(CMAKE_CXX_COMPILER_RANLIB llvm-ranlib-21 CACHE FILEPATH "Clang-specific ranlib for C++")
+set(CMAKE_C_COMPILER_AR       llvm-ar-20     CACHE FILEPATH "Clang-specific archiver for C")
+set(CMAKE_C_COMPILER_RANLIB   llvm-ranlib-20 CACHE FILEPATH "Clang-specific ranlib for C")
+set(CMAKE_CXX_COMPILER_AR     llvm-ar-20     CACHE FILEPATH "Clang-specific archiver for C++")
+set(CMAKE_CXX_COMPILER_RANLIB llvm-ranlib-20 CACHE FILEPATH "Clang-specific ranlib for C++")
