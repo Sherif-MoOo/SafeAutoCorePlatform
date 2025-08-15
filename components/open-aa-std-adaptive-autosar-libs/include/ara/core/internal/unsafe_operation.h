@@ -73,11 +73,28 @@ class Span;
 template<typename CharT, typename Traits>
 class BasicStringView;
 
+class Memory;
+
 template<typename CharT, typename Traits>
 constexpr auto char_find(const CharT* str, std::size_t count, CharT ch) noexcept -> const CharT*;
 
+template<typename CharT, typename Traits>
+constexpr auto char_compare(const CharT* s1, const CharT* s2, size_t count) noexcept -> int;
+
+template<typename CharT, typename Traits>
+constexpr auto char_search(
+    const CharT* first1, const CharT* last1,
+    const CharT* first2, const CharT* last2) noexcept -> const CharT*;
+
 template<class CharT, class Traits>
 constexpr auto str_len(const CharT* str) noexcept -> std::size_t;
+
+namespace internal {
+
+template<typename ValueType>
+class InputWithLocation;
+
+} // namespace internal
 
 /**********************************************************************************************************************
  *  NAMESPACE: ara::core::internal
@@ -110,8 +127,21 @@ private:
     template<typename ElementType, std::size_t Extent>
     friend class ara::core::Span;
 
+    friend class ara::core::Memory;
+
+    template<typename T>
+    friend class ara::core::internal::InputWithLocation;
+
     template<typename C, typename Tr>
     friend constexpr auto ara::core::char_find(const C* str, std::size_t count, C ch) noexcept -> const C*;
+
+    template<typename C, typename Tr>
+    friend constexpr auto ara::core::char_compare(const C* s1, const C* s2, size_t count) noexcept -> int;
+
+    template<typename C, typename Tr>
+    friend constexpr auto ara::core::char_search(
+        const C* first1, const C* last1,
+        const C* first2, const C* last2) noexcept -> const C*;
 
     template<class C, class Tr>
     friend constexpr auto ara::core::str_len(const C* str) noexcept -> std::size_t;
@@ -320,8 +350,8 @@ public:
         [[maybe_unused]] const UnsafeBufferToken& token,
         Func&& func,
         Args&&... args
-    ) noexcept(noexcept(func(std::forward<Args>(args)...)))
-    -> decltype(func(std::forward<Args>(args)...))
+    ) noexcept(noexcept(std::forward<Func>(func)(std::forward<Args>(args)...)))
+        -> decltype(std::forward<Func>(func)(std::forward<Args>(args)...))
     {
         // Check for null function pointer
         static_assert(
@@ -330,7 +360,7 @@ public:
         );
 
         ARA_CORE_UNSAFE_BUFFER_BEGIN
-        return func(std::forward<Args>(args)...);
+        return std::forward<Func>(func)(std::forward<Args>(args)...);
         ARA_CORE_UNSAFE_BUFFER_END
     }
 
