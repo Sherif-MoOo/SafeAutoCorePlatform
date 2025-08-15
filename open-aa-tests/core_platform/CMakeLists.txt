@@ -13,6 +13,8 @@
 #****************************************************************************************************
 add_subdirectory(c_compiler_linker_options)
 
+add_subdirectory(core_memory_test)
+
 add_subdirectory(core_array_test)
 
 add_subdirectory(core_abort_test)
